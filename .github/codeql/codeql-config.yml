@@ -10,16 +10,6 @@ query-filters:
         - core/watchful.py
         - utils/console_output.py
 
-# Paths to scan (Python source files only)
-paths:
-  - core
-  - api
-  - utils
-  - html_modules
-  - processing
-  - search_server.py
-  - reddarc.py
-
 # Paths to ignore (don't scan test files, vendored code, build artifacts)
 paths-ignore:
   - tests
