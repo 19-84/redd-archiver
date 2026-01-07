@@ -40,7 +40,7 @@ classifiers = [
 
 dependencies = [
     "psaw==0.1.0",
-    "psutil==6.1.1",
+    "psutil==7.2.1",
     "zstandard==0.23.0",
     "psycopg[binary,pool]==3.2.3",
     "jinja2==3.1.6",
