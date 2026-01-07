@@ -1,0 +1,77 @@
+# ============================================================================
+# Redd-Archiver Production Docker Compose Overrides
+# ============================================================================
+# This file provides production-specific configuration for HTTPS deployment
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# OR with profile (preferred):
+#   docker compose --profile production up -d
+#
+# ============================================================================
+
+version: '3.8'
+
+services:
+  nginx:
+    # Override to use HTTPS configuration
+    volumes:
+      - ${OUTPUT_PATH:-./output}:/usr/share/nginx/html:ro
+
+      # HTTPS configuration (replaces HTTP config)
+      - ./docker/nginx/nginx.conf.https.active:/etc/nginx/nginx.conf:ro
+
+      # Certbot webroot for Let's Encrypt challenges (read-only)
+      - certbot-webroot:/var/www/certbot:ro
+
+      # SSL certificates (read-only)
+      - certbot-certs:/etc/letsencrypt:ro
+
+    # Production resource limits (increased from development)
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '1'
+        reservations:
+          memory: 128m
+          cpus: '0.5'
+
+  certbot:
+    # Remove profile restriction to activate certbot in production mode
+    profiles: []
+
+  # ============================================================================
+  # Production Resource Limits for Other Services
+  # ============================================================================
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          cpus: '8'
+        reservations:
+          memory: 4g
+          cpus: '4'
+
+  search-server:
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '2'
+        reservations:
+          memory: 512m
+          cpus: '1'
+
+  reddarchiver-builder:
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4'
+        reservations:
+          memory: 2g
+          cpus: '2'

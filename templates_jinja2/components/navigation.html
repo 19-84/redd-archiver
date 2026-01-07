@@ -1,0 +1,43 @@
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    {% if subreddit %}
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    {% else %}
+    <a class="navbar-brand" href="{{ url_subs|default('index.html') }}">{{ site_name }}</a>
+    {% endif %}
+
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        {% if subreddit %}
+        {# Subreddit-specific navigation #}
+        <li class="nav-item {{ url_idx_score_css }}">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item {{ url_idx_cmnt_css }}">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item {{ url_idx_date_css }}">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        {% endif %}
+
+        <li class="nav-item {{ url_search_css }}">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>

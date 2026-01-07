@@ -1,0 +1,27 @@
+{# User comment component - for user profile pages #}
+{% from 'macros/reddit_macros.html' import user_link, distinguished_badge, edit_indicator %}
+
+<div class="link mt-3">
+    <h6 class="comment-context mb-1">
+        <small class="text-muted">
+            Comment on: <a href="{{ item.url_comments }}">{{ item.parent_post_title }}</a>
+        </small>
+    </h6>
+    <div class="comment-body mb-2 p-2 bg-light rounded">{{ item.body|safe }}</div>
+    <a href="{{ item.url_comments }}">
+        <span class="badge {{ item.score|score_class(score_ranges) }}"
+              title="Comment score: {{ item.score }}">
+            {{ item.score }}
+        </span>
+    </a>
+    <small class="text-muted">
+        <span {{ item.created_utc|date_tooltip }}>{{ item.created_utc|reddit_date }}</span>
+        <span {{ item|author_tooltip }}>{{ user_link(item.author, '../../') }}</span>
+        {% if item.author_flair_text %}
+            <span class="user-flair">{{ item.author_flair_text }}</span>
+        {% endif %}
+        {{ distinguished_badge(item) }}
+        {{ edit_indicator(item) }}
+        in <a href="{{ item.sub_url }}">{{ item.url_prefix }}/{{ item.subreddit }}</a>
+    </small>
+</div>

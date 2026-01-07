@@ -1,0 +1,72 @@
+{# Comment rendering macros with recursive tree support #}
+{% from 'macros/reddit_macros.html' import user_link, distinguished_badge, edit_indicator, awards_indicator %}
+
+{# Recursive comment tree macro #}
+{% macro render_comment(comment, depth, op_author, base_path, score_ranges) %}
+<details class="comment {{ comment.css_classes|default('') }}"
+         id="comment-{{ comment.id }}"
+         data-depth="{{ depth }}"
+         data-id="{{ comment.id }}"
+         {% if depth < 16 %}open{% endif %}>
+    <summary class="comment-header">
+        <span class="badge {{ comment.score|score_class(score_ranges) }}"
+              title="Comment score: {{ comment.score }}">
+            {{ comment.score }}
+        </span>
+        <span class="byline text-muted">
+            <span {{ comment|author_tooltip }}>
+                {{ user_link(comment.author, base_path) }}
+            </span>
+            {% if comment.author_flair_text %}
+                <span class="user-flair">{{ comment.author_flair_text }}</span>
+            {% endif %}
+            {% if comment.author == op_author %}
+                <span class="op-badge" title="Original Poster">[OP]</span>
+            {% endif %}
+            {{ distinguished_badge(comment) }}
+            {% if comment.controversiality and comment.controversiality > 0 %}
+                <span class="controversy-indicator" title="Controversial">†</span>
+            {% endif %}
+            {{ awards_indicator(comment) }}
+            {% if comment.locked %}
+                <span class="locked-icon" title="Locked">🔒</span>
+            {% endif %}
+            {{ edit_indicator(comment) }}
+            <span {{ comment.created_utc|date_tooltip }}>{{ comment.created_utc|reddit_date }}</span>
+        </span>
+    </summary>
+    <div class="md">{{ comment.body|safe }}</div>
+    {% if comment.replies %}
+        {% for reply in comment.replies %}
+            {{ render_comment(reply, depth + 1, op_author, base_path, score_ranges) }}
+        {% endfor %}
+    {% endif %}
+</details>
+{% endmacro %}
+
+{# Simplified comment tree for user pages #}
+{% macro render_user_comment(comment, base_path='../../') %}
+<div class="user-comment mt-3">
+    <div class="comment-meta">
+        <span class="badge {{ comment.score|score_class(score_ranges) }}"
+              title="Comment score: {{ comment.score }}">
+            {{ comment.score }}
+        </span>
+        <a href="{{ comment.sub_url }}">r/{{ comment.subreddit }}</a>
+        <span {{ comment.created_utc|date_tooltip }}>{{ comment.created_utc|reddit_date }}</span>
+        {% if comment.author_flair_text %}
+            <span class="user-flair">{{ comment.author_flair_text }}</span>
+        {% endif %}
+        {{ distinguished_badge(comment) }}
+        {{ edit_indicator(comment) }}
+    </div>
+    <div class="comment-body">
+        <p class="mb-1">
+            <strong>On:</strong>
+            <a href="{{ comment.parent_post_url }}">{{ comment.parent_post_title }}</a>
+        </p>
+        <div class="md">{{ comment.body|safe }}</div>
+    </div>
+    <a href="{{ comment.url_comments }}" class="btn btn-sm btn-outline-primary">View in context</a>
+</div>
+{% endmacro %}

@@ -1,0 +1,33 @@
+# Flask Search Server Dependencies
+# Alpine-optimized, minimal dependencies
+
+# Web framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Production WSGI server
+Gunicorn==21.2.0
+
+# Rate limiting
+Flask-Limiter==3.5.0
+
+# CORS support for API endpoints
+Flask-CORS==4.0.0
+
+# CSRF protection
+Flask-WTF==1.2.1
+
+# HTML escaping (included with Flask but explicit for clarity)
+MarkupSafe==2.1.3
+
+# PostgreSQL adapter with binary wheels
+psycopg[binary,pool]==3.2.3
+
+# System monitoring (required by console_output.py)
+psutil==6.1.1
+
+# Fast JSON parsing (required by postgres_database.py)
+orjson==3.11.4
+
+# Template rendering (included with Flask)
+Jinja2==3.1.2

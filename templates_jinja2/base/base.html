@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    {% block meta_tags %}
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="{{ meta_description }}">
+    <meta name="keywords" content="{{ keywords }}">
+    <meta name="author" content="{{ site_name }}">
+    <meta name="robots" content="index, follow">
+    {{ canonical_tag|safe }}
+    {% if pagination_tags %}{{ pagination_tags|safe }}{% endif %}
+
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="{{ og_title }}">
+    <meta property="og:description" content="{{ meta_description }}">
+    <meta property="og:type" content="website">
+    {{ og_url_tag|safe }}
+    <meta property="og:site_name" content="{{ site_name }}">
+    {% if og_image_tag %}{{ og_image_tag|safe }}{% endif %}
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ og_title }}">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    {% endblock meta_tags %}
+
+    {% block favicon %}
+    <!-- Favicon -->
+    {% if favicon_tags %}{{ favicon_tags|safe }}{% endif %}
+    {% endblock favicon %}
+
+    {% block structured_data %}
+    <!-- Structured Data -->
+    {% if structured_data %}{{ structured_data|safe }}{% endif %}
+    {% endblock structured_data %}
+
+    {% block preload %}
+    <!-- Font preload removed - using system fonts for instant rendering -->
+    {% endblock preload %}
+
+    {% block theme_toggle %}
+    <!-- Theme Toggle -->
+    <input type="checkbox" id="dark-theme-toggle">
+    {% endblock theme_toggle %}
+
+    {% block stylesheets %}
+    <!-- Universal CSS Build -->
+    <link rel="stylesheet" href="{{ include_path }}static/css/redd-archiver-universal.css">
+    {% endblock stylesheets %}
+
+    {% block extra_head_scripts %}
+    {# Child templates can add extra scripts here (e.g., lunr.js for search) #}
+    {% endblock extra_head_scripts %}
+
+    <title>{% block title %}{{ seo_title }}{% endblock title %}</title>
+  </head>
+  <body>
+    <div class="site-content">
+    {% block header %}
+    {% include 'components/navigation.html' %}
+    {% endblock header %}
+
+    <main role="main" class="container-fluid">
+      {% block content %}
+      {# Child templates override this block with their content #}
+      {% endblock content %}
+    </main>
+
+    {% block footer %}
+    {% include 'components/footer.html' %}
+    {% endblock footer %}
+    </div>
+
+    {% block body_scripts %}
+    {# Child templates can add scripts at end of body for better performance #}
+    {% endblock body_scripts %}
+  </body>
+</html>

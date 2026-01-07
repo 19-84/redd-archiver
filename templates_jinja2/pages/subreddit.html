@@ -1,0 +1,85 @@
+{% extends "base/base.html" %}
+{% from 'macros/reddit_macros.html' import pagination, subreddit_menu %}
+
+{% block meta_tags %}
+<!-- SEO Meta Tags -->
+<meta name="description" content="{{ meta_description }}">
+<meta name="keywords" content="{{ keywords }}">
+<meta name="author" content="{{ site_name }}">
+<meta name="robots" content="index, follow">
+{{ canonical_tag|safe }}
+{% if pagination_tags %}{{ pagination_tags|safe }}{% endif %}
+
+<!-- Open Graph Tags -->
+<meta property="og:title" content="{{ og_title }}">
+<meta property="og:description" content="{{ meta_description }}">
+<meta property="og:type" content="website">
+{{ og_url_tag|safe }}
+<meta property="og:site_name" content="{{ site_name }}">
+{% if og_image_tag %}{{ og_image_tag|safe }}{% endif %}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ og_title }}">
+<meta name="twitter:description" content="{{ meta_description }}">
+{% endblock meta_tags %}
+
+{% block title %}{{ seo_title }}{% endblock %}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item {{ url_idx_score_css }}">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item {{ url_idx_cmnt_css }}">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item {{ url_idx_date_css }}">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item {{ url_search_css }}">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+{# Top pagination #}
+{{ pagination(page_num, total_pages) }}
+
+{# Post listings #}
+<div class="links">
+  {% for post in posts %}
+    {% include 'components/post_card.html' %}
+  {% endfor %}
+</div>
+
+{# Bottom pagination #}
+{{ pagination(page_num, total_pages) }}
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    r/{{ subreddit }} archive has {{ arch_num_posts|format_number }} posts and {{ arch_num_comments|format_number }} comments.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

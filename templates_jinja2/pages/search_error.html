@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>Search Error</title>
+
+    <!-- Universal CSS Build -->
+    <link rel="stylesheet" href="/static/css/redd-archiver-universal.css">
+
+    <!-- Theme Toggle -->
+    <input type="checkbox" id="dark-theme-toggle">
+
+    <style>
+      .error-container {
+        max-width: 800px;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        text-align: center;
+      }
+
+      .error-icon {
+        font-size: 4rem;
+        color: #dc3545;
+        margin-bottom: 1rem;
+      }
+
+      .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 2rem;
+        border-radius: 4px;
+        border-left: 4px solid #f5c6cb;
+        margin: 2rem 0;
+      }
+
+      .error-message h2 {
+        margin-top: 0;
+        color: #721c24;
+      }
+
+      .error-actions {
+        margin-top: 2rem;
+      }
+
+      .error-actions a {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        margin: 0.5rem;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+
+      .error-actions a:hover {
+        background-color: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="site-content">
+      <header>
+        <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+          <a class="navbar-brand" href="/">Reddit Archive Search</a>
+          <div class="navbar-collapse">
+            <ul class="navbar-nav">
+              <li class="nav-item">
+                <a class="nav-link" href="/">Search</a>
+              </li>
+              <li class="nav-item">
+                <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+              </li>
+            </ul>
+          </div>
+        </nav>
+      </header>
+
+      <main role="main" class="container-fluid">
+        <div class="error-container">
+          <div class="error-icon">⚠️</div>
+
+          <div class="error-message">
+            <h2>Search Error</h2>
+            <p>{{ error or 'An unexpected error occurred' }}</p>
+          </div>
+
+          <div class="error-actions">
+            <a href="/">← New Search</a>
+            {% if query %}
+            <a href="/search?q={{ query|urlencode }}">🔄 Try Again</a>
+            {% endif %}
+          </div>
+        </div>
+      </main>
+
+      <footer class="container-fluid">
+        <p class="small mb-0">
+          Reddit Archive Search powered by PostgreSQL Full-Text Search
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

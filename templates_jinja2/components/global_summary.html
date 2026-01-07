@@ -1,0 +1,63 @@
+{# Global summary header component for dashboard #}
+{# Replaces the 150-line f-string in generate_global_summary_html #}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h2 class="alert-heading mb-3">Archive Overview</h2>
+            <div class="row">
+                {# Communities Metric #}
+                <div class="col-lg-2 col-md-3 col-sm-6 mb-3">
+                    <div class="tooltip-metric" data-tooltip="{{ global.subreddits_tooltip }}">
+                        <strong>{{ global.total_subreddits }}</strong> communities<br>
+                        <small class="text-muted">
+                            {{ global.active_subreddits }} active • {{ global.banned_subreddits }} banned
+                        </small>
+                    </div>
+                </div>
+
+                {# Posts Metric #}
+                <div class="col-lg-2 col-md-3 col-sm-6 mb-3">
+                    <div class="tooltip-metric" data-tooltip="{{ global.posts_tooltip }}">
+                        <strong>{{ global.total_archived_posts|format_number }}</strong> archived posts<br>
+                        <small class="text-muted">
+                            {% if global.filters_text %}
+                            of {{ global.total_raw_posts|format_number }} total
+                            {% else %}
+                            {{ global.archive_percentage }}% of {{ global.total_raw_posts|format_number }} raw posts
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+
+                {# Comments Metric #}
+                <div class="col-lg-2 col-md-3 col-sm-6 mb-3">
+                    <div class="tooltip-metric" data-tooltip="{{ global.comments_tooltip }}">
+                        <strong>{{ global.total_archived_comments|format_number }}</strong> archived comments<br>
+                        <small class="text-muted">
+                            from {{ global.total_raw_comments|format_number }} total comments
+                        </small>
+                    </div>
+                </div>
+
+                {# Users Metric #}
+                <div class="col-lg-2 col-md-3 col-sm-6 mb-3">
+                    <div class="tooltip-metric" data-tooltip="{{ global.users_tooltip }}">
+                        <strong>{{ global.total_unique_users|format_number }}</strong> unique users<br>
+                        <small class="text-muted">across all communities</small>
+                    </div>
+                </div>
+
+                {# Timeline Metric #}
+                <div class="col-lg-2 col-md-6 col-sm-6 mb-3">
+                    <div class="tooltip-metric" data-tooltip="{{ global.timeline_tooltip }}">
+                        <strong>{{ global.last_archive_text }}</strong> last archived<br>
+                        <small class="text-muted">{{ global.time_span_text }} span • {{ global.activity_text }}</small>
+                    </div>
+                </div>
+
+                {# File Size Metric - REMOVED: Size calculation inaccurate with incremental builds #}
+            </div>
+        </div>
+    </div>
+</div>

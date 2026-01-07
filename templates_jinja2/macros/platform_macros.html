@@ -1,0 +1,67 @@
+{#
+ABOUTME: Platform-specific display macros for multi-platform archives
+ABOUTME: Handles Reddit, Voat, and Ruqqus platform variations (URL prefixes, badges, terminology)
+#}
+
+{# Platform badge with visual indicator #}
+{% macro platform_badge(platform) %}
+{% if platform and platform != 'reddit' %}
+<span class="platform-badge platform-{{ platform }}" title="{{ platform|capitalize }} content">
+    {% if platform == 'voat' %}v/{% elif platform == 'ruqqus' %}+{% endif %}
+</span>
+{% endif %}
+{% endmacro %}
+
+{# Community link with platform-appropriate prefix #}
+{% macro community_link(platform, community) %}
+{% set prefix = {'reddit': 'r', 'voat': 'v', 'ruqqus': 'g'}.get(platform, 'r') %}
+<a href="/{{ prefix }}/{{ community }}/" class="community-link platform-{{ platform }}">
+    {{ prefix }}/{{ community }}
+</a>
+{% endmacro %}
+
+{# Platform display name #}
+{% macro platform_name(platform) %}
+{% set names = {'reddit': 'Reddit', 'voat': 'Voat', 'ruqqus': 'Ruqqus'} %}
+{{ names.get(platform, platform|capitalize) }}
+{% endmacro %}
+
+{# Community term (subreddit/subverse/guild) #}
+{% macro community_term(platform, plural=false) %}
+{% if platform == 'voat' %}
+    {{ 'subverses' if plural else 'subverse' }}
+{% elif platform == 'ruqqus' %}
+    {{ 'guilds' if plural else 'guild' }}
+{% else %}
+    {{ 'subreddits' if plural else 'subreddit' }}
+{% endif %}
+{% endmacro %}
+
+{# Platform color indicator (for charts/stats) #}
+{% macro platform_color(platform) %}
+{% set colors = {'reddit': '#ff4500', 'voat': '#1e90ff', 'ruqqus': '#00c851'} %}
+{{ colors.get(platform, '#808080') }}
+{% endmacro %}
+
+{# Platform icon/emoji (optional visual enhancement) #}
+{% macro platform_icon(platform) %}
+{% if platform == 'reddit' %}🔴
+{% elif platform == 'voat' %}🔵
+{% elif platform == 'ruqqus' %}🟢
+{% endif %}
+{% endmacro %}
+
+{# Full platform indicator with icon and name #}
+{% macro platform_indicator(platform) %}
+<span class="platform-indicator" title="{{ platform_name(platform) }}">
+    {{ platform_icon(platform) }} {{ platform_name(platform) }}
+</span>
+{% endmacro %}
+
+{# Post permalink with platform-aware URL #}
+{% macro post_permalink(platform, community, post_id, title='') %}
+{% set prefix = {'reddit': 'r', 'voat': 'v', 'ruqqus': 'g'}.get(platform, 'r') %}
+<a href="/{{ prefix }}/{{ community }}/comments/{{ post_id }}/" class="post-link" {% if title %}title="{{ title }}"{% endif %}>
+    permalink
+</a>
+{% endmacro %}

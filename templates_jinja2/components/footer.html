@@ -1,0 +1,18 @@
+<footer class="container-fluid">
+  {% if subreddit %}
+  <p class="small mb-0">
+    r/{{ subreddit }} archive has {{ arch_num_posts|default('0') }} posts and {{ arch_num_comments|default('0') }} comments.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+  {% elif username %}
+  <p class="small mb-0">
+    User profile for u/{{ username }}.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+  {% else %}
+  <p class="small mb-0">
+    {{ site_name }}.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+  {% endif %}
+</footer>

@@ -1,0 +1,109 @@
+{% extends "base/base.html" %}
+
+{% block meta_tags %}
+<!-- SEO Meta Tags -->
+<meta name="description" content="Search across all archived subreddits">
+<meta name="keywords" content="reddit, archive, search">
+<meta name="author" content="{{ site_name }}">
+<meta name="robots" content="index, follow">
+{% endblock meta_tags %}
+
+{% block extra_head_scripts %}
+<!-- PostgreSQL FTS requires web API - not available in static site -->
+{% endblock extra_head_scripts %}
+
+{% block title %}{{ site_name }} - Search{% endblock title %}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="index.html">{{ site_name }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="index.html">home</a>
+        </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="/search">search</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="search-interface">
+  <!-- Header -->
+  <div class="search-header">
+    <h1>Search the Archive</h1>
+    <p>Search through thousands of archived subreddit posts</p>
+  </div>
+
+  <!-- Subreddit Selector -->
+  <div class="subreddit-selector">
+    <label for="subreddit-search">Select subreddit to search:</label>
+    <div class="subreddit-search-container">
+      <input type="text"
+             id="subreddit-search"
+             class="form-control"
+             placeholder="Type subreddit name..."
+             autocomplete="off">
+      <div class="subreddit-suggestions" style="display:none"></div>
+    </div>
+    <div class="selected-subreddit" style="display:none">
+      <span>Selected: r/<span class="subreddit-name"></span></span>
+      <button class="clear-selection" aria-label="Clear selection">×</button>
+    </div>
+  </div>
+
+  <!-- Search Form -->
+  <div class="search-form-container">
+    <form class="search">
+      <div class="search-form-group">
+        <input type="text"
+               name="query"
+               id="query"
+               class="form-control"
+               placeholder="Select a subreddit first..."
+               disabled>
+        <button type="submit"
+                id="search-btn"
+                class="btn btn-primary"
+                disabled>Search</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Search Progress -->
+  <div class="search-progress" style="display:none">
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 0%"></div>
+    </div>
+    <div class="progress-info">
+      🔍 Searching... <span class="chunks-loaded">0</span>/<span class="total-chunks">0</span> chunks
+      (<span class="progress-percent">0%</span>)
+      <span class="results-found"></span>
+      <br><span class="data-transferred">0 MB transferred</span>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="links search mt-3" id="search-results">
+    <!-- Results will be inserted here by JavaScript -->
+  </div>
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">{{ site_name }} Search. <a href="{{ url_project }}">source code</a>.</p>
+</footer>
+{% endblock footer %}

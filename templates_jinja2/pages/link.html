@@ -1,0 +1,127 @@
+{% extends "base/base.html" %}
+{% from 'macros/reddit_macros.html' import user_link, post_flair, stickied_indicator, content_warnings, status_indicators, awards_indicator, removal_indicator, video_indicator, distinguished_badge, edit_indicator %}
+{% from 'macros/comment_macros.html' import render_comment %}
+
+{% block meta_tags %}
+<!-- SEO Meta Tags -->
+<meta name="description" content="{{ meta_description }}">
+<meta name="keywords" content="{{ keywords }}">
+<meta name="author" content="{{ site_name }}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ canonical_url }}">
+
+<!-- Open Graph Tags -->
+<meta property="og:title" content="{{ url_prefix }}/{{ subreddit }}: {{ post.title }}">
+<meta property="og:description" content="{{ meta_description }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:site_name" content="{{ site_name }}">
+{% if og_image_tag %}{{ og_image_tag|safe }}{% endif %}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ url_prefix }}/{{ subreddit }}: {{ post.title }}">
+<meta name="twitter:description" content="{{ meta_description }}">
+{% endblock meta_tags %}
+
+{% block structured_data %}
+{% if structured_data %}{{ structured_data|safe }}{% endif %}
+{% endblock structured_data %}
+
+{% block title %}{{ url_prefix }}/{{ subreddit }}: {{ post.title }}{% endblock %}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_sub }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_sub }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_sub_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_sub_date }}">date</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="submission pt-3" data-id="{{ post.id }}">
+  <h3 class="title">
+    {% if post.url %}
+      <a href="{{ post.url }}" title="{{ post.url }}">{{ post.title }}</a>
+    {% else %}
+      {{ post.title }}
+    {% endif %}
+    {% if post.link_flair_text %}{{ post_flair(post.link_flair_text) }}{% endif %}
+    {{ stickied_indicator(post) }}
+    {% if post.pinned %}<span class="pinned-icon" title="Pinned post">📍 Pinned</span>{% endif %}
+    {{ video_indicator(post) }}
+    {% if post.is_meta %}<span class="meta-badge" title="Meta discussion">💬 Meta</span>{% endif %}
+    {{ content_warnings(post) }}
+    {{ status_indicators(post) }}
+    {{ removal_indicator(post) }}
+    {{ awards_indicator(post) }}
+  </h3>
+  <p>
+    <span class="badge badge-primary" {{ post|score_tooltip }}>{{ post.score }}</span>
+    &nbsp;&nbsp;
+    <span {{ post.created_utc|date_tooltip }}>{{ post.created_utc|reddit_date }}</span>
+    by <span {{ post|author_tooltip }}>{{ user_link(post.author, include_path) }}</span>
+    {{ distinguished_badge(post) }}
+    {{ edit_indicator(post) }}
+    <span title="{{ post.url }}">{{ post.domain_html|safe }}</span>
+  </p>
+  {% if post.selftext %}
+  <div class="card mt-3 mb-3">
+    <div class="card-body">
+      <div class="md">{{ post.selftext|safe }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="comments">
+  <h4>{{ num_comments }} comment{{ num_comments|pluralize }}</h4>
+  {% if comments %}
+    {% for comment in comments %}
+      {% set parent_str = comment.parent_id|string %}
+      {% if not comment.parent_id or parent_str.startswith('t3_') or parent_str == post.id|string %}
+        {# Top-level comment: no parent, t3_ prefix (Reddit), or parent equals post ID (multi-platform) #}
+        {{ render_comment(comment, 0, post.author, include_path, score_ranges) }}
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <p class="text-muted">No comments archived.</p>
+  {% endif %}
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <a class="to-top mt-1 mb-1 btn btn-lg btn-primary" href="#top">top of page</a>
+  <p class="small mb-0">
+    last archived {{ archive_date }}
+    <a href="{{ url_project }}">source code</a>
+  </p>
+</footer>
+{% endblock footer %}

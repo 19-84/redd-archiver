@@ -1,0 +1,129 @@
+[project]
+name = "redd-archiver"
+version = "1.0.0"
+description = "Redd Archiver - PostgreSQL-backed archive generator for Reddit, Voat, and Ruqqus - Transform data dumps into fully browsable static HTML websites with REST API and MCP server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Unlicense"}
+authors = [
+    {name = "Redd-Archiver Contributors"}
+]
+keywords = [
+    "reddit",
+    "voat",
+    "ruqqus",
+    "archive",
+    "html",
+    "postgresql",
+    "data-mining",
+    "pushshift",
+    "mcp",
+    "rest-api",
+    "static-site"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+    "License :: OSI Approved :: The Unlicense (Unlicense)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Framework :: Flask",
+]
+
+dependencies = [
+    "psaw==0.1.0",
+    "psutil==6.1.1",
+    "zstandard==0.23.0",
+    "psycopg[binary,pool]==3.2.3",
+    "jinja2==3.1.6",
+    "orjson==3.11.5",
+    "rcssmin==1.2.2",
+    "Pillow==10.4.0",
+    "flask==3.1.2",
+    "flask-limiter==3.12",
+    "flask-wtf==1.2.2",
+    "flask-cors==4.0.2",
+    "sqlparse>=0.5.5",
+    "playwright>=1.57.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "ruff==0.8.6",
+    "pre-commit==4.0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/19-84/redd-archiver"
+Documentation = "https://github.com/19-84/redd-archiver#readme"
+Repository = "https://github.com/19-84/redd-archiver"
+Changelog = "https://github.com/19-84/redd-archiver/blob/main/CHANGELOG.md"
+Issues = "https://github.com/19-84/redd-archiver/issues"
+Demo = "https://online-archives.github.io/redd-archiver-example/"
+
+[project.scripts]
+reddarc = "reddarc:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "api", "html_modules", "processing", "utils"]
+include = [
+    "reddarc.py",
+    "search_server.py",
+    "templates_jinja2/**/*",
+    "sql/**/*",
+    "static/**/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/benchmarks/*",
+    "*/.venv/*",
+    "*/tools/*",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "S",   # flake8-bandit (security)
+]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # Allow assert in tests
+"benchmarks/*" = ["S101"]  # Allow assert in benchmarks

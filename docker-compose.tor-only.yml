@@ -1,0 +1,39 @@
+# ============================================================================
+# Redd-Archiver Tor-Only Docker Compose Overrides
+# ============================================================================
+# This file configures Tor-only mode (no clearnet access)
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.tor-only.yml --profile tor up -d
+#
+# Result:
+#   - Archive accessible ONLY via .onion address
+#   - Nginx ports not exposed to host (clearnet blocked)
+#   - Maximum privacy deployment
+# ============================================================================
+
+version: '3.8'
+
+services:
+  nginx:
+    # Use standard HTTP configuration (Tor provides encryption)
+    volumes:
+      - ${OUTPUT_PATH:-./output}:/usr/share/nginx/html:ro
+
+      # Use HTTP config (not HTTPS - Tor doesn't need SSL)
+      - ./docker/nginx/nginx.conf.http:/etc/nginx/nginx.conf:ro
+
+      # Remove certbot volumes (not needed for Tor-only)
+
+    # CRITICAL: Remove host port mappings (blocks clearnet access)
+    # Nginx only accessible from Tor container via Docker network
+    # This provides maximum privacy - archive not exposed to internet
+    ports: []
+
+    # Nginx still listens on port 80 internally for Tor traffic
+    # Just not mapped to host (docker network access only)
+
+  # Disable certbot in Tor-only mode (not needed without HTTPS)
+  certbot:
+    profiles:
+      - disabled

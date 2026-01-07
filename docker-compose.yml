@@ -1,0 +1,472 @@
+# ============================================================================
+# Redd-Archiver Docker Compose Configuration
+# ============================================================================
+# ⚠️  SECURITY WARNING ⚠️
+# - DO NOT use default passwords in production!
+# - Copy .env.example to .env and set secure passwords
+# - Never commit .env files with real credentials
+#
+# Quick Start:
+#   1. cp .env.example .env
+#   2. Edit .env and change all passwords
+#   3. docker-compose up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: reddarchiver-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reddarchiver}
+      POSTGRES_USER: ${POSTGRES_USER:-reddarchiver}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    volumes:
+      # Data persistence (stored in output directory for easy cleanup)
+      - postgres-data:/var/lib/postgresql/data
+
+      # Schema initialization
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/indexes.sql:/docker-entrypoint-initdb.d/02-indexes.sql:ro
+
+      # PostgreSQL configuration
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+
+      # Unix socket sharing for optimal performance
+      - postgres_socket:/var/run/postgresql
+
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+    # Expose TCP port for external tools (pgAdmin, monitoring)
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reddarchiver} -d ${POSTGRES_DB:-reddarchiver}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # Shared memory for PostgreSQL (for parallel queries)
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+
+    # Resource limits (optional, uncomment for production)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4g
+    #       cpus: '4'
+    #     reservations:
+    #       memory: 2g
+    #       cpus: '2'
+
+  reddarchiver-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+    container_name: reddarchiver-builder
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      # Primary: Unix socket connection (fastest for local operations)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reddarchiver}:${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}@/${POSTGRES_DB:-reddarchiver}?host=/var/run/postgresql
+
+      # Fallback: TCP connection (for external access or troubleshooting)
+      DATABASE_URL_TCP: postgresql://${POSTGRES_USER:-reddarchiver}:${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}@postgres:5432/${POSTGRES_DB:-reddarchiver}
+
+      # Application settings
+      PYTHONUNBUFFERED: 1
+      REDDARCHIVER_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDDARCHIVER_MEMORY_LIMIT: ${MEMORY_LIMIT:-15.0}
+
+    volumes:
+      # Input data (read-only for safety)
+      - ${DATA_PATH:-./data}:/data:ro
+
+      # Output archive (generated HTML)
+      - ${OUTPUT_PATH:-./output}:/output
+
+      # Processing logs
+      - ${LOG_PATH:-./logs}:/logs
+
+      # Unix socket (read-only access)
+      - postgres_socket:/var/run/postgresql:ro
+
+    networks:
+      - reddarchiver-network
+
+    # Keep container running for interactive use
+    # Override with: docker-compose run --rm reddarchiver-builder python reddarc.py ...
+    command: tail -f /dev/null
+
+    # Resource limits (optional, uncomment for production)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2g
+    #       cpus: '2'
+    #     reservations:
+    #       memory: 1g
+    #       cpus: '1'
+
+  search-server:
+    build:
+      context: .
+      dockerfile: docker/search-server/Dockerfile
+    container_name: reddarchiver-search-server
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      # Unix socket connection (fastest for search queries)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reddarchiver}:${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}@/${POSTGRES_DB:-reddarchiver}?host=/var/run/postgresql
+
+      # Flask configuration
+      FLASK_ENV: ${FLASK_ENV:-production}
+      FLASK_DEBUG: ${FLASK_DEBUG:-False}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-}
+
+      # Application settings
+      PYTHONUNBUFFERED: 1
+
+      # Instance metadata (for /api/v1/stats endpoint)
+      REDDARCHIVER_SITE_NAME: ${REDDARCHIVER_SITE_NAME:-Redd Archive}
+      REDDARCHIVER_SITE_DESCRIPTION: ${REDDARCHIVER_SITE_DESCRIPTION}
+      REDDARCHIVER_CONTACT: ${REDDARCHIVER_CONTACT}
+      REDDARCHIVER_TEAM_ID: ${REDDARCHIVER_TEAM_ID}
+      REDDARCHIVER_DONATION_ADDRESS: ${REDDARCHIVER_DONATION_ADDRESS}
+      REDDARCHIVER_BASE_URL: ${REDDARCHIVER_BASE_URL}
+
+    volumes:
+      # Static files (CSS, JS) - read-only
+      - ${OUTPUT_PATH:-./output}/static:/app/static:ro
+
+      # Unix socket (read-only access)
+      - postgres_socket:/var/run/postgresql:ro
+
+      # Public Tor hostname directory (read-only - for API detection)
+      - ./tor-public:/app/tor-public:ro
+
+    ports:
+      # Expose search server on port 5000
+      - "${SEARCH_PORT:-5000}:5000"
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits (search server is lightweight)
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1'
+        reservations:
+          memory: 256m
+          cpus: '0.5'
+
+    # Security: Read-only root filesystem (except /tmp for Flask sessions)
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: reddarchiver-nginx
+
+    depends_on:
+      search-server:
+        condition: service_healthy
+
+    volumes:
+      # Static archive files (read-only)
+      - ${OUTPUT_PATH:-./output}:/usr/share/nginx/html:ro
+
+      # Nginx configuration (read-only)
+      # Default: HTTP-only config for local development
+      # Production: Use docker-compose.prod.yml to switch to HTTPS config
+      - ./docker/nginx/nginx.conf.http:/etc/nginx/nginx.conf:ro
+
+      # Certbot webroot for Let's Encrypt challenges (read-only for nginx)
+      - certbot-webroot:/var/www/certbot:ro
+
+      # SSL certificates (read-only for nginx)
+      - certbot-certs:/etc/letsencrypt:ro
+
+    ports:
+      # HTTP port (80 for production, 8080 for dev)
+      - "${HTTP_PORT:-80}:80"
+
+      # HTTPS port (only needed in production with certbot)
+      - "${HTTPS_PORT:-443}:443"
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # Health check - use 127.0.0.1 instead of localhost for IPv4 (Alpine wget prefers IPv6)
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits (Nginx is very lightweight)
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: '0.5'
+        reservations:
+          memory: 64m
+          cpus: '0.25'
+
+    # Security: Read-only root filesystem (except tmpfs for Nginx cache/pid)
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=64M,mode=0755,uid=101,gid=101
+      - /var/run:size=16M,mode=0755,uid=101,gid=101
+      - /tmp:size=32M,mode=1777
+
+  certbot:
+    # Official certbot image from Docker Hub (no custom Dockerfile needed)
+    image: certbot/certbot:latest
+    container_name: reddarchiver-certbot
+
+    volumes:
+      # Webroot for challenge files (read-write)
+      - certbot-webroot:/var/www/certbot
+
+      # Certificate storage (read-write)
+      - certbot-certs:/etc/letsencrypt
+
+      # Certbot state and logs (read-write)
+      - certbot-lib:/var/lib/letsencrypt
+
+      # Helper script for nginx reload after renewal
+      - ./docker/scripts/reload-nginx.sh:/usr/local/bin/reload-nginx.sh:ro
+
+      # Docker socket for nginx reload (read-only)
+      # Security note: Allows certbot to reload nginx after successful renewal
+      # This is a minimal privilege operation - only nginx reload, no other container control
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    # Run renewal check every 12 hours with deploy hook for nginx reload
+    # Uses certbot's built-in renewal logic - checks if cert expires within 30 days
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --deploy-hook '/usr/local/bin/reload-nginx.sh'; sleep 12h & wait $${!}; done"
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # CRITICAL: Only runs when production profile activated
+    # Local development: certbot never starts (docker compose up -d)
+    # Production: certbot starts automatically (docker compose --profile production up -d)
+    profiles:
+      - production
+
+  tor:
+    # Official Tor image from Docker Hub (no custom Dockerfile needed)
+    image: leplusorg/tor:latest
+    container_name: reddarchiver-tor
+
+    depends_on:
+      nginx:
+        condition: service_healthy
+
+    volumes:
+      # Hidden service keys and hostname (bind mount to host directory)
+      # CRITICAL: This directory contains your .onion private keys - BACKUP THIS!
+      # If lost, your .onion address changes permanently
+      - ${TOR_HIDDEN_SERVICE_DIR:-./tor-hidden-service}:/var/lib/tor/hidden_service
+
+      # Custom torrc configuration (mount directly to /etc/tor/torrc)
+      - ./docker/tor/torrc:/etc/tor/torrc:ro
+
+      # Display script for .onion address
+      - ./docker/tor/display-onion.sh:/usr/local/bin/display-onion.sh:ro
+
+      # Script to copy hostname to public location
+      - ./docker/tor/copy-hostname-public.sh:/usr/local/bin/copy-hostname-public.sh:ro
+
+      # Public directory for hostname (bind mount, world-readable, for API detection)
+      - ./tor-public:/var/lib/tor/public
+
+    environment:
+      # SOCKS proxy settings (for internal routing)
+      - SOCKS_HOSTNAME=0.0.0.0
+      - SOCKS_PORT=${TOR_SOCKS_PORT:-9050}
+      - LOG_LEVEL=${TOR_LOG_LEVEL:-notice}
+
+    # Start Tor, wait for keys, copy hostname to public location, keep running
+    # Runs as root to write to public volume; Tor daemon drops to tor user internally
+    # Private keys stay secure (700 dir, 600 files); hostname copied to public (644)
+    entrypoint: /bin/sh -c "tor & sleep 15 && mkdir -p /var/lib/tor/public && if [ -f /var/lib/tor/hidden_service/hostname ]; then cp /var/lib/tor/hidden_service/hostname /var/lib/tor/public/hostname && chmod 644 /var/lib/tor/public/hostname && echo '✓ Hostname copied' && cat /var/lib/tor/public/hostname; fi && tail -f /var/log/tor/notices.log"
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # Health check: Verify hostname file exists (hidden service is ready)
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/lib/tor/hidden_service/hostname"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # Resource limits (Tor is lightweight)
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+        reservations:
+          memory: 128m
+          cpus: '0.25'
+
+    # CRITICAL: Only runs when tor profile activated
+    # Usage:
+    #   Dual-mode: docker compose --profile production --profile tor up -d
+    #   Tor-only: docker compose -f docker-compose.yml -f docker-compose.tor-only.yml --profile tor up -d
+    profiles:
+      - tor
+
+  # ============================================================================
+  # MCP Server (Model Context Protocol for AI Integration)
+  # ============================================================================
+  mcp-server:
+    build:
+      context: ./mcp_server
+      dockerfile: Dockerfile
+    container_name: reddarchiver-mcp-server
+
+    depends_on:
+      search-server:
+        condition: service_healthy
+
+    environment:
+      # Connect to search-server via internal Docker network
+      REDDARCHIVER_API_URL: http://search-server:5000
+
+      # Application settings
+      PYTHONUNBUFFERED: 1
+
+    networks:
+      - reddarchiver-network
+
+    restart: unless-stopped
+
+    # Resource limits (MCP server is lightweight)
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+        reservations:
+          memory: 128m
+          cpus: '0.25'
+
+    # MCP servers communicate via stdio, keep running for interactive use
+    # For production, connect via Claude Desktop or other MCP clients
+    stdin_open: true
+    tty: true
+
+  # ============================================================================
+  # Benchmark & Testing (Uncomment for Performance Testing)
+  # ============================================================================
+  # benchmark-test:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     args:
+  #       PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+  #   container_name: reddarchiver-benchmark-test
+  #
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #
+  #   environment:
+  #     # TCP connection to postgres service
+  #     DATABASE_URL: postgresql://${POSTGRES_USER:-reddarchiver}:${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}@postgres:5432/${POSTGRES_DB:-reddarchiver}
+  #
+  #     # Application settings
+  #     PYTHONUNBUFFERED: 1
+  #     REDDARCHIVER_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  #
+  #   volumes:
+  #     # Mount current directory for live code updates
+  #     - .:/app
+  #
+  #     # Output archive (for user page generation)
+  #     - ${OUTPUT_PATH:-./output}:/output
+  #
+  #   networks:
+  #     - reddarchiver-network
+  #
+  #   # Install dependencies and run benchmark script
+  #   command: sh -c "rm -rf .venv && uv venv .venv && uv pip install --no-cache -r requirements.txt && python3 benchmark_user_pages.py ${BENCHMARK_DURATION:-60}"
+  #
+  #   # Allow running on-demand with: docker compose run --rm benchmark-test
+  #   profiles:
+  #     - benchmark
+
+volumes:
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${OUTPUT_PATH:-./output}/.postgres-data
+  postgres_socket:
+    driver: local
+    name: reddarchiver-postgres-socket
+
+  # Certbot volumes (for HTTPS production deployment)
+  certbot-webroot:
+    driver: local
+    name: reddarchiver-certbot-webroot
+
+  certbot-certs:
+    driver: local
+    name: reddarchiver-certbot-certs
+
+  certbot-lib:
+    driver: local
+    name: reddarchiver-certbot-lib
+
+networks:
+  reddarchiver-network:
+    driver: bridge
+    name: reddarchiver-network

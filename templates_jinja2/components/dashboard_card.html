@@ -1,0 +1,120 @@
+{# Dashboard card component for subreddit overview #}
+{# Replaces the 300+ line f-string in html_dashboard.py #}
+{% from 'macros/platform_macros.html' import platform_badge %}
+
+<div class="col-lg-4 col-md-6 mb-4">
+    <div class="card h-100">
+        {# Card Header #}
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0">
+                {% set url_prefix = {'reddit': 'r', 'voat': 'v', 'ruqqus': 'g'}.get(sub.platform, 'r') %}
+                <a href="{{ url_prefix }}/{{ sub.name }}/index.html" class="text-decoration-none">{{ url_prefix }}/{{ sub.name }}</a>
+            </h3>
+            <span class="badge badge-{{ sub.status_class }}" title="{{ sub.status_tooltip }}">
+                {{ sub.status_text }}
+            </span>
+        </div>
+
+        {# Card Body #}
+        <div class="card-body">
+            {# Posts Statistics #}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.posts_tooltip }}">
+                <div class="d-flex justify-content-between">
+                    <strong>{{ sub.posts_display }}</strong>
+                </div>
+            </div>
+
+            {# Comments Statistics #}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.comments_tooltip }}">
+                <div class="d-flex justify-content-between">
+                    <strong>{{ sub.comments_display }}</strong>
+                </div>
+                <small class="text-muted" data-tooltip="{{ sub.users_tooltip }}">
+                    {{ sub.stats.unique_users|format_number }} unique users
+                </small>
+            </div>
+
+            {# Deletion Statistics #}
+            {% if sub.deletion_tooltip %}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.deletion_tooltip }}">
+                <small class="text-muted">Content removed:</small>
+                <div class="d-flex justify-content-between">
+                    <span><strong>{{ sub.stats.user_deletion_rate_posts|default(0) }}%</strong> user deleted</span>
+                    <span><strong>{{ sub.stats.mod_removal_rate_posts|default(0) }}%</strong> mod removed</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Content Analysis #}
+            {% if sub.content_tooltip %}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.content_tooltip }}">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Self-posts:</small><br>
+                        <strong>{{ sub.stats.self_posts|default(0)|format_number }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">External URLs:</small><br>
+                        <strong>{{ sub.stats.external_urls|default(0)|format_number }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Score Analysis #}
+            {% if sub.score_tooltip %}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.score_tooltip }}">
+                <small class="text-muted">Score range:</small>
+                <div class="d-flex justify-content-between">
+                    <span>Min: <strong>{{ sub.stats.min_score|default(0) }}</strong></span>
+                    <span>Avg: <strong>{{ sub.stats.avg_score|default(0)|round(1) }}</strong></span>
+                    <span>Max: <strong>{{ sub.stats.max_score|default(0) }}</strong></span>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Time and Activity #}
+            <div class="card-stat-section mb-3" data-tooltip="{{ sub.activity_tooltip }}">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Span:</small><br>
+                        <strong>{{ sub.time_span_text }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Activity:</small><br>
+                        <strong>{{ sub.stats.posts_per_day|default(0) }}/day</strong>
+                    </div>
+                </div>
+            </div>
+
+            {# File Sizes - REMOVED: Size calculation inaccurate with incremental builds #}
+
+            {# Archive Status #}
+            <div class="text-muted">
+                <small>Last archived: {{ sub.archive_date_text }}</small>
+            </div>
+        </div>
+
+        {# Collapsed Summary #}
+        <div class="card-collapsed-summary">
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <strong>{{ sub.stats.archived_posts|format_number }}</strong>
+                    <small class="text-muted">posts</small>
+                </div>
+                <div class="summary-stat">
+                    <strong>{{ sub.stats.archived_comments|format_number }}</strong>
+                    <small class="text-muted">comments</small>
+                </div>
+                <div class="summary-stat">
+                    <strong>{{ sub.stats.unique_users|format_number }}</strong>
+                    <small class="text-muted">users</small>
+                </div>
+                <div class="summary-stat">
+                    <strong>{{ sub.stats.user_deletion_rate_posts|default(0) }}%</strong>
+                    <small class="text-muted">deleted</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,33 @@
+{# Post card component for subreddit listings #}
+{% from 'macros/reddit_macros.html' import user_link, post_flair, stickied_indicator, content_warnings, status_indicators, awards_indicator, removal_indicator, video_indicator, crosspost_indicator, distinguished_badge, edit_indicator %}
+{% from 'macros/platform_macros.html' import platform_badge %}
+
+<div class="link mt-3">
+    <h5 class="title mb-0">
+        <a href="{{ post.url_comments }}">{{ post.title }}</a>
+        {% if post.link_flair_text %}{{ post_flair(post.link_flair_text) }}{% endif %}
+        {{ stickied_indicator(post) }}
+        {% if post.pinned %}<span class="pinned-icon" title="Pinned post">📍 Pinned</span>{% endif %}
+        {{ video_indicator(post) }}
+        {% if post.is_meta %}<span class="meta-badge" title="Meta discussion">💬 Meta</span>{% endif %}
+        {{ content_warnings(post) }}
+        {{ status_indicators(post) }}
+        {{ removal_indicator(post) }}
+        {{ awards_indicator(post) }}
+    </h5>
+    <a href="{{ post.url_comments }}">
+        <span class="badge {{ post.score|score_class_global(score_ranges) }}" {{ post|score_tooltip }}>
+            {{ post.score }}
+        </span>
+    </a>
+    <small class="text-muted">
+        <a href="{{ post.url_comments }}">{{ post.num_comments }} comment{{ post.num_comments|pluralize }}</a>
+        <span {{ post.created_utc|date_tooltip }}>{{ post.created_utc|reddit_date }}</span>
+        <span {{ post|author_tooltip }}>{{ user_link(post.author, base_path) }}</span>
+        {% if post.author_flair_text %}<span class="user-flair">{{ post.author_flair_text }}</span>{% endif %}
+        {{ distinguished_badge(post) }}
+        {{ edit_indicator(post) }}
+        {{ crosspost_indicator(post) }}
+        {{ post.domain_html|safe }}
+    </small>
+</div>

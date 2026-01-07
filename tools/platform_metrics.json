@@ -1,0 +1,39 @@
+{
+  "last_updated": "2025-12-31T19:01:36.330940+00:00",
+  "platforms": {
+    "reddit": {
+      "total_posts_available": 2380030458,
+      "data_source": "subreddits_complete.json aggregation (full Pushshift dataset)",
+      "scanned_files": [
+        "subreddits_complete.json"
+      ],
+      "notes": "Aggregated from 40,029 subreddits (through Dec 31 2024)",
+      "total_communities": 40029
+    },
+    "voat": {
+      "total_posts_available": 3813216,
+      "data_source": "SQL dump scan",
+      "scanned_files": [
+        "submission.sql.gz"
+      ],
+      "notes": "Complete Voat archive from searchvoat.co",
+      "total_communities": 22585
+    },
+    "ruqqus": {
+      "total_posts_available": 500619,
+      "data_source": "7z archive scan",
+      "scanned_files": [
+        "submissions.f1.2021-10-30.txt.sort.2021-11-10.7z"
+      ],
+      "notes": "Complete Ruqqus shutdown archive from Oct 2021",
+      "total_communities": 6217
+    }
+  },
+  "notes": "Complete metrics for all supported platforms",
+  "total_posts_all_platforms": 2384344293,
+  "scanner_data_available": {
+    "reddit": "tools/subreddits_complete.json",
+    "voat": "tools/subverses.json",
+    "ruqqus": "tools/guilds.json"
+  }
+}

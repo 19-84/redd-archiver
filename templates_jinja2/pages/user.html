@@ -1,0 +1,96 @@
+{% extends "base/base.html" %}
+{% from 'macros/reddit_macros.html' import pagination %}
+
+{% block meta_tags %}
+<!-- SEO Meta Tags -->
+<meta name="description" content="{{ meta_description }}">
+<meta name="keywords" content="{{ keywords }}">
+<meta name="author" content="{{ site_name }}">
+<meta name="robots" content="index, follow">
+{{ canonical_tag|safe }}
+
+<!-- Open Graph Tags -->
+<meta property="og:title" content="{{ og_title }}">
+<meta property="og:description" content="{{ meta_description }}">
+<meta property="og:type" content="profile">
+{{ og_url_tag|safe }}
+<meta property="og:site_name" content="{{ site_name }}">
+{% if og_image_tag %}{{ og_image_tag|safe }}{% endif %}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ og_title }}">
+<meta name="twitter:description" content="{{ meta_description }}">
+{% endblock meta_tags %}
+
+{% block structured_data %}
+{% if structured_data %}{{ structured_data|safe }}{% endif %}
+{% endblock structured_data %}
+
+{% block title %}{{ seo_title }}{% endblock %}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_user }}">u/{{ username }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item {{ url_search_css }}">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+{# User profile header #}
+<div class="user-profile-header pt-3">
+  <h2>u/{{ username }}</h2>
+  <p class="lead">
+    {{ post_count }} post{{ post_count|pluralize }} ·
+    {{ comment_count }} comment{{ comment_count|pluralize }} ·
+    {{ total_content }} total
+  </p>
+  {% if subreddit_summary %}
+  <p class="text-muted">Active in: {{ subreddit_summary }}</p>
+  {% endif %}
+</div>
+
+{# Top pagination #}
+{{ pagination(page_num, total_pages) }}
+
+{# User content (posts and comments mixed) #}
+<div class="links">
+  {% for item in content %}
+    {% if item.type == 'post' %}
+      {% include 'components/user_post.html' %}
+    {% else %}
+      {% include 'components/user_comment.html' %}
+    {% endif %}
+  {% endfor %}
+</div>
+
+{# Bottom pagination #}
+{{ pagination(page_num, total_pages) }}
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    archive has {{ arch_num_posts|default(0)|format_number }} posts and {{ arch_num_comments|default(0)|format_number }} comments.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

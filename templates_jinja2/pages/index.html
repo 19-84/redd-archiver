@@ -1,0 +1,69 @@
+{% extends "base/base.html" %}
+
+{% block meta_tags %}
+<!-- SEO Meta Tags -->
+<meta name="description" content="{{ meta_description }}">
+<meta name="keywords" content="{{ keywords }}">
+<meta name="author" content="Redd Archive">
+<meta name="robots" content="index, follow">
+{{ canonical_tag|safe }}
+
+<!-- Open Graph Tags -->
+<meta property="og:title" content="{{ og_title }}">
+<meta property="og:description" content="{{ meta_description }}">
+<meta property="og:type" content="website">
+{{ og_url_tag|safe }}
+<meta property="og:site_name" content="{{ site_name }}">
+{% if og_image_tag %}{{ og_image_tag|safe }}{% endif %}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ og_title }}">
+<meta name="twitter:description" content="{{ meta_description }}">
+{% endblock meta_tags %}
+
+{% block title %}{{ seo_title }}{% endblock %}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <span class="navbar-brand">{{ title }}</span>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="/search" title="Search across all subreddits">search</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+{# Global Summary Header #}
+{% include 'components/global_summary.html' %}
+
+{# Subreddit Dashboard Cards #}
+<div class="row">
+  {% for sub in subreddits %}
+    {% include 'components/dashboard_card.html' %}
+  {% endfor %}
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <a class="to-top mt-1 mb-1 btn btn-lg btn-primary" href="#top">top of page</a>
+  <p class="small mb-0">
+    archive has {{ arch_num_posts|format_number }} posts.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

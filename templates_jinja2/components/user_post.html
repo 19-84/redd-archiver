@@ -1,0 +1,33 @@
+{# User post component - for user profile pages #}
+{% from 'macros/reddit_macros.html' import user_link, post_flair, stickied_indicator, content_warnings, status_indicators, distinguished_badge, edit_indicator %}
+
+<div class="link mt-3">
+    <h5 class="title mb-0">
+        <a href="{{ item.url }}">{{ item.title }}</a>
+        {% if item.link_flair_text %}{{ post_flair(item.link_flair_text) }}{% endif %}
+        {{ stickied_indicator(item) }}
+        {{ content_warnings(item) }}
+        {{ status_indicators(item) }}
+        {% if item.gilded and item.gilded > 0 %}
+            <span class="gilded-icon" title="{{ item.gilded }} gold awards">🥇</span>
+        {% endif %}
+    </h5>
+    <a href="{{ item.url_comments }}">
+        <span class="badge {{ item.score|score_class(score_ranges) }}"
+              title="Score: {{ item.score }}">
+            {{ item.score }}
+        </span>
+    </a>
+    <small class="text-muted">
+        <a href="{{ item.url_comments }}">{{ item.num_comments }} comment{{ item.num_comments|pluralize }}</a>
+        <span {{ item.created_utc|date_tooltip }}>{{ item.created_utc|reddit_date }}</span>
+        <span {{ item|author_tooltip }}>{{ user_link(item.author, '../../') }}</span>
+        {% if item.author_flair_text %}
+            <span class="user-flair">{{ item.author_flair_text }}</span>
+        {% endif %}
+        {{ distinguished_badge(item) }}
+        {{ edit_indicator(item) }}
+        <span title="{{ item.url }}">{{ item.domain_html|safe }}</span>
+        in <a href="{{ item.sub_url }}">{{ item.url_prefix }}/{{ item.subreddit }}</a>
+    </small>
+</div>

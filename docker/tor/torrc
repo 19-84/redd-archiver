@@ -1,0 +1,31 @@
+# ABOUTME: Tor hidden service configuration for redd-archiver
+# ABOUTME: Proxies .onion traffic to nginx on port 80 for archive access
+
+# Hidden service definition
+# HiddenServiceDir: Directory where keys and hostname are stored
+# HiddenServicePort: Map .onion port 80 to nginx container port 80
+HiddenServiceDir /var/lib/tor/hidden_service
+HiddenServicePort 80 nginx:80
+
+# Performance settings
+# MaxStreams: Maximum concurrent streams per circuit (default: 0 = unlimited)
+# Setting to 100 prevents resource exhaustion while allowing normal traffic
+HiddenServiceMaxStreams 100
+
+# Close circuit if max streams reached (prevents connection hanging)
+HiddenServiceMaxStreamsCloseCircuit 1
+
+# Security settings
+# SafeSocks: Reject unsafe SOCKS protocols (SOCKS4, SOCKS5 with hostname leaks)
+SafeSocks 1
+
+# TestSocks: Test SOCKS port for leaks on startup
+TestSocks 1
+
+# Warn if plain text protocols are used (security risk)
+WarnPlaintextPorts 23,109,110,143
+
+# Logging
+# Log level 'notice' provides useful info without excessive verbosity
+# Logs written to file for debugging (view via: docker compose logs tor)
+Log notice file /var/log/tor/notices.log

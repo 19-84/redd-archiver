@@ -1,0 +1,234 @@
+{# Reddit-specific macros for reusable components #}
+
+{# User profile link macro #}
+{% macro user_link(username, base_path='../../') %}
+<a class="user-link" href="{{ base_path }}user/{{ username }}/">u/{{ username }}</a>
+{% endmacro %}
+
+{# Score badge with dynamic coloring #}
+{% macro score_badge(score, score_ranges, tooltip='') %}
+{% set badge_class = score|score_class_global(score_ranges) %}
+<span class="badge {{ badge_class }}" {{ tooltip|safe }}>{{ score }}</span>
+{% endmacro %}
+
+{# Post flair badge #}
+{% macro post_flair(flair_text) %}
+{% if flair_text %}
+<span class="badge-flair">{{ flair_text }}</span>
+{% endif %}
+{% endmacro %}
+
+{# Edit indicator #}
+{% macro edit_indicator(item) %}
+{% if item.edited %}
+  {% if item.edited is number and item.edited %}
+    {% set edit_time = item.edited|reddit_date('%d %b %Y %H:%M') %}
+    <span class="edited-marker" title="Edited {{ edit_time }}">*</span>
+  {% else %}
+    <span class="edited-marker" title="Edited">*</span>
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
+{# Distinguished badge (moderator/admin) #}
+{% macro distinguished_badge(item) %}
+{% if item.distinguished == 'moderator' %}
+<span class="mod-badge" title="Moderator">[M]</span>
+{% elif item.distinguished == 'admin' %}
+<span class="mod-badge admin-badge" title="Admin">[A]</span>
+{% endif %}
+{% endmacro %}
+
+{# Stickied indicator #}
+{% macro stickied_indicator(item) %}
+{% if item.stickied %}
+<span class="stickied-icon" title="Stickied">📌</span>
+{% endif %}
+{% endmacro %}
+
+{# Content warnings (NSFW, spoiler) #}
+{% macro content_warnings(item) %}
+{% if item.over_18 %}
+<span class="badge badge-danger nsfw-badge">NSFW</span>
+{% endif %}
+{% if item.spoiler %}
+<span class="badge badge-warning spoiler-badge">SPOILER</span>
+{% endif %}
+{% endmacro %}
+
+{# Status indicators (locked, archived) #}
+{% macro status_indicators(item) %}
+{% if item.locked %}
+<span class="status-icon locked-icon" title="Locked">🔒</span>
+{% endif %}
+{% if item.archived %}
+  {# Calculate archive date (Reddit auto-archives after 6 months) #}
+  {% set archive_date = (item.created_utc + (6 * 30 * 24 * 60 * 60))|reddit_date('%d %b %Y') %}
+  <span class="status-icon archived-icon" title="Archived {{ archive_date }}">📦</span>
+{% endif %}
+{% endmacro %}
+
+{# Awards indicator with hierarchical fallback #}
+{% macro awards_indicator(item) %}
+{% if item.all_awardings %}
+  {# Process detailed award information #}
+  {% set award_counts = {'platinum': 0, 'gold': 0, 'silver': 0, 'other': 0} %}
+  {% for award in item.all_awardings %}
+    {% set award_id = award.id|default('') %}
+    {% set award_name = award.name|default('') %}
+    {% set award_count = award.count|default(1) %}
+    {% if award_id == 'gid_1' or 'silver' in award_name.lower() %}
+      {% set _ = award_counts.update({'silver': award_counts.silver + award_count}) %}
+    {% elif award_id == 'gid_2' or 'gold' in award_name.lower() %}
+      {% set _ = award_counts.update({'gold': award_counts.gold + award_count}) %}
+    {% elif award_id == 'gid_3' or 'platinum' in award_name.lower() %}
+      {% set _ = award_counts.update({'platinum': award_counts.platinum + award_count}) %}
+    {% else %}
+      {% set _ = award_counts.update({'other': award_counts.other + award_count}) %}
+    {% endif %}
+  {% endfor %}
+
+  {# Display award icons in priority order #}
+  {% if award_counts.platinum > 0 %}
+    <span class="award-platinum" title="{{ award_counts.platinum }} Platinum award(s)">💎{% if award_counts.platinum > 1 %} {{ award_counts.platinum }}{% endif %}</span>
+  {% endif %}
+  {% if award_counts.gold > 0 %}
+    <span class="award-gold" title="{{ award_counts.gold }} Gold award(s)">🥇{% if award_counts.gold > 1 %} {{ award_counts.gold }}{% endif %}</span>
+  {% endif %}
+  {% if award_counts.silver > 0 %}
+    <span class="award-silver" title="{{ award_counts.silver }} Silver award(s)">🥈{% if award_counts.silver > 1 %} {{ award_counts.silver }}{% endif %}</span>
+  {% endif %}
+  {% if award_counts.other > 0 %}
+    <span class="award-other" title="{{ award_counts.other }} other award(s)">🏆{% if award_counts.other > 1 %} {{ award_counts.other }}{% endif %}</span>
+  {% endif %}
+{% elif item.total_awards_received|default(0) > 0 %}
+  {# Fallback to total_awards_received #}
+  <span class="awards-icon" title="{{ item.total_awards_received }} total awards">🏅 {{ item.total_awards_received }}</span>
+{% elif item.gilded|default(0) > 0 %}
+  {# Final fallback to gilded #}
+  <span class="gilded-icon" title="{{ item.gilded }} gold awards">🥇</span>
+{% endif %}
+{% endmacro %}
+
+{# Removal indicator #}
+{% macro removal_indicator(item) %}
+{% if item.removed_by_category %}
+  {% if item.removed_by_category == 'deleted' %}
+    <span class="removal-badge deleted-badge" title="Deleted by author">🗑️ Deleted</span>
+  {% elif item.removed_by_category == 'moderator' %}
+    <span class="removal-badge removed-badge" title="Removed by moderator">🚫 Removed</span>
+  {% elif item.removed_by_category == 'admin' %}
+    <span class="removal-badge admin-removed-badge" title="Removed by admin">⚠️ Admin Removed</span>
+  {% else %}
+    <span class="removal-badge generic-removed-badge" title="Removed: {{ item.removed_by_category }}">🚫 {{ item.removed_by_category }}</span>
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
+{# Video indicator #}
+{% macro video_indicator(item) %}
+{% if item.is_video %}
+<span class="video-icon" title="Video content">📹</span>
+{% endif %}
+{% endmacro %}
+
+{# Crosspost indicator #}
+{% macro crosspost_indicator(item) %}
+{% if item.num_crossposts|default(0) > 0 %}
+<span class="crosspost-icon" title="Crossposted {{ item.num_crossposts }} times">🔄 {{ item.num_crossposts }}</span>
+{% endif %}
+{% endmacro %}
+
+{# Combined post metadata macro - all indicators in one call #}
+{% macro post_metadata(post, show_flair=True) %}
+{% if show_flair and post.link_flair_text %}
+  {{ post_flair(post.link_flair_text) }}
+{% endif %}
+{{ stickied_indicator(post) }}
+{{ content_warnings(post) }}
+{{ status_indicators(post) }}
+{{ awards_indicator(post) }}
+{{ edit_indicator(post) }}
+{{ distinguished_badge(post) }}
+{{ removal_indicator(post) }}
+{{ video_indicator(post) }}
+{{ crosspost_indicator(post) }}
+{% endmacro %}
+
+{# Pagination component - matches original 7-button style #}
+{% macro pagination(page_num, total_pages, base_url='') %}
+{% set pager_skip = 10 %}
+<ul class="pagination pagination-sm mt-3">
+  {# First page (<<<) #}
+  {% if page_num == 1 %}
+  <li class="page-item first-page disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&lsaquo;&lsaquo;&lsaquo;</a></li>
+  {% else %}
+  <li class="page-item first-page"><a class="page-link" href="{{ base_url }}index.html">&lsaquo;&lsaquo;&lsaquo;</a></li>
+  {% endif %}
+
+  {# Skip back 10 pages (<<) #}
+  {% set prev_skip = [1, page_num - pager_skip]|max %}
+  {% if page_num == 1 %}
+  <li class="page-item skip-back disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&lsaquo;&lsaquo;</a></li>
+  {% else %}
+  <li class="page-item skip-back"><a class="page-link" href="{{ base_url }}{% if prev_skip > 1 %}index-{{ prev_skip }}.html{% else %}index.html{% endif %}">&lsaquo;&lsaquo;</a></li>
+  {% endif %}
+
+  {# Previous page (<) #}
+  {% set prev_page = page_num - 1 %}
+  {% if page_num == 1 %}
+  <li class="page-item prev-page disabled"><a class="page-link" href="{{ base_url }}index-0.html" tabindex="-1">&lsaquo;</a></li>
+  {% else %}
+  <li class="page-item prev-page"><a class="page-link" href="{{ base_url }}{% if prev_page > 1 %}index-{{ prev_page }}.html{% else %}index.html{% endif %}">&lsaquo;</a></li>
+  {% endif %}
+
+  {# Three numbered page buttons (centered window) #}
+  {% if page_num == 1 %}
+    {% set page_range = [1, 2, 3] %}
+  {% elif page_num == total_pages %}
+    {% set page_range = [[1, total_pages - 2]|max, [1, total_pages - 1]|max, total_pages] %}
+  {% else %}
+    {% set page_range = [page_num - 1, page_num, page_num + 1] %}
+  {% endif %}
+
+  {% for p in page_range %}
+    {% if p >= 1 and p <= total_pages %}
+      {% if p == page_num %}
+      <li class="page-item active"><a class="page-link" href="{{ base_url }}{% if p > 1 %}index-{{ p }}.html{% else %}index.html{% endif %}">{{ p }}</a></li>
+      {% else %}
+      <li class="page-item"><a class="page-link" href="{{ base_url }}{% if p > 1 %}index-{{ p }}.html{% else %}index.html{% endif %}">{{ p }}</a></li>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {# Next page (>) #}
+  {% set next_page = page_num + 1 %}
+  {% if page_num == total_pages %}
+  <li class="page-item next-page disabled"><a class="page-link" href="{{ base_url }}index-{{ page_num }}.html" tabindex="-1">&rsaquo;</a></li>
+  {% else %}
+  <li class="page-item next-page"><a class="page-link" href="{{ base_url }}index-{{ next_page }}.html">&rsaquo;</a></li>
+  {% endif %}
+
+  {# Skip forward 10 pages (>>) #}
+  {% set next_skip = [total_pages, page_num + pager_skip]|min %}
+  {% if page_num == total_pages %}
+  <li class="page-item skip-forward disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&rsaquo;&rsaquo;</a></li>
+  {% else %}
+  <li class="page-item skip-forward"><a class="page-link" href="{{ base_url }}{% if next_skip > 1 %}index-{{ next_skip }}.html{% else %}index.html{% endif %}">&rsaquo;&rsaquo;</a></li>
+  {% endif %}
+
+  {# Last page (>>>) #}
+  {% if page_num == total_pages %}
+  <li class="page-item last-page disabled"><a class="page-link" href="{{ base_url }}{% if total_pages > 1 %}index-{{ total_pages }}.html{% else %}index.html{% endif %}" tabindex="-1">&rsaquo;&rsaquo;&rsaquo;</a></li>
+  {% else %}
+  <li class="page-item last-page"><a class="page-link" href="{{ base_url }}{% if total_pages > 1 %}index-{{ total_pages }}.html{% else %}index.html{% endif %}">&rsaquo;&rsaquo;&rsaquo;</a></li>
+  {% endif %}
+</ul>
+{% endmacro %}
+
+{# Subreddit dropdown menu #}
+{% macro subreddit_menu(subreddits, base_path) %}
+{% for sub in subreddits %}
+  <a class="dropdown-item" href="{{ base_path }}r/{{ sub }}/index.html">r/{{ sub }}</a>
+{% endfor %}
+{% endmacro %}

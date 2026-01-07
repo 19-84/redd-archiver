@@ -1,0 +1,161 @@
+# ABOUTME: Nginx HTTP-only configuration for local development and Let's Encrypt challenges
+# ABOUTME: Used for local/offline deployment and initial certificate acquisition
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Security: Hide nginx version
+    server_tokens off;
+
+    # Log format
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+
+    # Basic performance settings
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # Gzip compression (universally supported, 50-70% reduction)
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
+    gzip_min_length 256;
+
+    # Upstream: Flask search server
+    upstream flask_search {
+        server search-server:5000;
+        keepalive 32;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        # Root directory for static files
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # ============================================================================
+        # SECURITY HEADERS
+        # ============================================================================
+
+        # Prevent clickjacking attacks by restricting iframe embedding
+        add_header X-Frame-Options "SAMEORIGIN" always;
+
+        # Prevent MIME type sniffing (force declared content types)
+        add_header X-Content-Type-Options "nosniff" always;
+
+        # Enable browser XSS protection (legacy, but doesn't hurt)
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # Control referrer information leakage
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # Content Security Policy - Pure CSS-only archive (high security)
+        # No JavaScript execution allowed (script-src 'none')
+        # 'unsafe-inline' allows inline style blocks in search templates
+        # 'unsafe-hashes' allows inline style attributes for progress bars
+        # connect-src 'self' allows DevTools and future API calls
+        add_header Content-Security-Policy "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline' 'unsafe-hashes'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';" always;
+
+        # Cross-Origin-Opener-Policy - process isolation
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+
+        # Disable dangerous browser features
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), usb=(), magnetometer=(), gyroscope=(), payment=(), interest-cohort=()" always;
+
+        # HSTS disabled for HTTP mode (only enable with HTTPS)
+        # See nginx.conf.https for HTTPS configuration
+
+        # ============================================================================
+
+        # Let's Encrypt challenge location (for certificate acquisition)
+        # This allows certbot to verify domain ownership via HTTP-01 challenge
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+            allow all;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "OK\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Proxy search requests to Flask server (exact match to avoid matching /search.html)
+        location = /search {
+            proxy_pass http://flask_search;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Timeouts
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+
+            # Buffering
+            proxy_buffering on;
+            proxy_buffer_size 4k;
+            proxy_buffers 8 4k;
+            proxy_busy_buffers_size 8k;
+        }
+
+        # Proxy API requests to Flask server
+        location /api/ {
+            proxy_pass http://flask_search;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Timeouts (API endpoints can be slow for large queries)
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+
+            # Buffering
+            proxy_buffering on;
+            proxy_buffer_size 4k;
+            proxy_buffers 8 4k;
+            proxy_busy_buffers_size 8k;
+        }
+
+        # Serve static files
+        location / {
+            try_files $uri $uri/ =404;
+
+            # Basic caching for static assets
+            location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                expires 1y;
+                add_header Cache-Control "public, immutable";
+            }
+        }
+
+        # Error pages
+        error_page 404 /404.html;
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+            root /usr/share/nginx/html;
+        }
+    }
+}
