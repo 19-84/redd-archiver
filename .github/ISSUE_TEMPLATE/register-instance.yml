@@ -13,62 +13,50 @@ body:
         Fill out this form to add your archive instance to the public registry and leaderboard.
 
         **Requirements:**
-        - Your instance must be publicly accessible
+        - Your instance must be publicly accessible (clearnet or Tor)
         - The `/api/v1/stats` endpoint must be available
-        - Your archive should be reasonably up-to-date
+        - At least one URL (clearnet or Tor) is required
 
-  - type: input
-    id: instance_name
-    attributes:
-      label: Instance Name
-      description: A human-readable name for your archive
-      placeholder: "Privacy Community Archive"
-    validations:
-      required: true
+        **Auto-populated from API:**
+        The following fields will be automatically fetched from your `/api/v1/stats` endpoint:
+        - Instance name (can be overridden below)
+        - Team ID (can be overridden below)
+        - Tor URL (if detected by your instance)
+        - Subreddits list
+        - Features (API, Tor)
 
   - type: input
     id: clearnet_url
     attributes:
       label: Clearnet URL
-      description: Public HTTPS URL to your archive
+      description: Public HTTPS URL to your archive. Required if no Tor URL provided.
       placeholder: "https://archive.example.com"
     validations:
-      required: true
+      required: false
 
   - type: input
     id: tor_url
     attributes:
-      label: Tor Hidden Service URL (Optional)
-      description: .onion address if you have a Tor mirror
+      label: Tor Hidden Service URL
+      description: .onion address. Required for tor-only instances, or to override API-detected value.
       placeholder: "http://abc123xyz.onion"
     validations:
       required: false
 
   - type: input
-    id: ipfs_cid
+    id: instance_name
     attributes:
-      label: IPFS CID (Optional)
-      description: IPFS Content ID if hosted on IPFS
-      placeholder: "QmXyz123..."
+      label: Instance Name (Optional)
+      description: Leave blank to use API-provided name. Override only if needed.
+      placeholder: "Privacy Community Archive"
     validations:
       required: false
-
-  - type: textarea
-    id: subreddits
-    attributes:
-      label: Subreddits Archived
-      description: List the subreddits in your archive (one per line)
-      placeholder: |
-        privacy
-        privacytoolsIO
-    validations:
-      required: true
 
   - type: input
     id: team_name
     attributes:
       label: Team Name (Optional)
-      description: If you're part of a team, enter the team name. Leave blank if solo.
+      description: Leave blank to use API-provided team_id. Override only if needed.
       placeholder: "Privacy Advocates Network"
     validations:
       required: false
@@ -83,20 +71,11 @@ body:
       required: true
 
   - type: input
-    id: contact_email
+    id: preferred_contact
     attributes:
-      label: Contact Email (Optional)
-      description: Email for important notifications (kept private)
-      placeholder: "admin@example.com"
-    validations:
-      required: false
-
-  - type: input
-    id: contact_matrix
-    attributes:
-      label: Matrix Contact (Optional)
-      description: Matrix ID for team coordination
-      placeholder: "@username:matrix.org"
+      label: Preferred Contact Method (Optional)
+      description: Simplex, Matrix, Telegram, Signal, email, or other
+      placeholder: "@user:matrix.org or simplex://contact/..."
     validations:
       required: false
 
@@ -107,6 +86,7 @@ body:
       description: How is your archive hosted?
       options:
         - Self-hosted (VPS/dedicated server)
+        - Homelab
         - GitHub Pages
         - Cloudflare Pages
         - Netlify
@@ -116,27 +96,30 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: dropdown
     id: location
     attributes:
-      label: Server Location (Optional)
-      description: Geographic location of your server (for redundancy tracking)
-      placeholder: "US-West, EU-Central, Asia-Pacific"
+      label: Server Region (Optional)
+      description: Geographic region of your server (for redundancy tracking)
+      options:
+        - North America
+        - South America
+        - Europe
+        - Africa
+        - Asia
+        - Oceania
+        - Other/Unknown
     validations:
       required: false
 
-  - type: checkboxes
-    id: features
+  - type: input
+    id: ipfs_cid
     attributes:
-      label: Features Enabled
-      description: What features does your archive support?
-      options:
-        - label: Full-text search
-        - label: Dark mode theme
-        - label: Mobile-optimized
-        - label: Tor accessible
-        - label: IPFS pinned
-        - label: REST API enabled
+      label: IPFS CID (Optional)
+      description: IPFS Content ID if hosted on IPFS
+      placeholder: "QmXyz123..."
+    validations:
+      required: false
 
   - type: textarea
     id: additional_info
@@ -157,7 +140,7 @@ body:
       label: Confirmation
       description: Please confirm the following
       options:
-        - label: My archive is publicly accessible
+        - label: My archive is publicly accessible (clearnet or Tor)
           required: true
         - label: The /api/v1/stats endpoint is working
           required: true
@@ -173,8 +156,8 @@ body:
 
         ## What Happens Next?
 
-        1. A maintainer will verify your instance is accessible
-        2. Your stats API will be checked for proper formatting
+        1. A maintainer will fetch your `/api/v1/stats` endpoint
+        2. Instance name, subreddits, and features will be auto-populated
         3. Your instance will be added to the registry
         4. You'll appear on the public leaderboard within 24 hours
 

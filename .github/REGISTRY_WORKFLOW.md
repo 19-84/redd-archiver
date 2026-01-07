@@ -16,16 +16,38 @@ This document explains how to submit and process Redd Archiver instance registra
 
 ### What You Need
 
-- **Public URL**: Your archive must be accessible via HTTPS
+- **At least one URL**: Your archive must be accessible via HTTPS (clearnet) or Tor (.onion)
 - **API Endpoint**: The `/api/v1/stats` endpoint must work
 - **Maintenance**: Commit to reasonable uptime (>90%)
+
+### Auto-Populated Fields
+
+The following fields are automatically fetched from your `/api/v1/stats` endpoint:
+
+| Field | Source | Override |
+|-------|--------|----------|
+| Instance name | `instance.name` | Form field (optional) |
+| Team ID | `instance.team_id` | Form field (optional) |
+| Tor URL | `instance.tor_url` | Form field (optional) |
+| Subreddits | `content.subreddits[]` | Always from API |
+| Features | `features.tor`, API availability | Auto-detected |
 
 ### Optional Enhancements
 
 - Tor hidden service (.onion address)
 - IPFS hosting (CID)
 - Team affiliation
-- Contact information (email, simplex, ect)
+- Preferred contact method (Simplex, Matrix, Telegram, email, etc.)
+
+### Tor-Only Instances
+
+If your archive is only accessible via Tor (no clearnet URL):
+
+1. Leave the "Clearnet URL" field blank
+2. Enter your `.onion` URL in the "Tor Hidden Service URL" field
+3. The maintainer will use `torify curl` to validate your API
+
+**Note:** Tor-only instances are fully supported. The script will fetch your API via Tor.
 
 ---
 
@@ -34,11 +56,15 @@ This document explains how to submit and process Redd Archiver instance registra
 ### Prerequisites
 
 ```bash
-# Option 1: Using gh CLI (recommended)
+# Required: gh CLI for fetching issues
 gh auth login
 
-# Option 2: Manual processing
-# No additional tools needed
+# Required for tor-only instances: Tor and torify
+# Ubuntu/Debian:
+sudo apt install tor torsocks
+
+# Verify torify works:
+torify curl -s https://check.torproject.org/api/ip
 ```
 
 ### Processing a Submission
@@ -55,8 +81,11 @@ python .github/scripts/issue-to-registry.py --issue-number 123
 # This will:
 # 1. Fetch the issue from GitHub
 # 2. Parse the form fields
-# 3. Generate instances/<instance-id>.json
-# 4. Display validation checklist
+# 3. Fetch /api/v1/stats from the instance (auto-detects Tor)
+# 4. Auto-populate instance name, team_id, subreddits, features
+# 5. Generate instances/<instance-id>.json
+# 6. Display data sources (form vs API)
+# 7. Display validation checklist
 ```
 
 #### Method 2: Manual Processing
@@ -71,37 +100,68 @@ python .github/scripts/issue-to-registry.py --from-file issue-body.txt
 python .github/scripts/issue-to-registry.py --from-clipboard
 ```
 
+### Script Output
+
+The script will show:
+
+1. **API Data Summary**: Instance name, team ID, Tor URL, subreddit count, post/comment counts
+2. **Data Sources**: Which fields came from the form vs API
+3. **Generated JSON**: The registry entry to be created
+4. **Validation Checklist**: Manual checks to perform
+
+Example output:
+```
+📊 API Data Summary:
+   Instance name: Privacy Archive
+   Team ID: privacy-team
+   Tor URL: http://abc123.onion
+   Subreddits: 5
+   Total posts: 125000
+   Total comments: 890000
+
+📋 DATA SOURCES:
+Instance name: Privacy Archive
+   └─ Source: API
+Team ID: privacy-team
+   └─ Source: API
+Subreddits: 5
+   └─ Source: API
+Features: ['api', 'tor']
+   └─ Source: API (auto-detected)
+```
+
 ### Validation Steps
 
 Before merging the registration:
 
-1. **Verify Clearnet URL**
+1. **Review API Data**
+   - The script already fetched and displayed the API response
+   - Verify subreddit count makes sense
+   - Check total posts/comments > 0
+
+2. **Verify Clearnet URL** (if provided)
    ```bash
    curl https://archive.example.com
    # Should return HTML
    ```
 
-2. **Verify API Endpoint**
-   ```bash
-   curl https://archive.example.com/api/v1/stats
-   # Should return JSON with required fields
-   ```
-
-3. **Check Required Fields**
-   - `total_posts` > 0
-   - `total_comments` >= 0
-   - `total_users` >= 0
-   - `subreddits` array not empty
-
-4. **Verify Tor URL (if provided)**
+3. **Verify Tor URL** (if provided)
    ```bash
    torify curl http://abc123xyz.onion
+   # Should return HTML
+   ```
+
+4. **Verify IPFS** (if provided)
+   ```bash
+   curl https://ipfs.io/ipfs/<CID>
+   # Should return content
    ```
 
 5. **Review JSON Accuracy**
-   - Subreddit list correct
+   - Instance name is appropriate
    - Maintainer GitHub username valid
    - Team ID matches existing team (if applicable)
+   - Subreddit list looks correct
 
 ### Approving the Registration
 
@@ -122,11 +182,12 @@ git push
 
 Common reasons to reject a submission:
 
-- ❌ Archive not publicly accessible
-- ❌ API endpoint returns errors
-- ❌ No content (0 posts)
+- ❌ Archive not publicly accessible (API fetch failed)
+- ❌ API endpoint returns errors or invalid JSON
+- ❌ No content (0 posts/0 subreddits)
 - ❌ Spam or inappropriate content
 - ❌ Duplicate submission (same URL already registered)
+- ❌ Neither clearnet nor Tor URL provided
 
 **Always comment on the issue explaining the rejection reason.**
 
@@ -134,7 +195,7 @@ Common reasons to reject a submission:
 
 ## Team Registrations
 
-If the submitter specified a team name:
+If the submitter specified a team name (or API returned team_id):
 
 1. Check if `teams/<team-id>.json` exists
 2. If not, create it:
@@ -202,30 +263,37 @@ teams/
 {
   "instance_id": "unique-identifier",
   "name": "Human Readable Name",
-  "team_id": "team-identifier",  // optional
+  "team_id": "team-identifier",
   "maintainer": "github_username",
   "registered": "2025-01-23",
   "endpoints": {
     "clearnet": "https://archive.example.com",
-    "tor": "http://abc.onion",  // optional
-    "ipfs": "https://ipfs.io/ipfs/Qm...",  // optional
+    "tor": "http://abc.onion",
+    "ipfs": "https://ipfs.io/ipfs/Qm...",
     "api": "https://archive.example.com/api/v1/stats"
   },
   "static_metadata": {
     "subreddits": [
       {"name": "privacy", "url": "/r/privacy/"}
     ],
-    "hosting": "self-hosted",
-    "location": "US-West"  // optional
+    "hosting": "Self-hosted (VPS/dedicated server)",
+    "location": "North America"
   },
-  "features": ["search", "dark-mode", "mobile", "tor"],
-  "contact": {  // optional
-    "email": "admin@example.com",
-    "matrix": "@user:matrix.org"
+  "features": ["api", "tor"],
+  "contact": {
+    "preferred": "@user:matrix.org"
   },
-  "notes": "Additional information"  // optional
+  "notes": "Additional information"
 }
 ```
+
+**Notes:**
+- `clearnet` is optional for tor-only instances
+- `team_id` is optional
+- `contact` is optional
+- `notes` is optional
+- `location` uses regions: North America, South America, Europe, Africa, Asia, Oceania
+- `features` are auto-detected: `api` (always), `tor` (if tor_url present)
 
 ### Team JSON Format
 
@@ -238,7 +306,7 @@ teams/
   "members": ["username1", "username2"],
   "contact": {
     "website": "https://example.com",
-    "matrix": "@team:matrix.org"
+    "preferred": "@team:matrix.org"
   },
   "archives": ["instance-id-1", "instance-id-2"]
 }
@@ -264,13 +332,21 @@ The leaderboard updates automatically via:
 
 ## Troubleshooting
 
-### Issue: API endpoint returns 404
+### Issue: API fetch fails for clearnet URL
 
-**Solution**: Ask submitter to:
-1. Check that search server is running
-2. Verify Flask-CORS is installed
-3. Ensure API blueprint is registered
-4. Check Docker container logs
+**Solution**: Check that:
+1. The URL is correct and accessible
+2. HTTPS certificate is valid
+3. Search server is running
+4. API blueprint is registered
+
+### Issue: API fetch fails for Tor URL
+
+**Solution**: Check that:
+1. `torify` is installed (`sudo apt install torsocks`)
+2. Tor service is running (`sudo systemctl start tor`)
+3. The .onion URL is correct
+4. Try: `torify curl -s <onion-url>/api/v1/stats`
 
 ### Issue: Subreddit list empty
 
@@ -280,13 +356,17 @@ The leaderboard updates automatically via:
 
 **Solution**:
 1. Check that issue used the correct template
-2. Verify all required fields are filled
-3. Try manual JSON creation as fallback
+2. Verify at least one URL is provided
+3. Try with `--skip-api` flag for testing (not recommended for production)
+
+### Issue: No instance name from API
+
+**Solution**: The instance operator hasn't configured `REDDARCHIVER_SITE_NAME`. Ask them to set this environment variable, or have them provide a name in the form.
 
 ---
 
 ## Questions?
 
 - Open an issue with the `registry` label
-- Contact maintainers via Simplex/Email
+- Contact maintainers via Simplex/Matrix
 - Check the main README for additional documentation
