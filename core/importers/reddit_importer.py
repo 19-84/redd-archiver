@@ -10,11 +10,12 @@ Reddit format:
 Data source: Pushshift Reddit archives or custom .zst dumps
 """
 
-import os
 import glob
 import json
-from typing import Iterator, Dict, Any, List, Optional
 import logging
+import os
+from collections.abc import Iterator
+from typing import Any
 
 from ..watchful import read_lines_zst
 from .base_importer import BaseImporter
@@ -30,9 +31,9 @@ class RedditImporter(BaseImporter):
     This is the original format supported by redd-archiver.
     """
 
-    PLATFORM_ID = 'reddit'
+    PLATFORM_ID = "reddit"
 
-    def detect_files(self, input_dir: str) -> Dict[str, List[str]]:
+    def detect_files(self, input_dir: str) -> dict[str, list[str]]:
         """
         Detect Reddit .zst archive files in directory.
 
@@ -46,16 +47,16 @@ class RedditImporter(BaseImporter):
             FileNotFoundError: If no .zst files found
         """
         # Look for .zst files with typical Pushshift naming patterns
-        all_zst_files = glob.glob(os.path.join(input_dir, '*.zst'))
+        all_zst_files = glob.glob(os.path.join(input_dir, "*.zst"))
 
         posts_files = []
         comments_files = []
 
         for file_path in all_zst_files:
             basename = os.path.basename(file_path).lower()
-            if 'submission' in basename or 'post' in basename:
+            if "submission" in basename or "post" in basename:
                 posts_files.append(file_path)
-            elif 'comment' in basename:
+            elif "comment" in basename:
                 comments_files.append(file_path)
 
         if not posts_files and not comments_files:
@@ -64,21 +65,11 @@ class RedditImporter(BaseImporter):
                 f"Expected files with 'submission', 'post', or 'comment' in filename"
             )
 
-        logger.info(
-            f"Detected Reddit archives: {len(posts_files)} post files, "
-            f"{len(comments_files)} comment files"
-        )
+        logger.info(f"Detected Reddit archives: {len(posts_files)} post files, " f"{len(comments_files)} comment files")
 
-        return {
-            'posts': sorted(posts_files),
-            'comments': sorted(comments_files)
-        }
+        return {"posts": sorted(posts_files), "comments": sorted(comments_files)}
 
-    def stream_posts(
-        self,
-        file_path: str,
-        filter_communities: Optional[List[str]] = None
-    ) -> Iterator[Dict[str, Any]]:
+    def stream_posts(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
         Stream posts from Reddit .zst archive.
 
@@ -107,7 +98,7 @@ class RedditImporter(BaseImporter):
                 obj = json.loads(line)
 
                 # Apply community filter if provided
-                subreddit = obj.get('subreddit', '')
+                subreddit = obj.get("subreddit", "")
                 if filter_communities and subreddit.lower() not in [s.lower() for s in filter_communities]:
                     filtered_count += 1
                     continue
@@ -123,15 +114,10 @@ class RedditImporter(BaseImporter):
                 continue
 
         logger.info(
-            f"Reddit posts: {line_count} lines processed, "
-            f"{valid_count} valid posts, {filtered_count} filtered"
+            f"Reddit posts: {line_count} lines processed, " f"{valid_count} valid posts, {filtered_count} filtered"
         )
 
-    def stream_comments(
-        self,
-        file_path: str,
-        filter_communities: Optional[List[str]] = None
-    ) -> Iterator[Dict[str, Any]]:
+    def stream_comments(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
         Stream comments from Reddit .zst archive.
 
@@ -158,7 +144,7 @@ class RedditImporter(BaseImporter):
                 obj = json.loads(line)
 
                 # Apply community filter if provided
-                subreddit = obj.get('subreddit', '')
+                subreddit = obj.get("subreddit", "")
                 if filter_communities and subreddit.lower() not in [s.lower() for s in filter_communities]:
                     filtered_count += 1
                     continue
@@ -178,7 +164,7 @@ class RedditImporter(BaseImporter):
             f"{valid_count} valid comments, {filtered_count} filtered"
         )
 
-    def _normalize_post(self, reddit_post: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_post(self, reddit_post: dict[str, Any]) -> dict[str, Any] | None:
         """
         Normalize Reddit post to common schema.
 
@@ -192,37 +178,37 @@ class RedditImporter(BaseImporter):
             dict or None: Normalized post or None if validation fails
         """
         # Validate required fields
-        required = ['id', 'subreddit', 'author', 'title', 'created_utc']
-        if not self.validate_required_fields(reddit_post, required, 'post'):
+        required = ["id", "subreddit", "author", "title", "created_utc"]
+        if not self.validate_required_fields(reddit_post, required, "post"):
             return None
 
         # Reddit posts already match our schema, just add platform and prefix ID
         normalized = {
-            'id': self.prefix_id(reddit_post['id']),
-            'platform': self.PLATFORM_ID,
-            'subreddit': reddit_post['subreddit'],
-            'author': reddit_post['author'],
-            'title': reddit_post['title'],
-            'selftext': reddit_post.get('selftext', ''),
-            'url': reddit_post.get('url', ''),
-            'domain': reddit_post.get('domain', ''),
-            'permalink': reddit_post.get('permalink', ''),
-            'created_utc': reddit_post['created_utc'],
-            'score': reddit_post.get('score', 0),
-            'ups': reddit_post.get('ups', 0),
-            'downs': reddit_post.get('downs', 0),
-            'num_comments': reddit_post.get('num_comments', 0),
-            'is_self': reddit_post.get('is_self', False),
-            'over_18': reddit_post.get('over_18', False),
-            'locked': reddit_post.get('locked', False),
-            'stickied': reddit_post.get('stickied', False),
-            'archived': reddit_post.get('archived', False),
-            'json_data': reddit_post  # Store original for reference
+            "id": self.prefix_id(reddit_post["id"]),
+            "platform": self.PLATFORM_ID,
+            "subreddit": reddit_post["subreddit"],
+            "author": reddit_post["author"],
+            "title": reddit_post["title"],
+            "selftext": reddit_post.get("selftext", ""),
+            "url": reddit_post.get("url", ""),
+            "domain": reddit_post.get("domain", ""),
+            "permalink": reddit_post.get("permalink", ""),
+            "created_utc": reddit_post["created_utc"],
+            "score": reddit_post.get("score", 0),
+            "ups": reddit_post.get("ups", 0),
+            "downs": reddit_post.get("downs", 0),
+            "num_comments": reddit_post.get("num_comments", 0),
+            "is_self": reddit_post.get("is_self", False),
+            "over_18": reddit_post.get("over_18", False),
+            "locked": reddit_post.get("locked", False),
+            "stickied": reddit_post.get("stickied", False),
+            "archived": reddit_post.get("archived", False),
+            "json_data": reddit_post,  # Store original for reference
         }
 
         return normalized
 
-    def _normalize_comment(self, reddit_comment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_comment(self, reddit_comment: dict[str, Any]) -> dict[str, Any] | None:
         """
         Normalize Reddit comment to common schema.
 
@@ -236,43 +222,43 @@ class RedditImporter(BaseImporter):
             dict or None: Normalized comment or None if validation fails
         """
         # Validate required fields
-        required = ['id', 'link_id', 'subreddit', 'author', 'body', 'created_utc']
-        if not self.validate_required_fields(reddit_comment, required, 'comment'):
+        required = ["id", "link_id", "subreddit", "author", "body", "created_utc"]
+        if not self.validate_required_fields(reddit_comment, required, "comment"):
             return None
 
         # Extract post ID from link_id (format: t3_abc123)
-        link_id = reddit_comment['link_id']
-        if link_id.startswith('t3_'):
+        link_id = reddit_comment["link_id"]
+        if link_id.startswith("t3_"):
             post_id = self.prefix_id(link_id[3:])
         else:
             post_id = self.prefix_id(link_id)
 
         # Extract parent ID (could be post or another comment)
-        parent_id_raw = reddit_comment.get('parent_id', link_id)
-        if parent_id_raw.startswith('t1_'):  # Comment parent
+        parent_id_raw = reddit_comment.get("parent_id", link_id)
+        if parent_id_raw.startswith("t1_"):  # Comment parent
             parent_id = self.prefix_id(parent_id_raw[3:])
-        elif parent_id_raw.startswith('t3_'):  # Post parent
+        elif parent_id_raw.startswith("t3_"):  # Post parent
             parent_id = self.prefix_id(parent_id_raw[3:])
         else:
             parent_id = self.prefix_id(parent_id_raw)
 
         # Reddit comments already match our schema, just add platform and prefix IDs
         normalized = {
-            'id': self.prefix_id(reddit_comment['id']),
-            'platform': self.PLATFORM_ID,
-            'post_id': post_id,
-            'parent_id': parent_id,
-            'subreddit': reddit_comment['subreddit'],
-            'author': reddit_comment['author'],
-            'body': reddit_comment['body'],
-            'permalink': reddit_comment.get('permalink', ''),
-            'link_id': link_id,
-            'created_utc': reddit_comment['created_utc'],
-            'score': reddit_comment.get('score', 0),
-            'ups': reddit_comment.get('ups', 0),
-            'downs': reddit_comment.get('downs', 0),
-            'depth': reddit_comment.get('depth', 0),
-            'json_data': reddit_comment  # Store original for reference
+            "id": self.prefix_id(reddit_comment["id"]),
+            "platform": self.PLATFORM_ID,
+            "post_id": post_id,
+            "parent_id": parent_id,
+            "subreddit": reddit_comment["subreddit"],
+            "author": reddit_comment["author"],
+            "body": reddit_comment["body"],
+            "permalink": reddit_comment.get("permalink", ""),
+            "link_id": link_id,
+            "created_utc": reddit_comment["created_utc"],
+            "score": reddit_comment.get("score", 0),
+            "ups": reddit_comment.get("ups", 0),
+            "downs": reddit_comment.get("downs", 0),
+            "depth": reddit_comment.get("depth", 0),
+            "json_data": reddit_comment,  # Store original for reference
         }
 
         return normalized

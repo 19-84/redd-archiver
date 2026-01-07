@@ -2,12 +2,13 @@
 # ABOUTME: Comprehensive API validation script using Python requests
 # ABOUTME: Tests all 30+ endpoints with extensive parameter combinations
 
-import requests
 import json
 import sys
-from typing import Dict, List, Tuple
+
+import requests
 
 BASE_URL = "http://localhost/api/v1"
+
 
 class APITester:
     def __init__(self):
@@ -16,9 +17,15 @@ class APITester:
         self.warnings = 0
         self.session = requests.Session()
 
-    def test_endpoint(self, name: str, path: str, method: str = "GET",
-                     data: Dict = None, expected_code: int = 200,
-                     check_json: bool = True) -> bool:
+    def test_endpoint(
+        self,
+        name: str,
+        path: str,
+        method: str = "GET",
+        data: dict = None,
+        expected_code: int = 200,
+        check_json: bool = True,
+    ) -> bool:
         """Test a single endpoint"""
         url = f"{BASE_URL}{path}"
         print(f"  ├─ {name}...", end=" ", flush=True)
@@ -38,11 +45,11 @@ class APITester:
                 return False
 
             # Check JSON structure (skip for CSV/NDJSON)
-            if check_json and 'json' in response.headers.get('Content-Type', ''):
+            if check_json and "json" in response.headers.get("Content-Type", ""):
                 try:
                     response.json()
                 except json.JSONDecodeError:
-                    print(f"⚠ WARN (Invalid JSON)")
+                    print("⚠ WARN (Invalid JSON)")
                     self.warnings += 1
                     return False
 
@@ -51,7 +58,7 @@ class APITester:
             return True
 
         except requests.exceptions.Timeout:
-            print(f"✗ FAIL (Timeout)")
+            print("✗ FAIL (Timeout)")
             self.failed += 1
             return False
         except Exception as e:
@@ -59,7 +66,7 @@ class APITester:
             self.failed += 1
             return False
 
-    def test_response_structure(self, name: str, path: str, required_fields: List[str]) -> bool:
+    def test_response_structure(self, name: str, path: str, required_fields: list[str]) -> bool:
         """Test that response contains required fields"""
         url = f"{BASE_URL}{path}"
         print(f"  ├─ {name}...", end=" ", flush=True)
@@ -90,14 +97,14 @@ class APITester:
         """Print section header"""
         print(f"\n{'='*60}")
         print(f"{title}")
-        print('='*60)
+        print("=" * 60)
 
     def run_all_tests(self):
         """Run comprehensive test suite"""
-        print("="*60)
+        print("=" * 60)
         print("COMPREHENSIVE API VALIDATION TEST SUITE")
         print(f"Target: {BASE_URL}")
-        print("="*60)
+        print("=" * 60)
 
         # System Endpoints
         self.section("1. SYSTEM ENDPOINTS")
@@ -149,7 +156,9 @@ class APITester:
         # Posts - Advanced
         self.section("7. POSTS - Advanced Features")
         self.test_endpoint("Context endpoint", "/posts/6a6igz/context?top_comments=5")
-        self.test_endpoint("Context with params", "/posts/6a6igz/context?top_comments=3&max_depth=2&max_body_length=200")
+        self.test_endpoint(
+            "Context with params", "/posts/6a6igz/context?top_comments=3&max_depth=2&max_body_length=200"
+        )
         self.test_endpoint("Comment tree", "/posts/6a6igz/comments/tree?max_depth=2&limit=10")
         self.test_endpoint("Related posts", "/posts/6a6igz/related?limit=5")
         self.test_endpoint("Random posts", "/posts/random?n=10&subreddit=RedditCensors")
@@ -221,7 +230,7 @@ class APITester:
         print(f"Failed:   {self.failed}")
         print(f"Warnings: {self.warnings}")
         print(f"Total:    {total}")
-        print("="*60)
+        print("=" * 60)
 
         if self.failed == 0:
             print("\n✓✓✓ ALL TESTS PASSED! ✓✓✓\n")
@@ -229,6 +238,7 @@ class APITester:
         else:
             print(f"\n✗✗✗ {self.failed} TESTS FAILED ✗✗✗\n")
             return 1
+
 
 if __name__ == "__main__":
     tester = APITester()

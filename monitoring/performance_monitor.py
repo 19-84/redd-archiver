@@ -4,24 +4,27 @@ ABOUTME: Performance monitoring system for PostgreSQL database processing perfor
 ABOUTME: Provides comprehensive metrics collection, phase tracking, and auto-tuning validation.
 """
 
-import time
-import psutil
-import os
 import json
+import os
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
 from threading import Lock
-from utils.console_output import print_info, print_success, print_warning, print_error
+from typing import Any
+
+import psutil
+
+from utils.console_output import print_error, print_info, print_success, print_warning
 
 
 @dataclass
 class ProcessingMetrics:
     """Comprehensive metrics for processing operations"""
+
     # Basic timing
     start_time: float
-    end_time: Optional[float] = None
-    duration: Optional[float] = None
+    end_time: float | None = None
+    duration: float | None = None
 
     # Memory metrics
     peak_memory_mb: float = 0.0
@@ -73,6 +76,7 @@ class ProcessingMetrics:
 @dataclass
 class UserPageMetrics:
     """Detailed metrics for user page generation performance"""
+
     # Timing breakdown
     database_loading_time: float = 0.0
     html_generation_time: float = 0.0
@@ -103,9 +107,9 @@ class UserPageMetrics:
     avg_connection_time: float = 0.0
 
     # Performance issues
-    slowest_users: List[Dict[str, Any]] = None
+    slowest_users: list[dict[str, Any]] = None
     bottleneck_phase: str = ""
-    optimization_recommendations: List[str] = None
+    optimization_recommendations: list[str] = None
 
     # Tracking state
     _finalized: bool = False  # Prevent double-finalize
@@ -163,10 +167,11 @@ class UserPageMetrics:
 @dataclass
 class PhaseMetrics:
     """Metrics for individual processing phases"""
+
     phase_name: str
     start_time: float
-    end_time: Optional[float] = None
-    duration: Optional[float] = None
+    end_time: float | None = None
+    duration: float | None = None
     records_processed: int = 0
     errors: int = 0
     memory_start_mb: float = 0.0
@@ -238,15 +243,11 @@ class UserPagePerformanceTracker:
                 self.metrics.failed_users += 1
 
             # Track timing for performance analysis
-            self.user_timings.append({
-                'username': username,
-                'time': processing_time,
-                'success': success
-            })
+            self.user_timings.append({"username": username, "time": processing_time, "success": success})
 
             # Keep only top 10 slowest for reporting
             if len(self.user_timings) > 10:
-                self.user_timings = sorted(self.user_timings, key=lambda x: x['time'], reverse=True)[:10]
+                self.user_timings = sorted(self.user_timings, key=lambda x: x["time"], reverse=True)[:10]
 
     def record_connection_time(self, connection_time: float):
         """Record database connection acquisition time"""
@@ -270,9 +271,8 @@ class UserPagePerformanceTracker:
                 # Update running average
                 if self.metrics.processed_users > 0:
                     self.metrics.average_memory_mb = (
-                        (self.metrics.average_memory_mb * (self.metrics.processed_users - 1) + memory_mb) /
-                        self.metrics.processed_users
-                    )
+                        self.metrics.average_memory_mb * (self.metrics.processed_users - 1) + memory_mb
+                    ) / self.metrics.processed_users
                 else:
                     self.metrics.average_memory_mb = memory_mb
 
@@ -315,7 +315,9 @@ class UserPagePerformanceTracker:
                 self.metrics.users_per_second = self.metrics.processed_users / self.metrics.total_time
 
                 if self.metrics.database_loading_time > 0:
-                    self.metrics.database_loading_rate = self.metrics.processed_users / self.metrics.database_loading_time
+                    self.metrics.database_loading_rate = (
+                        self.metrics.processed_users / self.metrics.database_loading_time
+                    )
                 if self.metrics.html_generation_time > 0:
                     self.metrics.html_generation_rate = self.metrics.processed_users / self.metrics.html_generation_time
                 if self.metrics.file_writing_time > 0:
@@ -330,12 +332,12 @@ class UserPagePerformanceTracker:
                 "Database Loading": self.metrics.database_loading_time,
                 "HTML Generation": self.metrics.html_generation_time,
                 "File Writing": self.metrics.file_writing_time,
-                "Connection Waits": self.metrics.connection_acquisition_time
+                "Connection Waits": self.metrics.connection_acquisition_time,
             }
             self.metrics.bottleneck_phase = max(phase_times, key=phase_times.get)
 
             # Store slowest users
-            self.metrics.slowest_users = sorted(self.user_timings, key=lambda x: x['time'], reverse=True)[:10]
+            self.metrics.slowest_users = sorted(self.user_timings, key=lambda x: x["time"], reverse=True)[:10]
 
             # Generate optimization recommendations
             self._generate_optimization_recommendations()
@@ -376,7 +378,9 @@ class UserPagePerformanceTracker:
 
         # Performance recommendations based on bottleneck
         if self.metrics.bottleneck_phase == "HTML Generation":
-            recommendations.append("🚀 HTML generation is bottleneck - consider template caching or parallel processing")
+            recommendations.append(
+                "🚀 HTML generation is bottleneck - consider template caching or parallel processing"
+            )
         elif self.metrics.bottleneck_phase == "Database Loading":
             recommendations.append("🗄️ Database loading slow - check query optimization and indexing")
         elif self.metrics.bottleneck_phase == "Connection Waits":
@@ -401,7 +405,7 @@ class PerformanceMonitor:
 
     def __init__(self, output_dir: str):
         self.output_dir = output_dir
-        self.metrics_file = os.path.join(output_dir, '.archive-performance-metrics.json')
+        self.metrics_file = os.path.join(output_dir, ".archive-performance-metrics.json")
         self.current_session = None
         self.historical_metrics = self._load_historical_metrics()
         self.monitoring_active = False
@@ -426,11 +430,11 @@ class PerformanceMonitor:
         self.last_batch_processor_metrics = {}
         self.last_connection_pool_metrics = {}
 
-    def _load_historical_metrics(self) -> List[Dict[str, Any]]:
+    def _load_historical_metrics(self) -> list[dict[str, Any]]:
         """Load historical performance metrics for comparison"""
         try:
             if os.path.exists(self.metrics_file):
-                with open(self.metrics_file, 'r') as f:
+                with open(self.metrics_file) as f:
                     return json.load(f)
         except Exception as e:
             print_warning(f"Could not load historical metrics: {e}")
@@ -441,8 +445,8 @@ class PerformanceMonitor:
         try:
             # Convert metrics to dictionary
             metrics_dict = asdict(metrics)
-            metrics_dict['timestamp'] = datetime.now().isoformat()
-            metrics_dict['version'] = 'step-16-database-enhancement'
+            metrics_dict["timestamp"] = datetime.now().isoformat()
+            metrics_dict["version"] = "step-16-database-enhancement"
 
             # Add to historical data
             self.historical_metrics.append(metrics_dict)
@@ -452,8 +456,8 @@ class PerformanceMonitor:
                 self.historical_metrics = self.historical_metrics[-50:]
 
             # Write to file atomically
-            temp_file = self.metrics_file + '.tmp'
-            with open(temp_file, 'w') as f:
+            temp_file = self.metrics_file + ".tmp"
+            with open(temp_file, "w") as f:
                 json.dump(self.historical_metrics, f, indent=2)
             os.rename(temp_file, self.metrics_file)
 
@@ -462,10 +466,7 @@ class PerformanceMonitor:
 
     def start_session(self, processing_mode: str, subreddit: str = None) -> ProcessingMetrics:
         """Start a new performance monitoring session"""
-        self.current_session = ProcessingMetrics(
-            start_time=time.time(),
-            processing_mode=processing_mode
-        )
+        self.current_session = ProcessingMetrics(start_time=time.time(), processing_mode=processing_mode)
         self.monitoring_active = True
 
         # Record initial memory state
@@ -506,8 +507,9 @@ class PerformanceMonitor:
         except Exception:
             pass  # Memory monitoring is optional
 
-    def update_processing_counts(self, posts: int = 0, comments: int = 0,
-                                threads: int = 0, pages: int = 0, indices: int = 0):
+    def update_processing_counts(
+        self, posts: int = 0, comments: int = 0, threads: int = 0, pages: int = 0, indices: int = 0
+    ):
         """Update processing count metrics"""
         if not self.current_session:
             return
@@ -524,8 +526,7 @@ class PerformanceMonitor:
             self._update_memory_metrics()
             self.last_memory_check = now
 
-    def update_database_metrics(self, operations: int = 0, query_time: float = 0.0,
-                               db_size_mb: float = 0.0):
+    def update_database_metrics(self, operations: int = 0, query_time: float = 0.0, db_size_mb: float = 0.0):
         """Update database-specific metrics"""
         if not self.current_session:
             return
@@ -592,15 +593,15 @@ class PerformanceMonitor:
         if metrics.errors_encountered > 0:
             print_warning(f"Errors encountered: {metrics.errors_encountered}", indent=2)
 
-    def compare_approaches(self) -> Optional[Dict[str, Any]]:
+    def compare_approaches(self) -> dict[str, Any] | None:
         """Compare historical database processing performance across sessions"""
         if len(self.historical_metrics) < 2:
             print_info("Not enough historical data for performance comparison")
             return None
 
         # Separate metrics by processing mode
-        database_metrics = [m for m in self.historical_metrics if m['processing_mode'] == 'database']
-        memory_metrics = [m for m in self.historical_metrics if m['processing_mode'] == 'in-memory']
+        database_metrics = [m for m in self.historical_metrics if m["processing_mode"] == "database"]
+        memory_metrics = [m for m in self.historical_metrics if m["processing_mode"] == "in-memory"]
 
         if not database_metrics:
             print_info("Need database metrics for comparison")
@@ -616,19 +617,23 @@ class PerformanceMonitor:
         mem_avg = self._calculate_average_metrics(memory_metrics)
 
         comparison = {
-            'database_backend': db_avg,
-            'in_memory_backend': mem_avg,
-            'improvements': {
-                'memory_usage': ((mem_avg['peak_memory_mb'] - db_avg['peak_memory_mb']) / mem_avg['peak_memory_mb']) * 100,
-                'processing_speed': ((db_avg['posts_per_second'] - mem_avg['posts_per_second']) / mem_avg['posts_per_second']) * 100,
-                'memory_pressure_reduction': mem_avg['memory_pressure_events'] - db_avg['memory_pressure_events']
-            }
+            "database_backend": db_avg,
+            "in_memory_backend": mem_avg,
+            "improvements": {
+                "memory_usage": ((mem_avg["peak_memory_mb"] - db_avg["peak_memory_mb"]) / mem_avg["peak_memory_mb"])
+                * 100,
+                "processing_speed": (
+                    (db_avg["posts_per_second"] - mem_avg["posts_per_second"]) / mem_avg["posts_per_second"]
+                )
+                * 100,
+                "memory_pressure_reduction": mem_avg["memory_pressure_events"] - db_avg["memory_pressure_events"],
+            },
         }
 
         self._display_comparison_results(comparison)
         return comparison
 
-    def _compare_database_sessions(self, database_metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _compare_database_sessions(self, database_metrics: list[dict[str, Any]]) -> dict[str, Any]:
         """Compare recent database sessions to identify performance trends"""
         if len(database_metrics) < 2:
             return {}
@@ -637,23 +642,29 @@ class PerformanceMonitor:
         previous_avg = self._calculate_average_metrics(database_metrics[:-1])
 
         comparison = {
-            'recent_session': recent,
-            'historical_average': previous_avg,
-            'performance_change': {
-                'posts_per_second': ((recent.get('posts_per_second', 0) - previous_avg.get('posts_per_second', 0)) /
-                                    max(previous_avg.get('posts_per_second', 1), 1)) * 100,
-                'peak_memory_mb': ((recent.get('peak_memory_mb', 0) - previous_avg.get('peak_memory_mb', 0)) /
-                                  max(previous_avg.get('peak_memory_mb', 1), 1)) * 100
-            }
+            "recent_session": recent,
+            "historical_average": previous_avg,
+            "performance_change": {
+                "posts_per_second": (
+                    (recent.get("posts_per_second", 0) - previous_avg.get("posts_per_second", 0))
+                    / max(previous_avg.get("posts_per_second", 1), 1)
+                )
+                * 100,
+                "peak_memory_mb": (
+                    (recent.get("peak_memory_mb", 0) - previous_avg.get("peak_memory_mb", 0))
+                    / max(previous_avg.get("peak_memory_mb", 1), 1)
+                )
+                * 100,
+            },
         }
 
-        print_info(f"Recent session vs historical average:")
+        print_info("Recent session vs historical average:")
         print_info(f"  Posts/sec: {comparison['performance_change']['posts_per_second']:+.1f}%", indent=1)
         print_info(f"  Memory: {comparison['performance_change']['peak_memory_mb']:+.1f}%", indent=1)
 
         return comparison
 
-    def _calculate_average_metrics(self, metrics_list: List[Dict[str, Any]]) -> Dict[str, float]:
+    def _calculate_average_metrics(self, metrics_list: list[dict[str, Any]]) -> dict[str, float]:
         """Calculate average metrics from a list of performance sessions"""
         if not metrics_list:
             return {}
@@ -663,30 +674,30 @@ class PerformanceMonitor:
 
         for metrics in metrics_list:
             for key, value in metrics.items():
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     totals[key] = totals.get(key, 0) + value
 
         return {key: value / count for key, value in totals.items()}
 
-    def _display_comparison_results(self, comparison: Dict[str, Any]):
+    def _display_comparison_results(self, comparison: dict[str, Any]):
         """Display performance comparison results"""
         print_success("Performance Comparison Results:")
 
-        improvements = comparison['improvements']
+        improvements = comparison["improvements"]
 
-        memory_improvement = improvements['memory_usage']
+        memory_improvement = improvements["memory_usage"]
         if memory_improvement > 0:
             print_success(f"Memory usage reduced by {memory_improvement:.1f}%", indent=1)
         else:
             print_warning(f"Memory usage increased by {abs(memory_improvement):.1f}%", indent=1)
 
-        speed_improvement = improvements['processing_speed']
+        speed_improvement = improvements["processing_speed"]
         if speed_improvement > 0:
             print_success(f"Processing speed improved by {speed_improvement:.1f}%", indent=1)
         else:
             print_warning(f"Processing speed decreased by {abs(speed_improvement):.1f}%", indent=1)
 
-        pressure_reduction = improvements['memory_pressure_reduction']
+        pressure_reduction = improvements["memory_pressure_reduction"]
         if pressure_reduction > 0:
             print_success(f"Memory pressure events reduced by {int(pressure_reduction)}", indent=1)
         elif pressure_reduction < 0:
@@ -694,20 +705,20 @@ class PerformanceMonitor:
         else:
             print_info("No change in memory pressure events", indent=1)
 
-    def get_historical_summary(self) -> Dict[str, Any]:
+    def get_historical_summary(self) -> dict[str, Any]:
         """Get summary of historical performance data"""
         if not self.historical_metrics:
             return {"message": "No historical performance data available"}
 
         total_sessions = len(self.historical_metrics)
-        database_sessions = len([m for m in self.historical_metrics if m['processing_mode'] == 'database'])
-        memory_sessions = len([m for m in self.historical_metrics if m['processing_mode'] == 'in-memory'])
+        database_sessions = len([m for m in self.historical_metrics if m["processing_mode"] == "database"])
+        memory_sessions = len([m for m in self.historical_metrics if m["processing_mode"] == "in-memory"])
 
         return {
-            'total_sessions': total_sessions,
-            'database_sessions': database_sessions,
-            'memory_sessions': memory_sessions,
-            'latest_session': self.historical_metrics[-1] if self.historical_metrics else None
+            "total_sessions": total_sessions,
+            "database_sessions": database_sessions,
+            "memory_sessions": memory_sessions,
+            "latest_session": self.historical_metrics[-1] if self.historical_metrics else None,
         }
 
     def _generate_optimization_recommendations(self):
@@ -725,10 +736,13 @@ class PerformanceMonitor:
             recommendations.append("⚠️  High memory pressure detected - reduce batch sizes")
 
         # Performance optimization recommendations
-        if hasattr(metrics, 'duration') and metrics.duration and metrics.duration > 0:
+        if hasattr(metrics, "duration") and metrics.duration and metrics.duration > 0:
             if metrics.posts_per_second < 500:
                 recommendations.append("🚀 Low post processing rate - check for bottlenecks")
-            if metrics.database_operations > 0 and metrics.database_query_time / max(metrics.database_operations, 1) > 0.1:
+            if (
+                metrics.database_operations > 0
+                and metrics.database_query_time / max(metrics.database_operations, 1) > 0.1
+            ):
                 recommendations.append("🗄️  Slow database queries detected - check indexing")
 
         # Error rate recommendations
@@ -750,27 +764,27 @@ class PerformanceMonitor:
             current_time = time.time()
 
             snapshot = {
-                'timestamp': current_time,
-                'elapsed_time': current_time - self.current_session.start_time,
-                'memory_mb': process.memory_info().rss / 1024 / 1024,
-                'cpu_percent': process.cpu_percent(),
-                'posts_processed': self.current_session.posts_processed,
-                'comments_processed': self.current_session.comments_processed,
-                'pages_generated': self.current_session.html_pages_generated,
-                'errors': self.current_session.errors_encountered,
-                'processing_mode': self.current_session.processing_mode
+                "timestamp": current_time,
+                "elapsed_time": current_time - self.current_session.start_time,
+                "memory_mb": process.memory_info().rss / 1024 / 1024,
+                "cpu_percent": process.cpu_percent(),
+                "posts_processed": self.current_session.posts_processed,
+                "comments_processed": self.current_session.comments_processed,
+                "pages_generated": self.current_session.html_pages_generated,
+                "errors": self.current_session.errors_encountered,
+                "processing_mode": self.current_session.processing_mode,
             }
 
             # Calculate rates
-            elapsed = snapshot['elapsed_time']
+            elapsed = snapshot["elapsed_time"]
             if elapsed > 0:
-                snapshot['posts_per_second'] = snapshot['posts_processed'] / elapsed
-                snapshot['comments_per_second'] = snapshot['comments_processed'] / elapsed
-                snapshot['pages_per_second'] = snapshot['pages_generated'] / elapsed
+                snapshot["posts_per_second"] = snapshot["posts_processed"] / elapsed
+                snapshot["comments_per_second"] = snapshot["comments_processed"] / elapsed
+                snapshot["pages_per_second"] = snapshot["pages_generated"] / elapsed
             else:
-                snapshot['posts_per_second'] = 0
-                snapshot['comments_per_second'] = 0
-                snapshot['pages_per_second'] = 0
+                snapshot["posts_per_second"] = 0
+                snapshot["comments_per_second"] = 0
+                snapshot["pages_per_second"] = 0
 
             self.performance_snapshots.append(snapshot)
 
@@ -801,10 +815,13 @@ class PerformanceMonitor:
         # Display dashboard (compact format)
         if len(self.performance_snapshots) >= 2:
             current = self.performance_snapshots[-1]
-            previous = self.performance_snapshots[-2]
+            self.performance_snapshots[-2]
 
             print_info("⚡ Live Performance Dashboard:")
-            print_info(f"  📊 Rate: {current['posts_per_second']:.1f} posts/s, {current['comments_per_second']:.1f} comments/s, {current['pages_per_second']:.1f} pages/s", indent=1)
+            print_info(
+                f"  📊 Rate: {current['posts_per_second']:.1f} posts/s, {current['comments_per_second']:.1f} comments/s, {current['pages_per_second']:.1f} pages/s",
+                indent=1,
+            )
             print_info(f"  💾 Memory: {current['memory_mb']:.1f}MB (CPU: {current['cpu_percent']:.1f}%)", indent=1)
             print_info(f"  ⏱️  Elapsed: {current['elapsed_time']:.1f}s ({current['processing_mode']} mode)", indent=1)
 
@@ -815,8 +832,9 @@ class PerformanceMonitor:
                 for rec in recent_recommendations:
                     print_info(f"    {rec}", indent=1)
 
-    def update_processing_counts(self, posts: int = 0, comments: int = 0,
-                                threads: int = 0, pages: int = 0, indices: int = 0):
+    def update_processing_counts(
+        self, posts: int = 0, comments: int = 0, threads: int = 0, pages: int = 0, indices: int = 0
+    ):
         """Update processing count metrics with real-time dashboard"""
         if not self.current_session:
             return
@@ -836,7 +854,7 @@ class PerformanceMonitor:
             # Display real-time dashboard
             self.display_realtime_dashboard()
 
-    def get_performance_trend(self) -> Dict[str, Any]:
+    def get_performance_trend(self) -> dict[str, Any]:
         """Get performance trend analysis"""
         if len(self.performance_snapshots) < 5:
             return {"trend": "insufficient_data"}
@@ -849,9 +867,9 @@ class PerformanceMonitor:
         cpu_trend = []
 
         for snapshot in recent_snapshots:
-            posts_trend.append(snapshot['posts_per_second'])
-            memory_trend.append(snapshot['memory_mb'])
-            cpu_trend.append(snapshot['cpu_percent'])
+            posts_trend.append(snapshot["posts_per_second"])
+            memory_trend.append(snapshot["memory_mb"])
+            cpu_trend.append(snapshot["cpu_percent"])
 
         # Simple trend analysis (increasing/decreasing/stable)
         def analyze_trend(values):
@@ -875,7 +893,7 @@ class PerformanceMonitor:
             "current_posts_per_second": posts_trend[-1] if posts_trend else 0,
             "current_memory_mb": memory_trend[-1] if memory_trend else 0,
             "recommendations_count": len(self.optimization_recommendations),
-            "snapshots_available": len(self.performance_snapshots)
+            "snapshots_available": len(self.performance_snapshots),
         }
 
     def start_user_page_tracking(self, total_users: int) -> UserPagePerformanceTracker:
@@ -884,7 +902,7 @@ class PerformanceMonitor:
         self.user_page_tracker.start_tracking(total_users)
         return self.user_page_tracker
 
-    def get_user_page_metrics(self) -> Optional[UserPageMetrics]:
+    def get_user_page_metrics(self) -> UserPageMetrics | None:
         """Step 4.1: Get finalized user page performance metrics
 
         Caches finalized metrics to prevent double-finalize.
@@ -908,11 +926,7 @@ class PerformanceMonitor:
         except:
             memory_mb = 0.0
 
-        phase_metrics = PhaseMetrics(
-            phase_name=phase_name,
-            start_time=time.time(),
-            memory_start_mb=memory_mb
-        )
+        phase_metrics = PhaseMetrics(phase_name=phase_name, start_time=time.time(), memory_start_mb=memory_mb)
 
         self.phase_metrics[phase_name] = phase_metrics
         self.current_phase = phase_name
@@ -920,7 +934,7 @@ class PerformanceMonitor:
         print_info(f"📊 Starting phase: {phase_name}")
         return phase_metrics
 
-    def end_phase(self, phase_name: str = None) -> Optional[PhaseMetrics]:
+    def end_phase(self, phase_name: str = None) -> PhaseMetrics | None:
         """Step 4.1: End tracking a processing phase"""
         if phase_name is None:
             phase_name = self.current_phase
@@ -945,40 +959,40 @@ class PerformanceMonitor:
 
         return phase_metrics
 
-    def get_phase_summary(self) -> Dict[str, Any]:
+    def get_phase_summary(self) -> dict[str, Any]:
         """Step 4.1: Get summary of all processing phases"""
         summary = {
-            'total_phases': len(self.phase_metrics),
-            'phases': {},
-            'total_time': 0.0,
-            'bottleneck_phase': None,
-            'memory_peak': 0.0
+            "total_phases": len(self.phase_metrics),
+            "phases": {},
+            "total_time": 0.0,
+            "bottleneck_phase": None,
+            "memory_peak": 0.0,
         }
 
         for phase_name, metrics in self.phase_metrics.items():
             if metrics.duration:
-                summary['phases'][phase_name] = {
-                    'duration': metrics.duration,
-                    'records_processed': metrics.records_processed,
-                    'errors': metrics.errors,
-                    'memory_peak_mb': metrics.memory_peak_mb,
-                    'percentage': 0.0  # Will be calculated below
+                summary["phases"][phase_name] = {
+                    "duration": metrics.duration,
+                    "records_processed": metrics.records_processed,
+                    "errors": metrics.errors,
+                    "memory_peak_mb": metrics.memory_peak_mb,
+                    "percentage": 0.0,  # Will be calculated below
                 }
-                summary['total_time'] += metrics.duration
+                summary["total_time"] += metrics.duration
 
-                if metrics.memory_peak_mb > summary['memory_peak']:
-                    summary['memory_peak'] = metrics.memory_peak_mb
+                if metrics.memory_peak_mb > summary["memory_peak"]:
+                    summary["memory_peak"] = metrics.memory_peak_mb
 
         # Calculate percentages and identify bottleneck
-        if summary['total_time'] > 0:
+        if summary["total_time"] > 0:
             max_duration = 0.0
-            for phase_name, phase_data in summary['phases'].items():
-                percentage = (phase_data['duration'] / summary['total_time']) * 100
-                phase_data['percentage'] = percentage
+            for phase_name, phase_data in summary["phases"].items():
+                percentage = (phase_data["duration"] / summary["total_time"]) * 100
+                phase_data["percentage"] = percentage
 
-                if phase_data['duration'] > max_duration:
-                    max_duration = phase_data['duration']
-                    summary['bottleneck_phase'] = phase_name
+                if phase_data["duration"] > max_duration:
+                    max_duration = phase_data["duration"]
+                    summary["bottleneck_phase"] = phase_name
 
         return summary
 
@@ -988,17 +1002,17 @@ class PerformanceMonitor:
 
         # Display phase summary
         phase_summary = self.get_phase_summary()
-        if phase_summary['total_phases'] > 0:
+        if phase_summary["total_phases"] > 0:
             print_info(f"Processing Phases ({phase_summary['total_phases']}):", indent=1)
-            for phase_name, phase_data in phase_summary['phases'].items():
-                is_bottleneck = phase_name == phase_summary['bottleneck_phase']
+            for phase_name, phase_data in phase_summary["phases"].items():
+                is_bottleneck = phase_name == phase_summary["bottleneck_phase"]
                 bottleneck_marker = " 🔥" if is_bottleneck else ""
                 print_info(
                     f"{phase_name}: {phase_data['duration']:.1f}s ({phase_data['percentage']:.1f}%){bottleneck_marker}",
-                    indent=2
+                    indent=2,
                 )
 
-            if phase_summary['bottleneck_phase']:
+            if phase_summary["bottleneck_phase"]:
                 print_warning(f"Bottleneck identified: {phase_summary['bottleneck_phase']}", indent=1)
 
         # Display user page metrics if available
@@ -1022,25 +1036,33 @@ class PerformanceMonitor:
                 ("Database Loading", metrics.database_loading_time, metrics.database_loading_rate),
                 ("HTML Generation", metrics.html_generation_time, metrics.html_generation_rate),
                 ("File Writing", metrics.file_writing_time, metrics.file_writing_rate),
-                ("Connection Waits", metrics.connection_acquisition_time, 0.0)
+                ("Connection Waits", metrics.connection_acquisition_time, 0.0),
             ]
 
             for phase_name, duration, rate in phases:
                 if duration > 0:
                     percentage = (duration / metrics.total_time) * 100
                     rate_str = f" ({rate:.1f} users/sec)" if rate > 0 else ""
-                    bottleneck_marker = " 🔥" if phase_name.replace(" ", "_").lower() in metrics.bottleneck_phase.lower() else ""
-                    print_info(f"{phase_name}: {duration:.1f}s ({percentage:.1f}%){rate_str}{bottleneck_marker}", indent=3)
+                    bottleneck_marker = (
+                        " 🔥" if phase_name.replace(" ", "_").lower() in metrics.bottleneck_phase.lower() else ""
+                    )
+                    print_info(
+                        f"{phase_name}: {duration:.1f}s ({percentage:.1f}%){rate_str}{bottleneck_marker}", indent=3
+                    )
 
         # Connection performance
         if metrics.connection_waits > 0:
             print_info("Connection Performance:", indent=2)
-            print_info(f"Total waits: {metrics.connection_waits} | Slow connections: {metrics.slow_connections}", indent=3)
+            print_info(
+                f"Total waits: {metrics.connection_waits} | Slow connections: {metrics.slow_connections}", indent=3
+            )
             print_info(f"Average connection time: {metrics.avg_connection_time:.3f}s", indent=3)
 
         # Memory usage
         print_info("Resource Usage:", indent=2)
-        print_info(f"Peak Memory: {metrics.peak_memory_mb:.1f}MB | Average: {metrics.average_memory_mb:.1f}MB", indent=3)
+        print_info(
+            f"Peak Memory: {metrics.peak_memory_mb:.1f}MB | Average: {metrics.average_memory_mb:.1f}MB", indent=3
+        )
         print_info(f"CPU Usage: {metrics.cpu_usage_percent:.1f}%", indent=3)
 
         # Performance issues and recommendations
@@ -1056,8 +1078,8 @@ class PerformanceMonitor:
         # Slowest users (for debugging)
         if metrics.slowest_users:
             print_info("Slowest User Processing (Top 5):", indent=2)
-            for i, user_data in enumerate(metrics.slowest_users[:5]):
-                status = "✅" if user_data['success'] else "❌"
+            for _i, user_data in enumerate(metrics.slowest_users[:5]):
+                status = "✅" if user_data["success"] else "❌"
                 print_info(f"{status} {user_data['username']}: {user_data['time']:.3f}s", indent=3)
 
     def enable_dashboard(self, enabled: bool = True):
@@ -1075,9 +1097,9 @@ class PerformanceMonitor:
         if enable and self.auto_tuning_validator is None:
             try:
                 from auto_tuning_validator import AutoTuningValidator
+
                 self.auto_tuning_validator = AutoTuningValidator(
-                    output_dir=self.output_dir,
-                    enable_detailed_logging=True
+                    output_dir=self.output_dir, enable_detailed_logging=True
                 )
                 print_success("🔍 Auto-tuning validation enabled")
             except ImportError:
@@ -1086,7 +1108,7 @@ class PerformanceMonitor:
             self.auto_tuning_validator = None
             print_info("Auto-tuning validation disabled")
 
-    def start_auto_tuning_validation_session(self, session_id: str = None) -> Optional[str]:
+    def start_auto_tuning_validation_session(self, session_id: str = None) -> str | None:
         """Step 4.2: Start auto-tuning validation session."""
         if not self.auto_tuning_validator:
             self.enable_auto_tuning_validation()
@@ -1097,7 +1119,7 @@ class PerformanceMonitor:
             return session_id
         return None
 
-    def capture_batch_processor_snapshot(self, operation_type: str, batch_processor_metrics: Dict[str, Any]):
+    def capture_batch_processor_snapshot(self, operation_type: str, batch_processor_metrics: dict[str, Any]):
         """Step 4.2: Capture batch processor performance for validation."""
         if not self.auto_tuning_validator or not self.validation_session_active:
             return
@@ -1105,95 +1127,90 @@ class PerformanceMonitor:
         # Update validator with current metrics
         if batch_processor_metrics:
             self.auto_tuning_validator.set_current_metrics(
-                batch_size=batch_processor_metrics.get('current_batch_size', 1000),
-                records_per_second=batch_processor_metrics.get('records_per_second', 0.0),
-                auto_adjustments=batch_processor_metrics.get('auto_adjustments', 0)
+                batch_size=batch_processor_metrics.get("current_batch_size", 1000),
+                records_per_second=batch_processor_metrics.get("records_per_second", 0.0),
+                auto_adjustments=batch_processor_metrics.get("auto_adjustments", 0),
             )
 
         # Capture snapshot
         snapshot = self.auto_tuning_validator.capture_performance_snapshot(
-            operation_type=operation_type,
-            phase=self.current_phase or "batch_processing"
+            operation_type=operation_type, phase=self.current_phase or "batch_processing"
         )
 
         # Check for auto-tuning adjustments and validate effectiveness
-        if (operation_type in self.last_batch_processor_metrics and
-            batch_processor_metrics.get('auto_adjustments', 0) > self.last_batch_processor_metrics.get('auto_adjustments', 0)):
-
+        if operation_type in self.last_batch_processor_metrics and batch_processor_metrics.get(
+            "auto_adjustments", 0
+        ) > self.last_batch_processor_metrics.get("auto_adjustments", 0):
             # Auto-tuning adjustment detected
             before_snapshot = self.auto_tuning_validator.capture_performance_snapshot(
-                operation_type=operation_type,
-                phase="before_adjustment"
+                operation_type=operation_type, phase="before_adjustment"
             )
             # Use stored metrics for before state
             if operation_type in self.last_batch_processor_metrics:
-                before_snapshot.batch_size = self.last_batch_processor_metrics.get('current_batch_size', 1000)
-                before_snapshot.records_per_second = self.last_batch_processor_metrics.get('records_per_second', 0.0)
+                before_snapshot.batch_size = self.last_batch_processor_metrics.get("current_batch_size", 1000)
+                before_snapshot.records_per_second = self.last_batch_processor_metrics.get("records_per_second", 0.0)
 
             # Validate adjustment effectiveness
             comparison = self.auto_tuning_validator.validate_adjustment_effectiveness(
-                before_snapshot=before_snapshot,
-                after_snapshot=snapshot,
-                adjustment_type="batch_size"
+                before_snapshot=before_snapshot, after_snapshot=snapshot, adjustment_type="batch_size"
             )
 
-            print_info(f"🎯 Auto-tuning validation: {comparison.effectiveness_score:.1f}% effective "
-                      f"({comparison.improvement_percentage:+.1f}% performance change)")
+            print_info(
+                f"🎯 Auto-tuning validation: {comparison.effectiveness_score:.1f}% effective "
+                f"({comparison.improvement_percentage:+.1f}% performance change)"
+            )
 
         # Store current metrics for next comparison
         self.last_batch_processor_metrics[operation_type] = batch_processor_metrics.copy()
 
-    def capture_connection_pool_snapshot(self, pool_metrics: Dict[str, Any]):
+    def capture_connection_pool_snapshot(self, pool_metrics: dict[str, Any]):
         """Step 4.2: Capture connection pool performance for validation."""
         if not self.auto_tuning_validator or not self.validation_session_active:
             return
 
         # Update validator with pool utilization
-        pool_utilization = pool_metrics.get('utilization_percent', 0.0) / 100.0
+        pool_utilization = pool_metrics.get("utilization_percent", 0.0) / 100.0
         self.auto_tuning_validator.set_current_metrics(pool_utilization=pool_utilization)
 
         # Capture snapshot
         snapshot = self.auto_tuning_validator.capture_performance_snapshot(
-            operation_type="connection_pool",
-            phase=self.current_phase or "database_operations"
+            operation_type="connection_pool", phase=self.current_phase or "database_operations"
         )
 
         # Check for pool auto-tuning
-        if (pool_metrics.get('auto_tuned', False) and
-            'old_pool_size' in pool_metrics and
-            'pool_size' in pool_metrics):
-
+        if pool_metrics.get("auto_tuned", False) and "old_pool_size" in pool_metrics and "pool_size" in pool_metrics:
             # Pool size adjustment detected
             before_snapshot = snapshot  # Use current as before (pool already adjusted)
-            before_snapshot.connection_pool_utilization = pool_metrics.get('old_pool_size', 0) / 20.0  # Normalize to 0-1
+            before_snapshot.connection_pool_utilization = (
+                pool_metrics.get("old_pool_size", 0) / 20.0
+            )  # Normalize to 0-1
 
             after_snapshot = self.auto_tuning_validator.capture_performance_snapshot(
-                operation_type="connection_pool",
-                phase="after_pool_adjustment"
+                operation_type="connection_pool", phase="after_pool_adjustment"
             )
             after_snapshot.connection_pool_utilization = pool_utilization
 
             # Validate pool adjustment effectiveness
             comparison = self.auto_tuning_validator.validate_adjustment_effectiveness(
-                before_snapshot=before_snapshot,
-                after_snapshot=after_snapshot,
-                adjustment_type="connection_pool"
+                before_snapshot=before_snapshot, after_snapshot=after_snapshot, adjustment_type="connection_pool"
             )
 
-            print_success(f"🔧 Pool auto-tuning validation: {comparison.effectiveness_score:.1f}% effective "
-                         f"(size: {pool_metrics['old_pool_size']} → {pool_metrics['pool_size']})")
+            print_success(
+                f"🔧 Pool auto-tuning validation: {comparison.effectiveness_score:.1f}% effective "
+                f"(size: {pool_metrics['old_pool_size']} → {pool_metrics['pool_size']})"
+            )
 
         # Store current metrics
         self.last_connection_pool_metrics = pool_metrics.copy()
 
-    def generate_auto_tuning_validation_report(self) -> Optional[Dict[str, Any]]:
+    def generate_auto_tuning_validation_report(self) -> dict[str, Any] | None:
         """Step 4.2: Generate comprehensive auto-tuning validation report."""
         if not self.auto_tuning_validator or not self.validation_session_active:
             return None
 
         return self.auto_tuning_validator.generate_session_report()
 
-    def end_auto_tuning_validation_session(self, save_report: bool = True) -> Optional[Dict[str, Any]]:
+    def end_auto_tuning_validation_session(self, save_report: bool = True) -> dict[str, Any] | None:
         """Step 4.2: End auto-tuning validation session and generate final report."""
         if not self.auto_tuning_validator or not self.validation_session_active:
             return None
@@ -1202,23 +1219,29 @@ class PerformanceMonitor:
         report = self.auto_tuning_validator.end_validation_session(save_report=save_report)
 
         if report:
-            print_success(f"🎯 Auto-tuning validation completed: {report['total_comparisons']} adjustments analyzed, "
-                         f"{report['overall_effectiveness']:.1f}% average effectiveness")
+            print_success(
+                f"🎯 Auto-tuning validation completed: {report['total_comparisons']} adjustments analyzed, "
+                f"{report['overall_effectiveness']:.1f}% average effectiveness"
+            )
 
             # Add key insights to optimization recommendations
-            if report['overall_effectiveness'] >= 75:
+            if report["overall_effectiveness"] >= 75:
                 self.optimization_recommendations.append("✅ Auto-tuning is highly effective - keep current settings")
-            elif report['overall_effectiveness'] >= 50:
-                self.optimization_recommendations.append("📈 Auto-tuning shows moderate effectiveness - monitor stability")
+            elif report["overall_effectiveness"] >= 50:
+                self.optimization_recommendations.append(
+                    "📈 Auto-tuning shows moderate effectiveness - monitor stability"
+                )
             else:
                 self.optimization_recommendations.append("⚠️ Auto-tuning effectiveness is low - review configuration")
 
-            if report.get('regressions', 0) > report.get('improvements', 0):
-                self.optimization_recommendations.append("🔄 More regressions than improvements - consider disabling auto-tuning")
+            if report.get("regressions", 0) > report.get("improvements", 0):
+                self.optimization_recommendations.append(
+                    "🔄 More regressions than improvements - consider disabling auto-tuning"
+                )
 
         return report
 
-    def get_auto_tuning_historical_effectiveness(self) -> Dict[str, Any]:
+    def get_auto_tuning_historical_effectiveness(self) -> dict[str, Any]:
         """Step 4.2: Get historical auto-tuning effectiveness analysis."""
         if not self.auto_tuning_validator:
             return {"message": "Auto-tuning validation not enabled"}
@@ -1231,7 +1254,7 @@ class PerformanceMonitor:
             return
 
         # Get current session stats
-        if hasattr(self.auto_tuning_validator, 'current_session') and self.auto_tuning_validator.current_session:
+        if hasattr(self.auto_tuning_validator, "current_session") and self.auto_tuning_validator.current_session:
             session = self.auto_tuning_validator.current_session
             if session.comparisons:
                 recent_comparisons = session.comparisons[-3:]  # Last 3 adjustments
@@ -1239,10 +1262,22 @@ class PerformanceMonitor:
                 improvements = len([c for c in recent_comparisons if c.effectiveness_score >= 50])
 
                 print_info("🎯 Auto-Tuning Dashboard:", indent=1)
-                print_info(f"Recent effectiveness: {avg_effectiveness:.1f}% ({improvements}/{len(recent_comparisons)} successful)", indent=2)
+                print_info(
+                    f"Recent effectiveness: {avg_effectiveness:.1f}% ({improvements}/{len(recent_comparisons)} successful)",
+                    indent=2,
+                )
                 print_info(f"Total adjustments tracked: {len(session.comparisons)}", indent=2)
 
                 if recent_comparisons:
                     latest = recent_comparisons[-1]
-                    trend_emoji = "📈" if latest.improvement_percentage > 0 else "📉" if latest.improvement_percentage < 0 else "➡️"
-                    print_info(f"Latest: {latest.adjustment_type} {trend_emoji} {latest.improvement_percentage:+.1f}%", indent=2)
+                    trend_emoji = (
+                        "📈"
+                        if latest.improvement_percentage > 0
+                        else "📉"
+                        if latest.improvement_percentage < 0
+                        else "➡️"
+                    )
+                    print_info(
+                        f"Latest: {latest.adjustment_type} {trend_emoji} {latest.improvement_percentage:+.1f}%",
+                        indent=2,
+                    )

@@ -2,15 +2,15 @@
 # ABOUTME: Provides cached filters for dates, scores, numbers, text truncation, and tooltips
 
 from datetime import datetime
-from typing import Union, Dict, Any
-from html import escape
 from functools import lru_cache
-from markupsafe import Markup
+from typing import Any
 
+from markupsafe import Markup
 
 # ============================================================================
 # CACHED FILTER IMPLEMENTATIONS (for performance)
 # ============================================================================
+
 
 @lru_cache(maxsize=10000)
 def _reddit_date_cached(timestamp_int: int, format_str: str) -> str:
@@ -23,7 +23,7 @@ def _reddit_date_cached(timestamp_int: int, format_str: str) -> str:
 def _date_tooltip_cached(timestamp_int: int) -> Markup:
     """Cached date tooltip - internal use only"""
     dt = datetime.utcfromtimestamp(timestamp_int)
-    full_date = dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+    full_date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
     return Markup(f'title="Posted: {full_date}"')
 
 
@@ -33,6 +33,7 @@ def _score_class_global_cached(score: int, ranges_tuple: tuple) -> str:
     # Convert tuple back to dict for calculation
     ranges = dict(ranges_tuple)
     from html_modules.html_scoring import get_score_badge_class_subreddit_global
+
     return get_score_badge_class_subreddit_global(score, ranges)
 
 
@@ -40,7 +41,8 @@ def _score_class_global_cached(score: int, ranges_tuple: tuple) -> str:
 # PUBLIC FILTER FUNCTIONS (with caching)
 # ============================================================================
 
-def reddit_date(timestamp: Union[int, float, str], format_str: str = '%d %b %Y %H:%M') -> str:
+
+def reddit_date(timestamp: int | float | str, format_str: str = "%d %b %Y %H:%M") -> str:
     """
     Convert Unix timestamp to readable date format (CACHED for performance).
 
@@ -64,10 +66,10 @@ def reddit_date(timestamp: Union[int, float, str], format_str: str = '%d %b %Y %
         timestamp_int = int(float(timestamp))
         return _reddit_date_cached(timestamp_int, format_str)
     except (ValueError, TypeError, OSError):
-        return 'Unknown date'
+        return "Unknown date"
 
 
-def date_tooltip(timestamp: Union[int, float, str]) -> str:
+def date_tooltip(timestamp: int | float | str) -> str:
     """
     Generate full date/time tooltip for hover display (CACHED for performance).
 
@@ -87,10 +89,10 @@ def date_tooltip(timestamp: Union[int, float, str]) -> str:
         timestamp_int = int(float(timestamp))
         return _date_tooltip_cached(timestamp_int)
     except (ValueError, TypeError, OSError):
-        return ''
+        return ""
 
 
-def format_number(value: Union[int, float, str]) -> str:
+def format_number(value: int | float | str) -> str:
     """
     Format number with thousands separators.
 
@@ -106,12 +108,12 @@ def format_number(value: Union[int, float, str]) -> str:
     """
     try:
         num = int(float(value))
-        return f'{num:,}'
+        return f"{num:,}"
     except (ValueError, TypeError):
         return str(value)
 
 
-def truncate_smart(text: str, length: int = 150, suffix: str = '...') -> str:
+def truncate_smart(text: str, length: int = 150, suffix: str = "...") -> str:
     """
     Truncate text intelligently at word boundaries.
 
@@ -131,11 +133,11 @@ def truncate_smart(text: str, length: int = 150, suffix: str = '...') -> str:
         return text
 
     # Truncate at word boundary
-    truncated = text[:length].rsplit(' ', 1)[0]
+    truncated = text[:length].rsplit(" ", 1)[0]
     return truncated + suffix
 
 
-def score_class(score: Union[int, str], score_ranges: Dict[str, float]) -> str:
+def score_class(score: int | str, score_ranges: dict[str, float]) -> str:
     """
     Calculate badge CSS class based on score percentiles.
 
@@ -153,10 +155,11 @@ def score_class(score: Union[int, str], score_ranges: Dict[str, float]) -> str:
         <span class="badge badge-success">
     """
     from html_modules.html_scoring import get_score_badge_class_dynamic
+
     return get_score_badge_class_dynamic(score, score_ranges)
 
 
-def score_class_global(score: Union[int, str], subreddit_score_ranges: Dict[str, float]) -> str:
+def score_class_global(score: int | str, subreddit_score_ranges: dict[str, float]) -> str:
     """
     Calculate badge CSS class based on subreddit-wide score ranges (CACHED for performance).
 
@@ -183,6 +186,7 @@ def score_class_global(score: Union[int, str], subreddit_score_ranges: Dict[str,
     except (ValueError, TypeError):
         # Fallback for invalid scores
         from html_modules.html_scoring import get_score_badge_class_subreddit_global
+
         return get_score_badge_class_subreddit_global(score, subreddit_score_ranges)
 
 
@@ -207,7 +211,7 @@ def safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
-def score_tooltip(post: Dict[str, Any]) -> Markup:
+def score_tooltip(post: dict[str, Any]) -> Markup:
     """
     Generate enhanced score tooltip with upvote ratio if available.
 
@@ -222,8 +226,8 @@ def score_tooltip(post: Dict[str, Any]) -> Markup:
         <span title="Score: 1,234 (85% upvoted)">1,234</span>
     """
     try:
-        score = int(post.get('score', 0))
-        upvote_ratio = post.get('upvote_ratio')
+        score = int(post.get("score", 0))
+        upvote_ratio = post.get("upvote_ratio")
 
         if upvote_ratio:
             ratio_percent = int(float(upvote_ratio) * 100)
@@ -234,7 +238,7 @@ def score_tooltip(post: Dict[str, Any]) -> Markup:
         return Markup('title="Score information unavailable"')
 
 
-def author_tooltip(post: Dict[str, Any]) -> Markup:
+def author_tooltip(post: dict[str, Any]) -> Markup:
     """
     Generate enhanced author tooltip with account age if available.
 
@@ -249,19 +253,19 @@ def author_tooltip(post: Dict[str, Any]) -> Markup:
         <a title="Redditor since 2020-01-01">u/username</a>
     """
     try:
-        author_created = post.get('author_created_utc')
+        author_created = post.get("author_created_utc")
 
         if author_created:
             dt = datetime.utcfromtimestamp(int(author_created))
-            account_date = dt.strftime('%Y-%m-%d')
+            account_date = dt.strftime("%Y-%m-%d")
             return Markup(f'title="Redditor since {account_date}"')
         else:
-            return Markup('')
+            return Markup("")
     except (ValueError, TypeError, KeyError):
-        return Markup('')
+        return Markup("")
 
 
-def pluralize(value: int, singular: str = '', plural: str = 's') -> str:
+def pluralize(value: int, singular: str = "", plural: str = "s") -> str:
     """
     Return singular or plural suffix based on count.
 
@@ -303,11 +307,12 @@ def extract_domain(url: str) -> str:
     """
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         domain = parsed.netloc or parsed.path
 
         # Remove www. prefix
-        if domain.startswith('www.'):
+        if domain.startswith("www."):
             domain = domain[4:]
 
         return domain
@@ -324,20 +329,20 @@ def register_filters(env):
 
     This function is called by html_modules/jinja_env.py during initialization.
     """
-    env.filters['reddit_date'] = reddit_date
-    env.filters['date_tooltip'] = date_tooltip
-    env.filters['format_number'] = format_number
-    env.filters['truncate_smart'] = truncate_smart
-    env.filters['score_class'] = score_class
-    env.filters['score_class_global'] = score_class_global
-    env.filters['safe_int'] = safe_int
-    env.filters['score_tooltip'] = score_tooltip
-    env.filters['author_tooltip'] = author_tooltip
-    env.filters['pluralize'] = pluralize
-    env.filters['extract_domain'] = extract_domain
+    env.filters["reddit_date"] = reddit_date
+    env.filters["date_tooltip"] = date_tooltip
+    env.filters["format_number"] = format_number
+    env.filters["truncate_smart"] = truncate_smart
+    env.filters["score_class"] = score_class
+    env.filters["score_class_global"] = score_class_global
+    env.filters["safe_int"] = safe_int
+    env.filters["score_tooltip"] = score_tooltip
+    env.filters["author_tooltip"] = author_tooltip
+    env.filters["pluralize"] = pluralize
+    env.filters["extract_domain"] = extract_domain
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test filters
     print("Testing Jinja2 Custom Filters")
     print("=" * 50)
@@ -354,7 +359,7 @@ if __name__ == '__main__':
     print(f"truncate_smart(text, 50): {truncate_smart(test_text, 50)}")
 
     # Test score_class
-    test_ranges = {'very_high': 100, 'high': 50, 'medium': 10}
+    test_ranges = {"very_high": 100, "high": 50, "medium": 10}
     print(f"score_class(150, ranges): {score_class(150, test_ranges)}")
     print(f"score_class(25, ranges): {score_class(25, test_ranges)}")
     print(f"score_class(5, ranges): {score_class(5, test_ranges)}")

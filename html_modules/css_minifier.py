@@ -1,9 +1,11 @@
 # ABOUTME: CSS minification utilities for Redd-Archiver build optimization
 # ABOUTME: Provides functions to minify CSS files during static asset copying
 
-import rcssmin
 import os
-from utils.console_output import print_info, print_success, print_error
+
+import rcssmin
+
+from utils.console_output import print_error, print_info, print_success
 
 
 def minify_css_file(input_path, output_path):
@@ -23,7 +25,7 @@ def minify_css_file(input_path, output_path):
     """
     try:
         # Read source CSS
-        with open(input_path, 'r', encoding='utf-8') as f:
+        with open(input_path, encoding="utf-8") as f:
             css = f.read()
 
         original_size = len(css)
@@ -34,15 +36,15 @@ def minify_css_file(input_path, output_path):
         minified_size = len(minified)
 
         # Write minified CSS
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(minified)
 
         return original_size, minified_size
 
     except FileNotFoundError as e:
         raise FileNotFoundError(f"CSS source file not found: {input_path}") from e
-    except IOError as e:
-        raise IOError(f"Failed to minify CSS {input_path}: {e}") from e
+    except OSError as e:
+        raise OSError(f"Failed to minify CSS {input_path}: {e}") from e
 
 
 def minify_css_directory(input_dir, output_dir, verbose=True):
@@ -63,18 +65,18 @@ def minify_css_directory(input_dir, output_dir, verbose=True):
             - 'failed_files': List of files that failed to minify
     """
     stats = {
-        'files_processed': 0,
-        'total_original_size': 0,
-        'total_minified_size': 0,
-        'reduction_percent': 0.0,
-        'failed_files': []
+        "files_processed": 0,
+        "total_original_size": 0,
+        "total_minified_size": 0,
+        "reduction_percent": 0.0,
+        "failed_files": [],
     }
 
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
     # Find all CSS files
-    css_files = [f for f in os.listdir(input_dir) if f.endswith('.css')]
+    css_files = [f for f in os.listdir(input_dir) if f.endswith(".css")]
 
     if not css_files:
         if verbose:
@@ -92,39 +94,37 @@ def minify_css_directory(input_dir, output_dir, verbose=True):
         try:
             original_size, minified_size = minify_css_file(input_path, output_path)
 
-            stats['files_processed'] += 1
-            stats['total_original_size'] += original_size
-            stats['total_minified_size'] += minified_size
+            stats["files_processed"] += 1
+            stats["total_original_size"] += original_size
+            stats["total_minified_size"] += minified_size
 
             reduction = ((original_size - minified_size) / original_size) * 100
 
             if verbose:
                 print_info(
-                    f"  • {filename}: {original_size:,} → {minified_size:,} bytes "
-                    f"({reduction:.1f}% reduction)",
-                    indent=1
+                    f"  • {filename}: {original_size:,} → {minified_size:,} bytes " f"({reduction:.1f}% reduction)",
+                    indent=1,
                 )
 
         except Exception as e:
-            stats['failed_files'].append({'filename': filename, 'error': str(e)})
+            stats["failed_files"].append({"filename": filename, "error": str(e)})
             if verbose:
                 print_error(f"  • Failed to minify {filename}: {e}", indent=1)
 
     # Calculate overall reduction
-    if stats['total_original_size'] > 0:
-        stats['reduction_percent'] = (
-            (stats['total_original_size'] - stats['total_minified_size'])
-            / stats['total_original_size']
+    if stats["total_original_size"] > 0:
+        stats["reduction_percent"] = (
+            (stats["total_original_size"] - stats["total_minified_size"]) / stats["total_original_size"]
         ) * 100
 
-    if verbose and stats['files_processed'] > 0:
+    if verbose and stats["files_processed"] > 0:
         print_success(
             f"✓ Minified {stats['files_processed']} CSS files: "
             f"{stats['total_original_size']:,} → {stats['total_minified_size']:,} bytes "
             f"({stats['reduction_percent']:.1f}% reduction)"
         )
 
-        if stats['failed_files']:
+        if stats["failed_files"]:
             print_error(f"Failed to minify {len(stats['failed_files'])} files")
 
     return stats
@@ -143,12 +143,12 @@ def should_minify_css(filename):
         bool: True if file should be minified, False otherwise
     """
     # Skip already minified files
-    if '.min.css' in filename:
+    if ".min.css" in filename:
         return False
 
     # Skip source maps
-    if filename.endswith('.css.map'):
+    if filename.endswith(".css.map"):
         return False
 
     # Minify all other CSS files
-    return filename.endswith('.css')
+    return filename.endswith(".css")

@@ -4,10 +4,12 @@ ABOUTME: Performance phase tracking infrastructure with decorators and context m
 ABOUTME: Provides unified timing and performance monitoring for all major processing phases.
 """
 
-import time
 import functools
-from typing import Optional, Dict, Any, Callable
+import time
+from collections.abc import Callable
 from contextlib import contextmanager
+from typing import Any
+
 from utils.console_output import print_info, print_success, print_warning
 
 
@@ -29,7 +31,7 @@ class PhaseTimer:
             print_info(f"📊 Starting: {self.phase_name}")
 
         # Register with performance monitor if available
-        if self.performance_monitor and hasattr(self.performance_monitor, 'start_phase'):
+        if self.performance_monitor and hasattr(self.performance_monitor, "start_phase"):
             self.performance_monitor.start_phase(self.phase_name)
 
         return self
@@ -44,7 +46,7 @@ class PhaseTimer:
             print_warning(f"⚠️ Failed: {self.phase_name} after {self.duration:.1f}s")
 
         # Notify performance monitor if available
-        if self.performance_monitor and hasattr(self.performance_monitor, 'end_phase'):
+        if self.performance_monitor and hasattr(self.performance_monitor, "end_phase"):
             self.performance_monitor.end_phase(self.phase_name)
 
 
@@ -63,12 +65,15 @@ def timed_phase(phase_name: str, performance_monitor=None, print_timing: bool = 
             # processing logic here
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             with PhaseTimer(phase_name, performance_monitor, print_timing):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -126,18 +131,18 @@ class PerformanceScope:
             return f"{self.parent_scope.get_full_path()}.{self.name}"
         return self.name
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get performance summary including child scopes"""
         summary = {
-            'name': self.name,
-            'full_path': self.get_full_path(),
-            'duration': self.duration,
-            'metadata': self.metadata.copy(),
-            'child_scopes': []
+            "name": self.name,
+            "full_path": self.get_full_path(),
+            "duration": self.duration,
+            "metadata": self.metadata.copy(),
+            "child_scopes": [],
         }
 
         for child in self.child_scopes:
-            summary['child_scopes'].append(child.get_summary())
+            summary["child_scopes"].append(child.get_summary())
 
         return summary
 
@@ -174,21 +179,23 @@ class BatchPerformanceTracker:
             current_rate = batch_size / batch_duration
             overall_rate = self.processed_items / (time.time() - self.start_time)
 
-            print_info(f"  📦 {self.operation_name}: {self.processed_items:,}/{self.total_items:,} "
-                      f"({current_rate:.1f}/sec current, {overall_rate:.1f}/sec overall)")
+            print_info(
+                f"  📦 {self.operation_name}: {self.processed_items:,}/{self.total_items:,} "
+                f"({current_rate:.1f}/sec current, {overall_rate:.1f}/sec overall)"
+            )
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get batch processing performance summary"""
         total_time = time.time() - self.start_time
 
         return {
-            'operation_name': self.operation_name,
-            'total_items': self.total_items,
-            'processed_items': self.processed_items,
-            'total_time': total_time,
-            'overall_rate': self.processed_items / total_time if total_time > 0 else 0,
-            'average_batch_time': sum(self.batch_times) / len(self.batch_times) if self.batch_times else 0,
-            'batch_count': len(self.batch_times)
+            "operation_name": self.operation_name,
+            "total_items": self.total_items,
+            "processed_items": self.processed_items,
+            "total_time": total_time,
+            "overall_rate": self.processed_items / total_time if total_time > 0 else 0,
+            "average_batch_time": sum(self.batch_times) / len(self.batch_times) if self.batch_times else 0,
+            "batch_count": len(self.batch_times),
         }
 
 
@@ -201,12 +208,12 @@ def register_performance_monitor(name: str, monitor):
     _performance_registry[name] = monitor
 
 
-def get_performance_monitor(name: str = 'default'):
+def get_performance_monitor(name: str = "default"):
     """Get a registered performance monitor"""
     return _performance_registry.get(name)
 
 
-def timed_operation(operation_name: str, monitor_name: str = 'default'):
+def timed_operation(operation_name: str, monitor_name: str = "default"):
     """
     Decorator that automatically integrates with registered performance monitors
 
@@ -215,13 +222,16 @@ def timed_operation(operation_name: str, monitor_name: str = 'default'):
         def generate_user_pages():
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             monitor = get_performance_monitor(monitor_name)
             with PhaseTimer(operation_name, monitor):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -269,7 +279,7 @@ if __name__ == "__main__":
     print("\nTesting batch performance tracking...")
     batch_tracker = BatchPerformanceTracker("test_processing", 100)
 
-    for i in range(5):
+    for _i in range(5):
         time.sleep(0.01)  # Simulate work
         batch_tracker.record_batch(20)
 

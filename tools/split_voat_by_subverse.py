@@ -18,20 +18,20 @@ Usage:
     python tools/split_voat_by_subverse.py /data/voat/ --output /data/voat_split/
 """
 
-import os
-import sys
-import time
-import gzip
 import argparse
-import shutil
-import re
-import threading
+import gzip
+import os
 import queue
+import re
+import shutil
+import sys
+import threading
+import time
+from collections import OrderedDict, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional, TextIO, Set, Tuple
-from collections import OrderedDict, defaultdict
+from typing import Any, TextIO
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -40,10 +40,19 @@ from core.importers.voat_sql_parser import VoatSQLParser
 
 # Rich library for enhanced console output
 try:
-    from rich.console import Console
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
-    from rich.panel import Panel
     from rich import box
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+        TimeElapsedColumn,
+        TimeRemainingColumn,
+    )
+
     RICH_AVAILABLE = True
     console = Console()
 except ImportError:
@@ -53,14 +62,18 @@ except ImportError:
 # Try to use orjson for performance
 try:
     import orjson
+
     def json_dumps(obj):
-        return orjson.dumps(obj, option=orjson.OPT_INDENT_2).decode('utf-8')
-    JSON_LIB = 'orjson'
+        return orjson.dumps(obj, option=orjson.OPT_INDENT_2).decode("utf-8")
+
+    JSON_LIB = "orjson"
 except ImportError:
     import json
+
     def json_dumps(obj):
         return json.dumps(obj, indent=2)
-    JSON_LIB = 'json'
+
+    JSON_LIB = "json"
 
 
 # SQL CREATE TABLE statements for Voat schema
@@ -143,8 +156,14 @@ class SubverseFileManager:
     - Buffered writes for performance
     """
 
-    def __init__(self, output_dir: Path, table_type: str, max_open_files: int = 50,
-                 buffer_size: int = 100, compression_level: int = 6):
+    def __init__(
+        self,
+        output_dir: Path,
+        table_type: str,
+        max_open_files: int = 50,
+        buffer_size: int = 100,
+        compression_level: int = 6,
+    ):
         """
         Initialize file manager.
 
@@ -165,7 +184,7 @@ class SubverseFileManager:
         self.open_files: OrderedDict[str, TextIO] = OrderedDict()
 
         # Buffered rows per subverse (list of SQL value tuples)
-        self.buffers: Dict[str, List[str]] = defaultdict(list)
+        self.buffers: dict[str, list[str]] = defaultdict(list)
 
         # Track which subverses have been initialized (header written)
         self.initialized: set = set()
@@ -182,7 +201,7 @@ class SubverseFileManager:
         self._lock = threading.Lock()
 
         # Create output subdirectory
-        self.subdir = self.output_dir / (table_type + 's')
+        self.subdir = self.output_dir / (table_type + "s")
         self.subdir.mkdir(parents=True, exist_ok=True)
 
     def _get_file_path(self, subverse: str) -> Path:
@@ -195,7 +214,7 @@ class SubverseFileManager:
         # Convert to string first (in case it's an int or other type)
         subverse_str = str(subverse)
         # Replace invalid characters
-        safe = subverse_str.replace('/', '_').replace('\\', '_').replace('..', '_')
+        safe = subverse_str.replace("/", "_").replace("\\", "_").replace("..", "_")
         # Limit length
         if len(safe) > 100:
             safe = safe[:100]
@@ -210,10 +229,10 @@ class SubverseFileManager:
         # Subsequent opens: 'at' (append) to preserve data after LRU eviction
         if subverse in self.initialized:
             # File exists and has header - append mode
-            f = gzip.open(file_path, 'at', encoding='utf-8', compresslevel=self.compression_level)
+            f = gzip.open(file_path, "at", encoding="utf-8", compresslevel=self.compression_level)
         else:
             # First open - write mode
-            f = gzip.open(file_path, 'wt', encoding='utf-8', compresslevel=self.compression_level)
+            f = gzip.open(file_path, "wt", encoding="utf-8", compresslevel=self.compression_level)
             # Write header
             self._write_header(f, subverse)
             self.initialized.add(subverse)
@@ -235,12 +254,12 @@ class SubverseFileManager:
         f.write(header)
 
         # Write CREATE TABLE statement
-        if self.table_type == 'submission':
+        if self.table_type == "submission":
             f.write(SUBMISSION_CREATE_TABLE)
         else:
             f.write(COMMENT_CREATE_TABLE)
 
-        f.write('\n')
+        f.write("\n")
 
     def _evict_lru_file(self):
         """Evict least-recently-used file from cache."""
@@ -302,16 +321,16 @@ class SubverseFileManager:
 
         # Write INSERT statement header if this is first data for THIS subverse
         if subverse not in self.has_data_written:
-            f.write(f'\nINSERT INTO `{self.table_type}` VALUES\n')
+            f.write(f"\nINSERT INTO `{self.table_type}` VALUES\n")
             self.has_data_written.add(subverse)
         else:
             # Continuation - just add comma and newline (continuing previous tuples)
-            f.write(',\n')
+            f.write(",\n")
 
         # Write all buffered rows
         for i, values_tuple in enumerate(buffer):
             if i > 0:
-                f.write(',\n')
+                f.write(",\n")
             f.write(values_tuple)
 
         # Update stats
@@ -345,7 +364,7 @@ class SubverseFileManager:
 
                 # Write final semicolon if data was written
                 if subverse in self.initialized:
-                    f.write(';\n')
+                    f.write(";\n")
 
                 # Close file
                 f.close()
@@ -353,15 +372,15 @@ class SubverseFileManager:
             self.open_files.clear()
             self.buffers.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get manager statistics."""
         return {
-            'total_rows_written': self.total_rows_written,
-            'total_flushes': self.total_flushes,
-            'total_evictions': self.total_evictions,
-            'subverses_initialized': len(self.initialized),
-            'currently_open_files': len(self.open_files),
-            'buffered_rows': sum(len(b) for b in self.buffers.values())
+            "total_rows_written": self.total_rows_written,
+            "total_flushes": self.total_flushes,
+            "total_evictions": self.total_evictions,
+            "subverses_initialized": len(self.initialized),
+            "currently_open_files": len(self.open_files),
+            "buffered_rows": sum(len(b) for b in self.buffers.values()),
         }
 
 
@@ -370,12 +389,19 @@ class VoatSplitter:
 
     # Regex pattern for fast submissionid extraction from SQL VALUES tuples
     # Matches: (12345, or (12345,' at start of VALUES tuple
-    SUBMISSION_ID_PATTERN = re.compile(r'\((\d+),')
+    SUBMISSION_ID_PATTERN = re.compile(r"\((\d+),")
 
-    def __init__(self, voat_dir: Path, output_dir: Path, max_open_files: int = 50,
-                 buffer_size: int = 100, compression_level: int = 6,
-                 skip_empty: bool = False, parallel_workers: Optional[int] = None,
-                 checkpoint_interval: int = 100):
+    def __init__(
+        self,
+        voat_dir: Path,
+        output_dir: Path,
+        max_open_files: int = 50,
+        buffer_size: int = 100,
+        compression_level: int = 6,
+        skip_empty: bool = False,
+        parallel_workers: int | None = None,
+        checkpoint_interval: int = 100,
+    ):
         """
         Initialize splitter.
 
@@ -402,23 +428,23 @@ class VoatSplitter:
 
         # Statistics
         self.stats = {
-            'start_time': time.time(),
-            'submissions_processed': 0,
-            'comments_processed': 0,
-            'subverses_found': set(),
-            'source_files': [],
-            'errors': 0
+            "start_time": time.time(),
+            "submissions_processed": 0,
+            "comments_processed": 0,
+            "subverses_found": set(),
+            "source_files": [],
+            "errors": 0,
         }
 
         self.parser = VoatSQLParser()
 
-    def _count_existing_submissions(self) -> Dict[str, int]:
+    def _count_existing_submissions(self) -> dict[str, int]:
         """Count submissions from existing split files (for resume) - fast estimation."""
-        submission_dir = self.output_dir / 'submissions'
+        submission_dir = self.output_dir / "submissions"
         subverse_counts = {}
 
-        for sub_file in submission_dir.glob('*_submissions.sql.gz'):
-            subverse_name = sub_file.stem.replace('_submissions', '')
+        for sub_file in submission_dir.glob("*_submissions.sql.gz"):
+            subverse_name = sub_file.stem.replace("_submissions", "")
             # Fast estimate: assume ~500 bytes per row compressed
             # This avoids slow re-parsing of all files
             file_size = sub_file.stat().st_size
@@ -427,7 +453,7 @@ class VoatSplitter:
 
         return subverse_counts
 
-    def _fast_extract_ids_from_file(self, sub_file: Path) -> Dict[str, str]:
+    def _fast_extract_ids_from_file(self, sub_file: Path) -> dict[str, str]:
         """
         Ultra-fast submissionid extraction using regex (skips full SQL parsing).
 
@@ -442,14 +468,14 @@ class VoatSplitter:
         Returns:
             Dict mapping submissionid (str) -> subverse name
         """
-        subverse_name = sub_file.stem.replace('_submissions', '')
+        subverse_name = sub_file.stem.replace("_submissions", "")
         mappings = {}
 
         try:
-            with gzip.open(sub_file, 'rt', encoding='utf-8', errors='replace') as f:
+            with gzip.open(sub_file, "rt", encoding="utf-8", errors="replace") as f:
                 for line in f:
                     # Skip comments and DDL
-                    if line.startswith('--') or line.startswith('CREATE') or line.startswith('DROP'):
+                    if line.startswith("--") or line.startswith("CREATE") or line.startswith("DROP"):
                         continue
                     # Find all submission IDs in this line (handles multi-row INSERT)
                     for match in self.SUBMISSION_ID_PATTERN.finditer(line):
@@ -461,7 +487,7 @@ class VoatSplitter:
 
         return mappings
 
-    def _build_mapping_parallel(self, submission_dir: Path) -> Dict[str, str]:
+    def _build_mapping_parallel(self, submission_dir: Path) -> dict[str, str]:
         """
         Build submissionid→subverse mapping using parallel file processing.
 
@@ -476,27 +502,29 @@ class VoatSplitter:
         Returns:
             Dict mapping submissionid (str) -> subverse name
         """
-        checkpoint_file = self.output_dir / 'mapping_checkpoint.json'
+        checkpoint_file = self.output_dir / "mapping_checkpoint.json"
         import json
 
         # Resume from checkpoint if exists
-        post_to_subverse: Dict[str, str] = {}
-        processed_files: Set[str] = set()
+        post_to_subverse: dict[str, str] = {}
+        processed_files: set[str] = set()
 
         if checkpoint_file.exists():
             try:
-                with open(checkpoint_file, 'r') as f:
+                with open(checkpoint_file) as f:
                     checkpoint = json.load(f)
-                post_to_subverse = checkpoint.get('mappings', {})
-                processed_files = set(checkpoint.get('processed_files', []))
+                post_to_subverse = checkpoint.get("mappings", {})
+                processed_files = set(checkpoint.get("processed_files", []))
                 if console:
-                    console.print(f"[cyan]Resuming from checkpoint: {len(processed_files)} files already processed, {len(post_to_subverse):,} mappings loaded[/cyan]")
+                    console.print(
+                        f"[cyan]Resuming from checkpoint: {len(processed_files)} files already processed, {len(post_to_subverse):,} mappings loaded[/cyan]"
+                    )
             except Exception as e:
                 if console:
                     console.print(f"[yellow]Warning: Failed to load checkpoint: {e}. Starting fresh.[/yellow]")
 
         # Get list of files to process (excluding already-processed)
-        all_files = list(submission_dir.glob('*_submissions.sql.gz'))
+        all_files = list(submission_dir.glob("*_submissions.sql.gz"))
         files_to_process = [f for f in all_files if f.name not in processed_files]
 
         if not files_to_process:
@@ -506,7 +534,9 @@ class VoatSplitter:
 
         if console:
             console.print(f"[cyan]Building mapping with {self.parallel_workers} parallel workers...[/cyan]")
-            console.print(f"[cyan]Files to process: {len(files_to_process)} (skipping {len(processed_files)} from checkpoint)[/cyan]")
+            console.print(
+                f"[cyan]Files to process: {len(files_to_process)} (skipping {len(processed_files)} from checkpoint)[/cyan]"
+            )
 
         completed_count = len(processed_files)
         total_files = len(all_files)
@@ -519,21 +549,16 @@ class VoatSplitter:
                 TaskProgressColumn(),
                 TimeElapsedColumn(),
                 TimeRemainingColumn(),
-                console=console
+                console=console,
             ) as progress:
                 task = progress.add_task(
-                    f"Mapping... ({len(post_to_subverse):,} IDs)",
-                    total=total_files,
-                    completed=completed_count
+                    f"Mapping... ({len(post_to_subverse):,} IDs)", total=total_files, completed=completed_count
                 )
 
                 # Process files in parallel
                 with ThreadPoolExecutor(max_workers=self.parallel_workers) as executor:
                     # Submit all files
-                    future_to_file = {
-                        executor.submit(self._fast_extract_ids_from_file, f): f
-                        for f in files_to_process
-                    }
+                    future_to_file = {executor.submit(self._fast_extract_ids_from_file, f): f for f in files_to_process}
 
                     # Process results as they complete
                     checkpoint_counter = 0
@@ -549,16 +574,15 @@ class VoatSplitter:
                             progress.update(
                                 task,
                                 completed=completed_count,
-                                description=f"Mapping... ({len(post_to_subverse):,} IDs, {completed_count}/{total_files} files)"
+                                description=f"Mapping... ({len(post_to_subverse):,} IDs, {completed_count}/{total_files} files)",
                             )
 
                             # Save checkpoint periodically
                             if checkpoint_counter >= self.checkpoint_interval:
-                                with open(checkpoint_file, 'w') as f:
-                                    json.dump({
-                                        'mappings': post_to_subverse,
-                                        'processed_files': list(processed_files)
-                                    }, f)
+                                with open(checkpoint_file, "w") as f:
+                                    json.dump(
+                                        {"mappings": post_to_subverse, "processed_files": list(processed_files)}, f
+                                    )
                                 checkpoint_counter = 0
 
                         except Exception as e:
@@ -569,10 +593,7 @@ class VoatSplitter:
         else:
             # Non-rich fallback
             with ThreadPoolExecutor(max_workers=self.parallel_workers) as executor:
-                future_to_file = {
-                    executor.submit(self._fast_extract_ids_from_file, f): f
-                    for f in files_to_process
-                }
+                future_to_file = {executor.submit(self._fast_extract_ids_from_file, f): f for f in files_to_process}
 
                 checkpoint_counter = 0
                 for future in as_completed(future_to_file):
@@ -585,15 +606,14 @@ class VoatSplitter:
                         checkpoint_counter += 1
 
                         if completed_count % 100 == 0:
-                            print(f"Mapping progress: {completed_count}/{total_files} files, {len(post_to_subverse):,} IDs")
+                            print(
+                                f"Mapping progress: {completed_count}/{total_files} files, {len(post_to_subverse):,} IDs"
+                            )
 
                         # Save checkpoint periodically
                         if checkpoint_counter >= self.checkpoint_interval:
-                            with open(checkpoint_file, 'w') as f:
-                                json.dump({
-                                    'mappings': post_to_subverse,
-                                    'processed_files': list(processed_files)
-                                }, f)
+                            with open(checkpoint_file, "w") as f:
+                                json.dump({"mappings": post_to_subverse, "processed_files": list(processed_files)}, f)
                             checkpoint_counter = 0
 
                     except Exception as e:
@@ -602,19 +622,16 @@ class VoatSplitter:
 
         # Final checkpoint save
         try:
-            with open(checkpoint_file, 'w') as f:
-                json.dump({
-                    'mappings': post_to_subverse,
-                    'processed_files': list(processed_files)
-                }, f)
+            with open(checkpoint_file, "w") as f:
+                json.dump({"mappings": post_to_subverse, "processed_files": list(processed_files)}, f)
         except Exception as e:
             if console:
                 console.print(f"[yellow]Warning: Failed to save final checkpoint: {e}[/yellow]")
 
         # Save as the standard mapping file for future use
-        mapping_file = self.output_dir / 'post_to_subverse_mapping.json'
+        mapping_file = self.output_dir / "post_to_subverse_mapping.json"
         try:
-            with open(mapping_file, 'w') as f:
+            with open(mapping_file, "w") as f:
                 json.dump(post_to_subverse, f)
             if console:
                 console.print(f"[green]✓ Saved {len(post_to_subverse):,} mappings to {mapping_file.name}[/green]")
@@ -627,7 +644,7 @@ class VoatSplitter:
 
         return post_to_subverse
 
-    def split_submissions(self) -> Dict[str, int]:
+    def split_submissions(self) -> dict[str, int]:
         """
         Split submission.sql.gz by subverse.
 
@@ -635,33 +652,31 @@ class VoatSplitter:
             Dict mapping subverse name to post count
         """
         # RESUME CHECK: If submissions directory already has files, skip this phase
-        submission_dir = self.output_dir / 'submissions'
+        submission_dir = self.output_dir / "submissions"
         if submission_dir.exists():
-            existing_files = list(submission_dir.glob('*_submissions.sql.gz'))
+            existing_files = list(submission_dir.glob("*_submissions.sql.gz"))
             if existing_files:
                 if console:
-                    console.print(f"[green]✓ Found {len(existing_files)} existing submission files - skipping submission phase[/green]")
+                    console.print(
+                        f"[green]✓ Found {len(existing_files)} existing submission files - skipping submission phase[/green]"
+                    )
                 else:
                     print(f"✓ Found {len(existing_files)} existing submission files - skipping submission phase")
                 # Count submissions from existing files
                 return self._count_existing_submissions()
 
         # Find submission files
-        submission_files = list(self.voat_dir.glob('*submission*.sql.gz'))
+        submission_files = list(self.voat_dir.glob("*submission*.sql.gz"))
         if not submission_files:
             if console:
                 console.print("[yellow]No submission files found - skipping submissions phase[/yellow]")
             return {}
 
-        self.stats['source_files'].extend([str(f) for f in submission_files])
+        self.stats["source_files"].extend([str(f) for f in submission_files])
 
         # Initialize file manager
         manager = SubverseFileManager(
-            self.output_dir,
-            'submission',
-            self.max_open_files,
-            self.buffer_size,
-            self.compression_level
+            self.output_dir, "submission", self.max_open_files, self.buffer_size, self.compression_level
         )
 
         subverse_counts = defaultdict(int)
@@ -675,68 +690,71 @@ class VoatSplitter:
                 TaskProgressColumn(),
                 TimeElapsedColumn(),
                 TimeRemainingColumn(),
-                console=console
+                console=console,
             ) as progress:
                 task = progress.add_task("Splitting submissions...", total=None)
 
                 for file_path in submission_files:
-                    for row_dict in self.parser.stream_rows(str(file_path), 'submission'):
-                        subverse = row_dict.get('subverse', 'unknown')
+                    for row_dict in self.parser.stream_rows(str(file_path), "submission"):
+                        subverse = row_dict.get("subverse", "unknown")
 
-                        if not subverse or subverse == 'unknown':
-                            self.stats['errors'] += 1
+                        if not subverse or subverse == "unknown":
+                            self.stats["errors"] += 1
                             continue
 
                         # OPTIMIZATION: Build post→subverse mapping during submission split
-                        submission_id = row_dict.get('submissionid')
+                        submission_id = row_dict.get("submissionid")
                         if submission_id:
                             post_to_subverse[str(submission_id)] = subverse
 
                         # Convert row dict back to VALUES tuple
-                        values_tuple = self._dict_to_sql_tuple(row_dict, 'submission')
+                        values_tuple = self._dict_to_sql_tuple(row_dict, "submission")
                         manager.write_row(subverse, values_tuple)
 
                         subverse_counts[subverse] += 1
-                        self.stats['submissions_processed'] += 1
-                        self.stats['subverses_found'].add(subverse)
+                        self.stats["submissions_processed"] += 1
+                        self.stats["subverses_found"].add(subverse)
 
-                        if self.stats['submissions_processed'] % 1000 == 0:
+                        if self.stats["submissions_processed"] % 1000 == 0:
                             progress.update(
                                 task,
-                                description=f"Splitting submissions... ({self.stats['submissions_processed']:,} posts, {len(self.stats['subverses_found'])} subverses)"
+                                description=f"Splitting submissions... ({self.stats['submissions_processed']:,} posts, {len(self.stats['subverses_found'])} subverses)",
                             )
         else:
             for file_path in submission_files:
-                for row_dict in self.parser.stream_rows(str(file_path), 'submission'):
-                    subverse = row_dict.get('subverse', 'unknown')
+                for row_dict in self.parser.stream_rows(str(file_path), "submission"):
+                    subverse = row_dict.get("subverse", "unknown")
 
-                    if not subverse or subverse == 'unknown':
-                        self.stats['errors'] += 1
+                    if not subverse or subverse == "unknown":
+                        self.stats["errors"] += 1
                         continue
 
                     # OPTIMIZATION: Build post→subverse mapping during submission split
-                    submission_id = row_dict.get('submissionid')
+                    submission_id = row_dict.get("submissionid")
                     if submission_id:
                         post_to_subverse[str(submission_id)] = subverse
 
-                    values_tuple = self._dict_to_sql_tuple(row_dict, 'submission')
+                    values_tuple = self._dict_to_sql_tuple(row_dict, "submission")
                     manager.write_row(subverse, values_tuple)
 
                     subverse_counts[subverse] += 1
-                    self.stats['submissions_processed'] += 1
-                    self.stats['subverses_found'].add(subverse)
+                    self.stats["submissions_processed"] += 1
+                    self.stats["subverses_found"].add(subverse)
 
         # Close all files
         manager.close_all()
 
         # CRITICAL: Save post→subverse mapping for comment phase
-        mapping_file = self.output_dir / 'post_to_subverse_mapping.json'
+        mapping_file = self.output_dir / "post_to_subverse_mapping.json"
         try:
             import json
-            with open(mapping_file, 'w') as f:
+
+            with open(mapping_file, "w") as f:
                 json.dump(post_to_subverse, f)
             if console:
-                console.print(f"[green]✓ Saved {len(post_to_subverse):,} post→subverse mappings to {mapping_file.name}[/green]")
+                console.print(
+                    f"[green]✓ Saved {len(post_to_subverse):,} post→subverse mappings to {mapping_file.name}[/green]"
+                )
         except Exception as e:
             if console:
                 console.print(f"[yellow]Warning: Failed to save mapping file: {e}[/yellow]")
@@ -744,11 +762,8 @@ class VoatSplitter:
         return dict(subverse_counts)
 
     def _process_single_comment_file(
-        self,
-        file_path: Path,
-        post_to_subverse: Dict[str, str],
-        manager: SubverseFileManager
-    ) -> Tuple[Dict[str, int], int, int, Set[str]]:
+        self, file_path: Path, post_to_subverse: dict[str, str], manager: SubverseFileManager
+    ) -> tuple[dict[str, int], int, int, set[str]]:
         """
         Process a single comment file (thread-safe).
 
@@ -760,23 +775,23 @@ class VoatSplitter:
         Returns:
             Tuple of (subverse_counts, orphaned_count, comments_processed, subverses_found)
         """
-        subverse_counts: Dict[str, int] = defaultdict(int)
+        subverse_counts: dict[str, int] = defaultdict(int)
         orphaned_count = 0
         comments_processed = 0
-        subverses_found: Set[str] = set()
+        subverses_found: set[str] = set()
 
         try:
-            for row_dict in self.parser.stream_rows(str(file_path), 'comment'):
-                submission_id = str(row_dict.get('submissionid', ''))
+            for row_dict in self.parser.stream_rows(str(file_path), "comment"):
+                submission_id = str(row_dict.get("submissionid", ""))
                 # Try parent post's subverse first, fallback to comment's own subverse field
-                subverse = post_to_subverse.get(submission_id) or row_dict.get('subverse') or 'unknown'
+                subverse = post_to_subverse.get(submission_id) or row_dict.get("subverse") or "unknown"
 
-                if not subverse or subverse == 'unknown':
+                if not subverse or subverse == "unknown":
                     orphaned_count += 1
                     comments_processed += 1
                     continue
 
-                values_tuple = self._dict_to_sql_tuple(row_dict, 'comment')
+                values_tuple = self._dict_to_sql_tuple(row_dict, "comment")
                 manager.write_row(subverse, values_tuple)
 
                 subverse_counts[subverse] += 1
@@ -794,11 +809,11 @@ class VoatSplitter:
     def _process_comment_file_chunked(
         self,
         file_path: Path,
-        post_to_subverse: Dict[str, str],
+        post_to_subverse: dict[str, str],
         manager: SubverseFileManager,
         batch_size: int = 10000,
-        progress_callback: Optional[callable] = None
-    ) -> Tuple[Dict[str, int], int, int, Set[str]]:
+        progress_callback: callable | None = None,
+    ) -> tuple[dict[str, int], int, int, set[str]]:
         """
         Process a comment file using chunk-level parallelism (producer-consumer pattern).
 
@@ -817,33 +832,33 @@ class VoatSplitter:
         """
         # Shared state with locks
         results_lock = threading.Lock()
-        subverse_counts: Dict[str, int] = defaultdict(int)
+        subverse_counts: dict[str, int] = defaultdict(int)
         orphaned_count = 0
         comments_processed = 0
-        subverses_found: Set[str] = set()
+        subverses_found: set[str] = set()
         batches_completed = [0]  # Use list for mutable counter in nested function
 
         # Batch queue: producer puts batches, consumers pull and process
         batch_queue: queue.Queue = queue.Queue(maxsize=self.parallel_workers * 2)
         stop_signal = object()  # Sentinel to signal workers to stop
 
-        def process_batch(batch: List[Dict]) -> Tuple[Dict[str, int], int, int, Set[str]]:
+        def process_batch(batch: list[dict]) -> tuple[dict[str, int], int, int, set[str]]:
             """Process a batch of rows, return local counts."""
-            local_counts: Dict[str, int] = defaultdict(int)
+            local_counts: dict[str, int] = defaultdict(int)
             local_orphans = 0
             local_processed = 0
-            local_subverses: Set[str] = set()
+            local_subverses: set[str] = set()
 
             for row_dict in batch:
-                submission_id = str(row_dict.get('submissionid', ''))
-                subverse = post_to_subverse.get(submission_id) or row_dict.get('subverse') or 'unknown'
+                submission_id = str(row_dict.get("submissionid", ""))
+                subverse = post_to_subverse.get(submission_id) or row_dict.get("subverse") or "unknown"
 
-                if not subverse or subverse == 'unknown':
+                if not subverse or subverse == "unknown":
                     local_orphans += 1
                     local_processed += 1
                     continue
 
-                values_tuple = self._dict_to_sql_tuple(row_dict, 'comment')
+                values_tuple = self._dict_to_sql_tuple(row_dict, "comment")
                 manager.write_row(subverse, values_tuple)
 
                 local_counts[subverse] += 1
@@ -893,7 +908,7 @@ class VoatSplitter:
         # Producer: read file and submit batches
         try:
             batch = []
-            for row_dict in self.parser.stream_rows(str(file_path), 'comment'):
+            for row_dict in self.parser.stream_rows(str(file_path), "comment"):
                 batch.append(row_dict)
                 if len(batch) >= batch_size:
                     batch_queue.put(batch)
@@ -917,7 +932,7 @@ class VoatSplitter:
 
         return dict(subverse_counts), orphaned_count, comments_processed, subverses_found
 
-    def split_comments(self) -> Dict[str, int]:
+    def split_comments(self) -> dict[str, int]:
         """
         Split comment.sql.gz* by subverse based on parent post's subverse.
 
@@ -930,16 +945,16 @@ class VoatSplitter:
             Dict mapping subverse name to comment count
         """
         # Find comment files
-        comment_files = sorted(self.voat_dir.glob('*comment*.sql.gz*'))
+        comment_files = sorted(self.voat_dir.glob("*comment*.sql.gz*"))
         if not comment_files:
             if console:
                 console.print("[yellow]No comment files found - skipping comments phase[/yellow]")
             return {}
 
-        self.stats['source_files'].extend([str(f) for f in comment_files])
+        self.stats["source_files"].extend([str(f) for f in comment_files])
 
         # CRITICAL FIX: Load post→subverse mapping from JSON (instant) or build from files (slow)
-        mapping_file = self.output_dir / 'post_to_subverse_mapping.json'
+        mapping_file = self.output_dir / "post_to_subverse_mapping.json"
 
         if mapping_file.exists():
             # FAST PATH: Load pre-built mapping from JSON (instant)
@@ -947,7 +962,8 @@ class VoatSplitter:
                 console.print("[cyan]Loading post→subverse mapping from saved file...[/cyan]")
             try:
                 import json
-                with open(mapping_file, 'r') as f:
+
+                with open(mapping_file) as f:
                     post_to_subverse = json.load(f)
                 if console:
                     console.print(f"[green]✓ Loaded {len(post_to_subverse):,} post mappings instantly[/green]")
@@ -959,7 +975,7 @@ class VoatSplitter:
         else:
             # OPTIMIZED PATH: Build mapping using parallel processing with fast regex extraction
             # Previously took 19+ hours, now takes 30-60 minutes with parallelism + fast extraction
-            submission_dir = self.output_dir / 'submissions'
+            submission_dir = self.output_dir / "submissions"
 
             if submission_dir.exists():
                 if console:
@@ -977,11 +993,7 @@ class VoatSplitter:
 
         # Initialize file manager
         manager = SubverseFileManager(
-            self.output_dir,
-            'comment',
-            self.max_open_files,
-            self.buffer_size,
-            self.compression_level
+            self.output_dir, "comment", self.max_open_files, self.buffer_size, self.compression_level
         )
 
         subverse_counts = defaultdict(int)
@@ -989,19 +1001,22 @@ class VoatSplitter:
 
         # CHECKPOINT/RESUME: Load progress from checkpoint file
         import json
-        comment_checkpoint_file = self.output_dir / 'comment_checkpoint.json'
-        completed_comment_files: Set[str] = set()
+
+        comment_checkpoint_file = self.output_dir / "comment_checkpoint.json"
+        completed_comment_files: set[str] = set()
 
         if comment_checkpoint_file.exists():
             try:
-                with open(comment_checkpoint_file, 'r') as f:
+                with open(comment_checkpoint_file) as f:
                     checkpoint = json.load(f)
-                completed_comment_files = set(checkpoint.get('completed_files', []))
-                subverse_counts = defaultdict(int, checkpoint.get('subverse_counts', {}))
-                orphaned_count = checkpoint.get('orphaned_count', 0)
-                self.stats['comments_processed'] = checkpoint.get('comments_processed', 0)
+                completed_comment_files = set(checkpoint.get("completed_files", []))
+                subverse_counts = defaultdict(int, checkpoint.get("subverse_counts", {}))
+                orphaned_count = checkpoint.get("orphaned_count", 0)
+                self.stats["comments_processed"] = checkpoint.get("comments_processed", 0)
                 if console:
-                    console.print(f"[cyan]Resuming from checkpoint: {len(completed_comment_files)} files completed, {self.stats['comments_processed']:,} comments processed[/cyan]")
+                    console.print(
+                        f"[cyan]Resuming from checkpoint: {len(completed_comment_files)} files completed, {self.stats['comments_processed']:,} comments processed[/cyan]"
+                    )
             except Exception as e:
                 if console:
                     console.print(f"[yellow]Warning: Failed to load comment checkpoint: {e}. Starting fresh.[/yellow]")
@@ -1011,14 +1026,18 @@ class VoatSplitter:
 
         if not files_to_process:
             if console:
-                console.print(f"[green]✓ All {len(comment_files)} comment files already processed (from checkpoint)[/green]")
+                console.print(
+                    f"[green]✓ All {len(comment_files)} comment files already processed (from checkpoint)[/green]"
+                )
             return dict(subverse_counts)
 
         if completed_comment_files:
             if console:
-                console.print(f"[cyan]Files to process: {len(files_to_process)} (skipping {len(completed_comment_files)} completed)[/cyan]")
+                console.print(
+                    f"[cyan]Files to process: {len(files_to_process)} (skipping {len(completed_comment_files)} completed)[/cyan]"
+                )
 
-        total_files = len(comment_files)
+        len(comment_files)
         completed_files_count = len(completed_comment_files)
 
         # Thread-safe checkpoint lock
@@ -1028,33 +1047,40 @@ class VoatSplitter:
             """Save current progress to checkpoint file (thread-safe)."""
             with checkpoint_lock:
                 try:
-                    with open(comment_checkpoint_file, 'w') as f:
-                        json.dump({
-                            'completed_files': list(completed_comment_files),
-                            'subverse_counts': dict(subverse_counts),
-                            'orphaned_count': orphaned_count,
-                            'comments_processed': self.stats['comments_processed']
-                        }, f)
+                    with open(comment_checkpoint_file, "w") as f:
+                        json.dump(
+                            {
+                                "completed_files": list(completed_comment_files),
+                                "subverse_counts": dict(subverse_counts),
+                                "orphaned_count": orphaned_count,
+                                "comments_processed": self.stats["comments_processed"],
+                            },
+                            f,
+                        )
                 except Exception as e:
                     if console:
                         console.print(f"[yellow]Warning: Failed to save checkpoint: {e}[/yellow]")
 
-        def _merge_results(file_counts: Dict[str, int], file_orphans: int, file_comments: int, file_subverses: Set[str]):
+        def _merge_results(
+            file_counts: dict[str, int], file_orphans: int, file_comments: int, file_subverses: set[str]
+        ):
             """Merge results from a completed file into global counts (thread-safe)."""
             nonlocal orphaned_count
             with checkpoint_lock:
                 for subverse, count in file_counts.items():
                     subverse_counts[subverse] += count
                 orphaned_count += file_orphans
-                self.stats['comments_processed'] += file_comments
-                self.stats['subverses_found'].update(file_subverses)
+                self.stats["comments_processed"] += file_comments
+                self.stats["subverses_found"].update(file_subverses)
 
         # CHUNK-LEVEL PARALLEL PROCESSING
         # Each file is processed with all workers sharing the load via batches
         # This solves the problem where one large file (2.9GB) blocks all workers
 
         if console:
-            console.print(f"[cyan]Processing {len(files_to_process)} comment files with {self.parallel_workers} parallel workers (chunk-level)[/cyan]")
+            console.print(
+                f"[cyan]Processing {len(files_to_process)} comment files with {self.parallel_workers} parallel workers (chunk-level)[/cyan]"
+            )
 
         # Track progress across files
         last_progress_update = [time.time()]  # Use list to allow mutation in nested function
@@ -1077,11 +1103,7 @@ class VoatSplitter:
 
             # Use chunked parallel processing for all files
             file_counts, file_orphans, file_comments, file_subverses = self._process_comment_file_chunked(
-                file_path,
-                post_to_subverse,
-                manager,
-                batch_size=10000,
-                progress_callback=progress_callback
+                file_path, post_to_subverse, manager, batch_size=10000, progress_callback=progress_callback
             )
 
             # Merge results
@@ -1096,8 +1118,12 @@ class VoatSplitter:
             rate = file_comments / file_time if file_time > 0 else 0
 
             if console:
-                console.print(f"[green]✓ Completed {file_path.name}: {file_comments:,} comments in {file_time:.1f}s ({rate:,.0f}/s)[/green]")
-                console.print(f"  Total: {self.stats['comments_processed']:,} comments, {orphaned_count:,} orphaned, {len(subverse_counts)} subverses")
+                console.print(
+                    f"[green]✓ Completed {file_path.name}: {file_comments:,} comments in {file_time:.1f}s ({rate:,.0f}/s)[/green]"
+                )
+                console.print(
+                    f"  Total: {self.stats['comments_processed']:,} comments, {orphaned_count:,} orphaned, {len(subverse_counts)} subverses"
+                )
             else:
                 print(f"✓ Completed {file_path.name}: {file_comments:,} comments in {file_time:.1f}s ({rate:,.0f}/s)")
 
@@ -1116,13 +1142,15 @@ class VoatSplitter:
 
         if orphaned_count > 0:
             if console:
-                console.print(f"[yellow]⚠ Filtered {orphaned_count:,} orphaned comments (parent post not found)[/yellow]")
+                console.print(
+                    f"[yellow]⚠ Filtered {orphaned_count:,} orphaned comments (parent post not found)[/yellow]"
+                )
             else:
                 print(f"⚠ Filtered {orphaned_count:,} orphaned comments (parent post not found)")
 
         return dict(subverse_counts)
 
-    def _dict_to_sql_tuple(self, row_dict: Dict[str, Any], table_type: str) -> str:
+    def _dict_to_sql_tuple(self, row_dict: dict[str, Any], table_type: str) -> str:
         """
         Convert row dictionary back to SQL VALUES tuple.
 
@@ -1147,22 +1175,21 @@ class VoatSplitter:
     def _format_sql_value(self, value: Any) -> str:
         """Format Python value as SQL literal."""
         if value is None:
-            return 'NULL'
+            return "NULL"
         elif isinstance(value, bool):
-            return '1' if value else '0'
-        elif isinstance(value, (int, float)):
+            return "1" if value else "0"
+        elif isinstance(value, int | float):
             return str(value)
         elif isinstance(value, str):
             # Escape single quotes and backslashes
-            escaped = value.replace('\\', '\\\\').replace("'", "''")
+            escaped = value.replace("\\", "\\\\").replace("'", "''")
             return f"'{escaped}'"
         else:
             # Fallback: convert to string and escape
-            escaped = str(value).replace('\\', '\\\\').replace("'", "''")
+            escaped = str(value).replace("\\", "\\\\").replace("'", "''")
             return f"'{escaped}'"
 
-    def generate_metadata(self, submission_counts: Dict[str, int],
-                          comment_counts: Dict[str, int]) -> Dict[str, Any]:
+    def generate_metadata(self, submission_counts: dict[str, int], comment_counts: dict[str, int]) -> dict[str, Any]:
         """
         Generate metadata JSON with file sizes and statistics.
 
@@ -1186,48 +1213,50 @@ class VoatSplitter:
             comments = comment_counts_str.get(subverse, 0)
 
             # Get file paths
-            sub_file = self.output_dir / 'submissions' / f"{self._sanitize_filename(subverse)}_submissions.sql.gz"
-            com_file = self.output_dir / 'comments' / f"{self._sanitize_filename(subverse)}_comments.sql.gz"
+            sub_file = self.output_dir / "submissions" / f"{self._sanitize_filename(subverse)}_submissions.sql.gz"
+            com_file = self.output_dir / "comments" / f"{self._sanitize_filename(subverse)}_comments.sql.gz"
 
             # Get file sizes
             sub_size_mb = sub_file.stat().st_size / 1024 / 1024 if sub_file.exists() else 0
             com_size_mb = com_file.stat().st_size / 1024 / 1024 if com_file.exists() else 0
 
-            subverse_metadata.append({
-                'name': subverse,
-                'posts': posts,
-                'comments': comments,
-                'submission_file': str(sub_file.relative_to(self.output_dir)) if sub_file.exists() else None,
-                'comment_file': str(com_file.relative_to(self.output_dir)) if com_file.exists() else None,
-                'submission_size_mb': round(sub_size_mb, 2),
-                'comment_size_mb': round(com_size_mb, 2),
-                'total_size_mb': round(sub_size_mb + com_size_mb, 2)
-            })
+            subverse_metadata.append(
+                {
+                    "name": subverse,
+                    "posts": posts,
+                    "comments": comments,
+                    "submission_file": str(sub_file.relative_to(self.output_dir)) if sub_file.exists() else None,
+                    "comment_file": str(com_file.relative_to(self.output_dir)) if com_file.exists() else None,
+                    "submission_size_mb": round(sub_size_mb, 2),
+                    "comment_size_mb": round(com_size_mb, 2),
+                    "total_size_mb": round(sub_size_mb + com_size_mb, 2),
+                }
+            )
 
         # Calculate total sizes
-        total_size_mb = sum(s['total_size_mb'] for s in subverse_metadata)
+        total_size_mb = sum(s["total_size_mb"] for s in subverse_metadata)
 
-        processing_time = int(time.time() - self.stats['start_time'])
+        processing_time = int(time.time() - self.stats["start_time"])
 
         metadata = {
-            'split_metadata': {
-                'split_date': datetime.now(timezone.utc).isoformat(),
-                'source_files': self.stats['source_files'],
-                'total_subverses': len(all_subverses),
-                'total_posts': self.stats['submissions_processed'],
-                'total_comments': self.stats['comments_processed'],
-                'total_size_mb': round(total_size_mb, 2),
-                'processing_time_seconds': processing_time,
-                'processing_time_human': self._format_duration(processing_time),
-                'errors': self.stats['errors'],
-                'configuration': {
-                    'max_open_files': self.max_open_files,
-                    'buffer_size': self.buffer_size,
-                    'compression_level': self.compression_level,
-                    'skip_empty_subverses': self.skip_empty
-                }
+            "split_metadata": {
+                "split_date": datetime.now(timezone.utc).isoformat(),
+                "source_files": self.stats["source_files"],
+                "total_subverses": len(all_subverses),
+                "total_posts": self.stats["submissions_processed"],
+                "total_comments": self.stats["comments_processed"],
+                "total_size_mb": round(total_size_mb, 2),
+                "processing_time_seconds": processing_time,
+                "processing_time_human": self._format_duration(processing_time),
+                "errors": self.stats["errors"],
+                "configuration": {
+                    "max_open_files": self.max_open_files,
+                    "buffer_size": self.buffer_size,
+                    "compression_level": self.compression_level,
+                    "skip_empty_subverses": self.skip_empty,
+                },
             },
-            'subverses': subverse_metadata
+            "subverses": subverse_metadata,
         }
 
         return metadata
@@ -1236,7 +1265,7 @@ class VoatSplitter:
         """Sanitize subverse name for use in filename."""
         # Convert to string first (in case it's an int or other type)
         subverse_str = str(subverse)
-        safe = subverse_str.replace('/', '_').replace('\\', '_').replace('..', '_')
+        safe = subverse_str.replace("/", "_").replace("\\", "_").replace("..", "_")
         if len(safe) > 100:
             safe = safe[:100]
         return safe
@@ -1267,7 +1296,7 @@ def check_disk_space(output_dir: Path, voat_dir: Path) -> bool:
         True if sufficient space, False otherwise
     """
     # Calculate input size
-    input_size = sum(f.stat().st_size for f in voat_dir.glob('*.sql.gz*'))
+    input_size = sum(f.stat().st_size for f in voat_dir.glob("*.sql.gz*"))
 
     # Estimate output size (150% of input due to individual file overhead)
     estimated_output = int(input_size * 1.5)
@@ -1278,20 +1307,24 @@ def check_disk_space(output_dir: Path, voat_dir: Path) -> bool:
     available = stat.free
 
     if console:
-        console.print(f"\n[cyan]Disk Space Check:[/cyan]")
+        console.print("\n[cyan]Disk Space Check:[/cyan]")
         console.print(f"  Input size: {input_size / 1024 / 1024 / 1024:.2f} GB")
         console.print(f"  Estimated output: {estimated_output / 1024 / 1024 / 1024:.2f} GB")
         console.print(f"  Available: {available / 1024 / 1024 / 1024:.2f} GB")
 
     if available < estimated_output:
         if console:
-            console.print(f"[red]ERROR: Insufficient disk space![/red]")
-            console.print(f"[red]Need at least {estimated_output / 1024 / 1024 / 1024:.2f} GB, but only {available / 1024 / 1024 / 1024:.2f} GB available[/red]")
+            console.print("[red]ERROR: Insufficient disk space![/red]")
+            console.print(
+                f"[red]Need at least {estimated_output / 1024 / 1024 / 1024:.2f} GB, but only {available / 1024 / 1024 / 1024:.2f} GB available[/red]"
+            )
         return False
 
     if available < estimated_output * 2:
         if console:
-            console.print(f"[yellow]WARNING: Low disk space. Recommended: {estimated_output * 2 / 1024 / 1024 / 1024:.2f} GB[/yellow]")
+            console.print(
+                f"[yellow]WARNING: Low disk space. Recommended: {estimated_output * 2 / 1024 / 1024 / 1024:.2f} GB[/yellow]"
+            )
 
     return True
 
@@ -1299,7 +1332,7 @@ def check_disk_space(output_dir: Path, voat_dir: Path) -> bool:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Split Voat SQL dumps by subverse for faster individual imports',
+        description="Split Voat SQL dumps by subverse for faster individual imports",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1314,27 +1347,42 @@ Performance:
   - One-time operation: 5-6 hours
   - Output: 1,224 files (612 subverses × 2 types)
   - Future benefit: 2-5 minute imports vs 5-6 hours (1000x speedup)
-        """
+        """,
     )
 
-    parser.add_argument('voat_dir', type=Path,
-                        help='Directory containing Voat SQL dumps (submission.sql.gz, comment.sql.gz)')
-    parser.add_argument('--output', '-o', type=Path, default=Path('voat_split'),
-                        help='Output directory for split files (default: voat_split/)')
-    parser.add_argument('--max-open-files', type=int, default=50,
-                        help='Maximum concurrent file handles (default: 50, range: 10-200)')
-    parser.add_argument('--buffer-size', type=int, default=100,
-                        help='Rows to buffer before flush (default: 100, range: 10-1000)')
-    parser.add_argument('--compression-level', type=int, default=6,
-                        help='Gzip compression level (default: 6, range: 1-9)')
-    parser.add_argument('--skip-empty-subverses', action='store_true',
-                        help='Skip creating files for empty subverses')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Show statistics without creating files')
-    parser.add_argument('--parallel-workers', type=int, default=None,
-                        help='Number of parallel workers for mapping phase (default: CPU count - 2)')
-    parser.add_argument('--checkpoint-interval', type=int, default=100,
-                        help='Save checkpoint every N files during mapping (default: 100)')
+    parser.add_argument(
+        "voat_dir", type=Path, help="Directory containing Voat SQL dumps (submission.sql.gz, comment.sql.gz)"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=Path("voat_split"),
+        help="Output directory for split files (default: voat_split/)",
+    )
+    parser.add_argument(
+        "--max-open-files", type=int, default=50, help="Maximum concurrent file handles (default: 50, range: 10-200)"
+    )
+    parser.add_argument(
+        "--buffer-size", type=int, default=100, help="Rows to buffer before flush (default: 100, range: 10-1000)"
+    )
+    parser.add_argument(
+        "--compression-level", type=int, default=6, help="Gzip compression level (default: 6, range: 1-9)"
+    )
+    parser.add_argument("--skip-empty-subverses", action="store_true", help="Skip creating files for empty subverses")
+    parser.add_argument("--dry-run", action="store_true", help="Show statistics without creating files")
+    parser.add_argument(
+        "--parallel-workers",
+        type=int,
+        default=None,
+        help="Number of parallel workers for mapping phase (default: CPU count - 2)",
+    )
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=100,
+        help="Save checkpoint every N files during mapping (default: 100)",
+    )
 
     args = parser.parse_args()
 
@@ -1344,8 +1392,8 @@ Performance:
         sys.exit(1)
 
     # Find SQL files
-    submission_files = list(args.voat_dir.glob('*submission*.sql.gz'))
-    comment_files = list(args.voat_dir.glob('*comment*.sql.gz*'))
+    submission_files = list(args.voat_dir.glob("*submission*.sql.gz"))
+    comment_files = list(args.voat_dir.glob("*comment*.sql.gz*"))
 
     if not submission_files and not comment_files:
         print(f"ERROR: No Voat SQL files found in {args.voat_dir}")
@@ -1356,20 +1404,22 @@ Performance:
 
     # Print banner
     if console:
-        console.print(Panel.fit(
-            f"[bold cyan]Voat SQL Splitter[/bold cyan]\n"
-            f"JSON Library: {JSON_LIB}\n"
-            f"Submission files: {len(submission_files)}\n"
-            f"Comment files: {len(comment_files)}\n"
-            f"Output: {args.output}\n"
-            f"Max open files: {args.max_open_files}\n"
-            f"Buffer size: {args.buffer_size} rows\n"
-            f"Compression: Level {args.compression_level}\n"
-            f"Parallel workers: {parallel_workers}\n"
-            f"Checkpoint interval: {args.checkpoint_interval} files",
-            border_style="cyan",
-            box=box.ROUNDED
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold cyan]Voat SQL Splitter[/bold cyan]\n"
+                f"JSON Library: {JSON_LIB}\n"
+                f"Submission files: {len(submission_files)}\n"
+                f"Comment files: {len(comment_files)}\n"
+                f"Output: {args.output}\n"
+                f"Max open files: {args.max_open_files}\n"
+                f"Buffer size: {args.buffer_size} rows\n"
+                f"Compression: Level {args.compression_level}\n"
+                f"Parallel workers: {parallel_workers}\n"
+                f"Checkpoint interval: {args.checkpoint_interval} files",
+                border_style="cyan",
+                box=box.ROUNDED,
+            )
+        )
 
     # Dry run - just show stats
     if args.dry_run:
@@ -1395,7 +1445,7 @@ Performance:
         args.compression_level,
         args.skip_empty_subverses,
         args.parallel_workers,
-        args.checkpoint_interval
+        args.checkpoint_interval,
     )
 
     try:
@@ -1413,8 +1463,8 @@ Performance:
         metadata = splitter.generate_metadata(submission_counts, comment_counts)
 
         # Write metadata JSON
-        metadata_path = args.output / 'split_metadata.json'
-        with open(metadata_path, 'w') as f:
+        metadata_path = args.output / "split_metadata.json"
+        with open(metadata_path, "w") as f:
             f.write(json_dumps(metadata))
 
         # Print summary
@@ -1427,7 +1477,7 @@ Performance:
             console.print(f"  Processing time: {metadata['split_metadata']['processing_time_human']}")
             console.print(f"  Metadata: {metadata_path}")
 
-            if splitter.stats['errors'] > 0:
+            if splitter.stats["errors"] > 0:
                 console.print(f"  [yellow]Errors: {splitter.stats['errors']:,}[/yellow]")
         else:
             print("\n✓ Split complete!")
@@ -1448,5 +1498,5 @@ Performance:
         raise
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

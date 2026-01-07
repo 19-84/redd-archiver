@@ -4,21 +4,18 @@ ABOUTME: Import specific Voat subverses only (filtered import example)
 ABOUTME: Demonstrates how to import a subset of communities from full Voat archive
 """
 
+import logging
 import os
 import sys
 import time
-import logging
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.postgres_database import PostgresDatabase
 from core.importers.voat_importer import VoatImporter
+from core.postgres_database import PostgresDatabase
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -27,25 +24,24 @@ def main():
     # CONFIGURATION: Edit this list to choose subverses
     # ============================================================
     FILTER_SUBVERSES = [
-        'technology',
-        'privacy',
-        'linux',
-        'programming',
-        'AskVoat',
-        'news',
-        'whatever',  # Voat's /r/all equivalent
+        "technology",
+        "privacy",
+        "linux",
+        "programming",
+        "AskVoat",
+        "news",
+        "whatever",  # Voat's /r/all equivalent
     ]
     # ============================================================
 
     connection_string = os.environ.get(
-        'DATABASE_URL',
-        'postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver'
+        "DATABASE_URL", "postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver"
     )
 
     db = PostgresDatabase(connection_string)
     importer = VoatImporter()
 
-    data_dir = '/data/voat'
+    data_dir = "/data/voat"
     detected = importer.detect_files(data_dir)
 
     logger.info(f"\n{'='*60}")
@@ -57,7 +53,7 @@ def main():
 
     # Import posts
     logger.info("=== Importing Posts ===")
-    post_files = detected.get('posts', [])
+    post_files = detected.get("posts", [])
     total_posts = 0
     start_time = time.time()
 
@@ -82,7 +78,7 @@ def main():
 
     # Import comments
     logger.info("=== Importing Comments ===")
-    comment_files = detected.get('comments', [])
+    comment_files = detected.get("comments", [])
     total_comments = 0
     start_time = time.time()
 
@@ -114,5 +110,5 @@ def main():
     db.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

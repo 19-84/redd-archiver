@@ -1,15 +1,15 @@
 # ABOUTME: Jinja2 templating environment configuration for Redd-Archiver HTML generation
 # ABOUTME: Provides optimized template loading, caching, and rendering for static site generation
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape, FileSystemBytecodeCache
 import os
 
+from jinja2 import Environment, FileSystemBytecodeCache, FileSystemLoader, select_autoescape
 
 # Determine absolute paths for templates and cache
 _MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_MODULE_DIR)
-_TEMPLATES_DIR = os.path.join(_PROJECT_ROOT, 'templates_jinja2')
-_CACHE_DIR = os.path.join(_PROJECT_ROOT, '.jinja_cache')
+_TEMPLATES_DIR = os.path.join(_PROJECT_ROOT, "templates_jinja2")
+_CACHE_DIR = os.path.join(_PROJECT_ROOT, ".jinja_cache")
 
 
 def create_jinja_env():
@@ -37,7 +37,7 @@ def create_jinja_env():
     # Create Jinja2 environment with optimal settings
     env = Environment(
         loader=FileSystemLoader(_TEMPLATES_DIR),
-        autoescape=select_autoescape(['html', 'htm', 'xml']),
+        autoescape=select_autoescape(["html", "htm", "xml"]),
         bytecode_cache=FileSystemBytecodeCache(_CACHE_DIR),
         cache_size=1000,  # Keep 1000 compiled templates in memory (default is 400)
         auto_reload=False,  # Disable for production - no file watching overhead
@@ -49,6 +49,7 @@ def create_jinja_env():
     # Register custom filters
     try:
         from html_modules.jinja_filters import register_filters
+
         register_filters(env)
     except ImportError:
         # Filters module not created yet - will be added in next step
@@ -109,7 +110,7 @@ def render_template_to_file(template_name, output_path, **context):
         os.makedirs(output_dir, exist_ok=True)
 
     # Stream render directly to file (memory efficient)
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         template.stream(**context).dump(f)
 
 
@@ -131,12 +132,11 @@ def precompile_templates():
     """
     templates_to_precompile = [
         # Page templates
-        'pages/link.html',
-        'pages/subreddit.html',
-        'pages/user.html',
-        'pages/dashboard.html',
-        'pages/global_search.html',
-
+        "pages/link.html",
+        "pages/subreddit.html",
+        "pages/user.html",
+        "pages/dashboard.html",
+        "pages/global_search.html",
         # Base and component templates (loaded automatically)
         # These are compiled when page templates are loaded
     ]
@@ -164,6 +164,7 @@ def clear_bytecode_cache():
     """
     if os.path.exists(_CACHE_DIR):
         import shutil
+
         shutil.rmtree(_CACHE_DIR)
         os.makedirs(_CACHE_DIR, exist_ok=True)
         print(f"Cleared Jinja2 bytecode cache: {_CACHE_DIR}")
@@ -177,17 +178,17 @@ def get_template_stats():
         dict: Statistics including cache size, number of cached templates
     """
     stats = {
-        'templates_dir': _TEMPLATES_DIR,
-        'cache_dir': _CACHE_DIR,
-        'cache_size_limit': jinja_env.cache.capacity if hasattr(jinja_env.cache, 'capacity') else 1000,
-        'template_count': 0,
-        'cache_exists': os.path.exists(_CACHE_DIR)
+        "templates_dir": _TEMPLATES_DIR,
+        "cache_dir": _CACHE_DIR,
+        "cache_size_limit": jinja_env.cache.capacity if hasattr(jinja_env.cache, "capacity") else 1000,
+        "template_count": 0,
+        "cache_exists": os.path.exists(_CACHE_DIR),
     }
 
     # Count template files
     if os.path.exists(_TEMPLATES_DIR):
-        for root, dirs, files in os.walk(_TEMPLATES_DIR):
-            stats['template_count'] += len([f for f in files if f.endswith(('.html', '.htm', '.xml'))])
+        for _root, _dirs, files in os.walk(_TEMPLATES_DIR):
+            stats["template_count"] += len([f for f in files if f.endswith((".html", ".htm", ".xml"))])
 
     return stats
 
@@ -197,7 +198,7 @@ def get_template_stats():
 USE_JINJA2 = True  # Always enabled (legacy system removed)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test environment setup
     print("Jinja2 Environment Configuration")
     print("=" * 50)

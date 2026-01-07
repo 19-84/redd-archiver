@@ -5,6 +5,7 @@
 import os
 import sys
 
+
 def test_connection(conn_str: str, name: str) -> bool:
     """Test database connection and return success status"""
     try:
@@ -26,11 +27,12 @@ def test_connection(conn_str: str, name: str) -> bool:
         print(f"❌ {name} connection failed: {e}")
         return False
 
+
 def main():
     """Main health check logic"""
 
     # Try Unix socket first (primary connection method)
-    unix_socket_url = os.getenv('DATABASE_URL')
+    unix_socket_url = os.getenv("DATABASE_URL")
     if unix_socket_url:
         if test_connection(unix_socket_url, "Unix socket"):
             sys.exit(0)  # Success!
@@ -38,7 +40,7 @@ def main():
         print("⚠️  DATABASE_URL not set")
 
     # Fallback to TCP socket
-    tcp_socket_url = os.getenv('DATABASE_URL_TCP')
+    tcp_socket_url = os.getenv("DATABASE_URL_TCP")
     if tcp_socket_url:
         if test_connection(tcp_socket_url, "TCP socket"):
             print("⚠️  Using TCP fallback (Unix socket unavailable)")
@@ -55,6 +57,7 @@ def main():
     print("4. Check network connectivity between containers")
 
     sys.exit(1)  # Failure
+
 
 if __name__ == "__main__":
     main()

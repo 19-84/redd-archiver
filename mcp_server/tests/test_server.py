@@ -12,16 +12,17 @@ These tests verify:
 """
 
 import os
+
+# Import from parent directory
+import sys
 from unittest.mock import patch
 
 import httpx
 import pytest
 
-# Import from parent directory
-import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from server import get_api_url, fetch_openapi_spec, parse_args, DEFAULT_API_URL
+from server import DEFAULT_API_URL, fetch_openapi_spec, get_api_url, parse_args
 
 
 class TestGetApiUrl:
@@ -86,18 +87,14 @@ class TestFetchOpenApiSpec:
             "paths": {},
         }
 
-        respx_mock.get("http://test.com/api/v1/openapi.json").mock(
-            return_value=httpx.Response(200, json=mock_spec)
-        )
+        respx_mock.get("http://test.com/api/v1/openapi.json").mock(return_value=httpx.Response(200, json=mock_spec))
 
         result = fetch_openapi_spec("http://test.com")
         assert result == mock_spec
 
     def test_connection_error(self, respx_mock):
         """Connection error should raise httpx.ConnectError."""
-        respx_mock.get("http://test.com/api/v1/openapi.json").mock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
+        respx_mock.get("http://test.com/api/v1/openapi.json").mock(side_effect=httpx.ConnectError("Connection refused"))
 
         with pytest.raises(httpx.ConnectError):
             fetch_openapi_spec("http://test.com")
@@ -113,9 +110,7 @@ class TestFetchOpenApiSpec:
 
     def test_invalid_json(self, respx_mock):
         """Invalid JSON should raise ValueError."""
-        respx_mock.get("http://test.com/api/v1/openapi.json").mock(
-            return_value=httpx.Response(200, text="not json")
-        )
+        respx_mock.get("http://test.com/api/v1/openapi.json").mock(return_value=httpx.Response(200, text="not json"))
 
         with pytest.raises(ValueError):
             fetch_openapi_spec("http://test.com")
@@ -125,6 +120,7 @@ class TestFetchOpenApiSpec:
 def respx_mock():
     """Fixture to provide respx mock for HTTP requests."""
     import respx
+
     with respx.mock:
         yield respx
 

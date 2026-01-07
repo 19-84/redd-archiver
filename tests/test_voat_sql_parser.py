@@ -3,9 +3,11 @@ ABOUTME: Tests for VoatSQLParser state machine
 ABOUTME: Covers escape sequences, NULL handling, and edge cases
 """
 
-import pytest
-import tempfile
 import gzip
+import tempfile
+
+import pytest
+
 from core.importers.voat_sql_parser import VoatSQLParser
 
 
@@ -19,7 +21,7 @@ class TestVoatSQLParser:
     def test_parse_simple_values(self):
         """Test parsing simple values without escapes."""
         values, end = self.parser._parse_values_tuple("(1,'hello',NULL)", 0)
-        assert values == [1, 'hello', None]
+        assert values == [1, "hello", None]
 
     def test_parse_escaped_quote(self):
         """Test parsing backslash-escaped single quote."""
@@ -49,7 +51,7 @@ class TestVoatSQLParser:
     def test_parse_null_value(self):
         """Test parsing NULL value."""
         values, end = self.parser._parse_values_tuple("(NULL,'text',NULL)", 0)
-        assert values == [None, 'text', None]
+        assert values == [None, "text", None]
 
     def test_parse_integer(self):
         """Test parsing integer values."""
@@ -59,43 +61,43 @@ class TestVoatSQLParser:
     def test_parse_empty_string(self):
         """Test parsing empty string."""
         values, end = self.parser._parse_values_tuple("(1,'')", 0)
-        assert values == [1, '']
+        assert values == [1, ""]
 
     def test_parse_value_with_comma(self):
         """Test parsing string containing comma."""
         values, end = self.parser._parse_values_tuple("(1,'hello, world')", 0)
-        assert values == [1, 'hello, world']
+        assert values == [1, "hello, world"]
 
     def test_parse_value_with_parentheses(self):
         """Test parsing string containing parentheses."""
         values, end = self.parser._parse_values_tuple("(1,'func(x)')", 0)
-        assert values == [1, 'func(x)']
+        assert values == [1, "func(x)"]
 
     def test_parse_datetime(self):
         """Test parsing datetime string."""
         values, end = self.parser._parse_values_tuple("(1,'2013-11-08 12:00:00')", 0)
-        assert values == [1, '2013-11-08 12:00:00']
+        assert values == [1, "2013-11-08 12:00:00"]
 
     def test_parse_html_content(self):
         """Test parsing HTML content with special chars."""
         values, end = self.parser._parse_values_tuple("(1,'<p>Hello &amp; goodbye</p>')", 0)
-        assert values == [1, '<p>Hello &amp; goodbye</p>']
+        assert values == [1, "<p>Hello &amp; goodbye</p>"]
 
     def test_column_maps_exist(self):
         """Test that column maps are defined."""
-        assert 'submission' in self.parser.COLUMN_MAPS
-        assert 'comment' in self.parser.COLUMN_MAPS
-        assert len(self.parser.COLUMN_MAPS['submission']) == 27
-        assert len(self.parser.COLUMN_MAPS['comment']) == 22
+        assert "submission" in self.parser.COLUMN_MAPS
+        assert "comment" in self.parser.COLUMN_MAPS
+        assert len(self.parser.COLUMN_MAPS["submission"]) == 27
+        assert len(self.parser.COLUMN_MAPS["comment"]) == 22
 
     def test_unknown_table_raises_error(self):
         """Test that unknown table name raises ValueError."""
-        with tempfile.NamedTemporaryFile(suffix='.sql.gz', delete=False) as f:
-            with gzip.open(f.name, 'wt') as gz:
+        with tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False) as f:
+            with gzip.open(f.name, "wt") as gz:
                 gz.write("INSERT INTO `unknown` VALUES (1);")
 
             with pytest.raises(ValueError, match="Unknown table"):
-                list(self.parser.stream_rows(f.name, 'unknown'))
+                list(self.parser.stream_rows(f.name, "unknown"))
 
 
 class TestVoatSQLParserIntegration:
@@ -106,8 +108,8 @@ class TestVoatSQLParserIntegration:
 
     def create_test_file(self, sql_content):
         """Create a gzipped SQL file with given content."""
-        f = tempfile.NamedTemporaryFile(suffix='.sql.gz', delete=False)
-        with gzip.open(f.name, 'wt', encoding='utf-8') as gz:
+        f = tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False)
+        with gzip.open(f.name, "wt", encoding="utf-8") as gz:
             gz.write(sql_content)
         return f.name
 
@@ -119,15 +121,15 @@ class TestVoatSQLParserIntegration:
         """
         file_path = self.create_test_file(sql)
 
-        rows = list(self.parser.stream_rows(file_path, 'submission'))
+        rows = list(self.parser.stream_rows(file_path, "submission"))
         assert len(rows) == 1
 
         row = rows[0]
-        assert row['submissionid'] == 34
-        assert row['subverse'] == 'voatdev'
-        assert row['userName'] == 'Atko'
-        assert row['title'] == 'Checking out the date time thingy...'
-        assert row['sum'] == 68
+        assert row["submissionid"] == 34
+        assert row["subverse"] == "voatdev"
+        assert row["userName"] == "Atko"
+        assert row["title"] == "Checking out the date time thingy..."
+        assert row["sum"] == 68
 
     def test_parse_comment_insert(self):
         """Test parsing a realistic comment INSERT."""
@@ -136,16 +138,16 @@ class TestVoatSQLParserIntegration:
         """
         file_path = self.create_test_file(sql)
 
-        rows = list(self.parser.stream_rows(file_path, 'comment'))
+        rows = list(self.parser.stream_rows(file_path, "comment"))
         assert len(rows) == 1
 
         row = rows[0]
-        assert row['commentid'] == 4
-        assert row['content'] == 'True. Just tried this.'
-        assert row['userName'] == 'Atko'
-        assert row['subverse'] == 'TODO'
-        assert row['parentid'] == 0
-        assert row['submissionid'] == 73
+        assert row["commentid"] == 4
+        assert row["content"] == "True. Just tried this."
+        assert row["userName"] == "Atko"
+        assert row["subverse"] == "TODO"
+        assert row["parentid"] == 0
+        assert row["submissionid"] == 73
 
     def test_parse_multi_row_insert(self):
         """Test parsing INSERT with multiple rows."""
@@ -154,14 +156,14 @@ class TestVoatSQLParserIntegration:
         """
         file_path = self.create_test_file(sql)
 
-        rows = list(self.parser.stream_rows(file_path, 'submission'))
+        rows = list(self.parser.stream_rows(file_path, "submission"))
         assert len(rows) == 2
 
-        assert rows[0]['submissionid'] == 1
-        assert rows[0]['subverse'] == 'test1'
+        assert rows[0]["submissionid"] == 1
+        assert rows[0]["subverse"] == "test1"
 
-        assert rows[1]['submissionid'] == 2
-        assert rows[1]['subverse'] == 'test2'
+        assert rows[1]["submissionid"] == 2
+        assert rows[1]["subverse"] == "test2"
 
     def test_parse_escaped_content(self):
         """Test parsing content with escaped characters."""
@@ -170,9 +172,9 @@ class TestVoatSQLParserIntegration:
         """
         file_path = self.create_test_file(sql)
 
-        rows = list(self.parser.stream_rows(file_path, 'comment'))
+        rows = list(self.parser.stream_rows(file_path, "comment"))
         assert len(rows) == 1
-        assert rows[0]['content'] == "I don't think so"
+        assert rows[0]["content"] == "I don't think so"
 
     def test_skip_comments_and_metadata(self):
         """Test that SQL comments and metadata are skipped."""
@@ -187,6 +189,6 @@ class TestVoatSQLParserIntegration:
         """
         file_path = self.create_test_file(sql)
 
-        rows = list(self.parser.stream_rows(file_path, 'submission'))
+        rows = list(self.parser.stream_rows(file_path, "submission"))
         assert len(rows) == 1
-        assert rows[0]['submissionid'] == 1
+        assert rows[0]["submissionid"] == 1

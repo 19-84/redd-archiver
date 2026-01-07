@@ -3,8 +3,10 @@
 ABOUTME: Automated screenshot capture script for redd-archiver README documentation
 ABOUTME: Uses Playwright to capture key pages from the generated archive
 """
+
 import asyncio
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 BASE_URL = "http://localhost"  # nginx serves from OUTPUT_PATH root
@@ -71,10 +73,10 @@ async def capture_screenshot(page, screenshot):
     print(f"   Viewport: {screenshot['viewport']['width']}x{screenshot['viewport']['height']}")
 
     # Set viewport
-    await page.set_viewport_size(screenshot['viewport'])
+    await page.set_viewport_size(screenshot["viewport"])
 
     # Navigate to page
-    await page.goto(screenshot['url'], wait_until='networkidle')
+    await page.goto(screenshot["url"], wait_until="networkidle")
 
     # Wait a bit for any dynamic content
     await page.wait_for_timeout(1000)

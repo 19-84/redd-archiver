@@ -13,10 +13,11 @@ DB_NAME = "reddarchiver"
 
 def query_db(sql: str) -> str:
     """Execute SQL query via docker and return result."""
-    result = subprocess.run([
-        'sudo', 'docker', 'exec', 'reddarchiver-postgres',
-        'psql', '-U', DB_USER, '-d', DB_NAME, '-t', '-c', sql
-    ], capture_output=True, text=True)
+    result = subprocess.run(
+        ["sudo", "docker", "exec", "reddarchiver-postgres", "psql", "-U", DB_USER, "-d", DB_NAME, "-t", "-c", sql],
+        capture_output=True,
+        text=True,
+    )
     return result.stdout.strip()
 
 
@@ -43,12 +44,14 @@ def main():
     """)
 
     if stats:
-        parts = [p.strip() for p in stats.split('|')]
+        parts = [p.strip() for p in stats.split("|")]
         if len(parts) >= 5:
             report.append(f"- **Total Posts**: {int(parts[0]):,}")
             report.append(f"- **Total Subverses**: {int(parts[1]):,}")
             report.append(f"- **Total Authors**: {int(parts[2]):,}")
-            report.append(f"- **Date Range**: {datetime.fromtimestamp(int(parts[3])).strftime('%Y-%m-%d')} to {datetime.fromtimestamp(int(parts[4])).strftime('%Y-%m-%d')}")
+            report.append(
+                f"- **Date Range**: {datetime.fromtimestamp(int(parts[3])).strftime('%Y-%m-%d')} to {datetime.fromtimestamp(int(parts[4])).strftime('%Y-%m-%d')}"
+            )
 
     # Comment statistics
     comment_stats = query_db("""
@@ -60,7 +63,7 @@ def main():
     """)
 
     if comment_stats:
-        parts = [p.strip() for p in comment_stats.split('|')]
+        parts = [p.strip() for p in comment_stats.split("|")]
         if len(parts) >= 2:
             report.append(f"- **Total Comments**: {int(parts[0]):,}")
             report.append(f"- **Comment Authors**: {int(parts[1]):,}")
@@ -84,9 +87,9 @@ def main():
         LIMIT 20;
     """)
 
-    for line in top_subverses.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in top_subverses.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 4:
                 report.append(f"| {parts[0]} | {int(parts[1]):,} | {int(parts[2]):,} | {int(parts[3]):,} |")
 
@@ -107,9 +110,9 @@ def main():
         LIMIT 20;
     """)
 
-    for line in top_posts.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in top_posts.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 4:
                 report.append(f"| {parts[0]} | {parts[1]} | {parts[2]} | {parts[3]} |")
 
@@ -133,9 +136,9 @@ def main():
         LIMIT 20;
     """)
 
-    for line in top_authors.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in top_authors.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 4:
                 report.append(f"| {parts[0]} | {int(parts[1]):,} | {int(parts[2]):,} | {int(parts[3]):,} |")
 
@@ -154,9 +157,9 @@ def main():
         GROUP BY is_self;
     """)
 
-    for line in content_types.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in content_types.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 2:
                 report.append(f"- **{parts[0]}**: {int(parts[1]):,}")
 
@@ -178,9 +181,9 @@ def main():
         LIMIT 20;
     """)
 
-    for line in top_domains.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in top_domains.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 2:
                 report.append(f"| {parts[0]} | {int(parts[1]):,} |")
 
@@ -201,9 +204,9 @@ def main():
         ORDER BY year;
     """)
 
-    for line in yearly_activity.split('\n'):
-        if '|' in line:
-            parts = [p.strip() for p in line.split('|')]
+    for line in yearly_activity.split("\n"):
+        if "|" in line:
+            parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 3:
                 report.append(f"| {int(float(parts[0]))} | {int(parts[1]):,} | {int(parts[2]):,} |")
 
@@ -213,11 +216,51 @@ def main():
     report.append("|------------|-----------|-------|----------|---------|")
 
     collections = {
-        'Technology & Programming': ['technology', 'Linux', 'programming', 'privacy', 'linuxgaming', 'techhell', 'cryptocurrency', 'technews', 'tech', 'BigTech', 'learnprogramming', 'techsupport', 'software'],
-        'Gaming': ['gaming', 'gamingfringe', 'GamerGate', 'CoOpGaming', 'linuxgaming', 'pcmasterrace', 'gametrailers', 'VideoGameMusic', 'pcgaming', 'games', 'IndieGames', 'xboxone', 'GameDeals', 'Playstation4', 'Nintendo', 'videogames', 'retrogaming'],
-        'News & Current Events': ['news', 'politics', 'worldnews', 'WorldNews', 'technews', 'TheNewsFeed', 'news24seven'],
-        'Culture & Entertainment': ['videos', 'funny', 'music', 'Television', 'movies', 'Art', 'books'],
-        'Science & Education': ['science', 'space', 'askscience', 'Physics', 'biology', 'chemistry']
+        "Technology & Programming": [
+            "technology",
+            "Linux",
+            "programming",
+            "privacy",
+            "linuxgaming",
+            "techhell",
+            "cryptocurrency",
+            "technews",
+            "tech",
+            "BigTech",
+            "learnprogramming",
+            "techsupport",
+            "software",
+        ],
+        "Gaming": [
+            "gaming",
+            "gamingfringe",
+            "GamerGate",
+            "CoOpGaming",
+            "linuxgaming",
+            "pcmasterrace",
+            "gametrailers",
+            "VideoGameMusic",
+            "pcgaming",
+            "games",
+            "IndieGames",
+            "xboxone",
+            "GameDeals",
+            "Playstation4",
+            "Nintendo",
+            "videogames",
+            "retrogaming",
+        ],
+        "News & Current Events": [
+            "news",
+            "politics",
+            "worldnews",
+            "WorldNews",
+            "technews",
+            "TheNewsFeed",
+            "news24seven",
+        ],
+        "Culture & Entertainment": ["videos", "funny", "music", "Television", "movies", "Art", "books"],
+        "Science & Education": ["science", "space", "askscience", "Physics", "biology", "chemistry"],
     }
 
     for name, subverses in collections.items():
@@ -234,9 +277,11 @@ def main():
         """)
 
         if stats:
-            parts = [p.strip() for p in stats.split('|')]
+            parts = [p.strip() for p in stats.split("|")]
             if len(parts) >= 3:
-                report.append(f"| {name} | {len(subverses)} | {int(parts[0]):,} | {int(parts[1]):,} | {int(parts[2]):,} |")
+                report.append(
+                    f"| {name} | {len(subverses)} | {int(parts[0]):,} | {int(parts[1]):,} | {int(parts[2]):,} |"
+                )
 
     # Export options
     report.append("\n## Export Tools\n")
@@ -262,16 +307,16 @@ def main():
     report.append("\n*Report generated by redd-archiver Voat statistics tool*")
 
     # Save report
-    output_path = '/output/VOAT_ARCHIVE_REPORT.md'
-    with open(output_path, 'w') as f:
-        f.write('\n'.join(report))
+    output_path = "/output/VOAT_ARCHIVE_REPORT.md"
+    with open(output_path, "w") as f:
+        f.write("\n".join(report))
 
     print(f"\n✓ Report saved to: {output_path}")
 
     # Also print to stdout
-    print('\n' + '='*70)
-    print('\n'.join(report))
+    print("\n" + "=" * 70)
+    print("\n".join(report))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

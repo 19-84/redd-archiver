@@ -1,11 +1,12 @@
 # ABOUTME: Performance timing utilities for precise bottleneck identification
 # ABOUTME: Provides context managers and decorators for measuring operation durations
 
-import time
 import json
+import time
 from contextlib import contextmanager
-from typing import Dict, List, Any, Optional
 from datetime import datetime
+from typing import Any
+
 from utils.console_output import print_info, print_success, print_warning
 
 
@@ -13,16 +14,16 @@ class PerformanceTiming:
     """Track timing metrics for performance analysis."""
 
     def __init__(self):
-        self.timings: Dict[str, float] = {}
-        self.phase_order: List[str] = []
-        self.detailed_timings: Dict[str, List[Dict[str, Any]]] = {}
+        self.timings: dict[str, float] = {}
+        self.phase_order: list[str] = []
+        self.detailed_timings: dict[str, list[dict[str, Any]]] = {}
         self.start_time = time.time()
         # Query tracking
         self.query_count = 0
         self.query_time = 0.0
-        self.query_breakdown: Dict[str, int] = {}  # query_type -> count
+        self.query_breakdown: dict[str, int] = {}  # query_type -> count
 
-    def record(self, phase_name: str, duration: float, details: Optional[Dict[str, Any]] = None):
+    def record(self, phase_name: str, duration: float, details: dict[str, Any] | None = None):
         """Record timing for a phase."""
         self.timings[phase_name] = duration
         if phase_name not in self.phase_order:
@@ -34,8 +35,7 @@ class PerformanceTiming:
             self.detailed_timings[phase_name].append(details)
 
     @contextmanager
-    def time_phase(self, phase_name: str, details: Optional[Dict[str, Any]] = None,
-                   silent: bool = False):
+    def time_phase(self, phase_name: str, details: dict[str, Any] | None = None, silent: bool = False):
         """Context manager for timing a phase.
 
         Usage:
@@ -68,29 +68,29 @@ class PerformanceTiming:
             self.query_time += duration
             self.query_breakdown[query_type] = self.query_breakdown.get(query_type, 0) + 1
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get performance summary."""
         total_time = time.time() - self.start_time
         accounted_time = sum(self.timings.values())
         unaccounted_time = total_time - accounted_time
 
         return {
-            'total_time': total_time,
-            'accounted_time': accounted_time,
-            'unaccounted_time': unaccounted_time,
-            'phases': self.timings,
-            'phase_order': self.phase_order,
-            'detailed_timings': self.detailed_timings,
-            'query_count': self.query_count,
-            'query_time': self.query_time,
-            'query_breakdown': self.query_breakdown,
-            'avg_query_time': self.query_time / self.query_count if self.query_count > 0 else 0
+            "total_time": total_time,
+            "accounted_time": accounted_time,
+            "unaccounted_time": unaccounted_time,
+            "phases": self.timings,
+            "phase_order": self.phase_order,
+            "detailed_timings": self.detailed_timings,
+            "query_count": self.query_count,
+            "query_time": self.query_time,
+            "query_breakdown": self.query_breakdown,
+            "avg_query_time": self.query_time / self.query_count if self.query_count > 0 else 0,
         }
 
     def print_summary(self):
         """Print formatted performance summary."""
         summary = self.get_summary()
-        total = summary['total_time']
+        total = summary["total_time"]
 
         print_info("")
         print_info("=" * 80)
@@ -110,14 +110,14 @@ class PerformanceTiming:
             # Show detailed breakdown if available
             if phase_name in self.detailed_timings:
                 for detail in self.detailed_timings[phase_name]:
-                    if 'name' in detail and 'time' in detail:
-                        detail_name = detail['name']
-                        detail_time = detail['time']
+                    if "name" in detail and "time" in detail:
+                        detail_name = detail["name"]
+                        detail_time = detail["time"]
                         print_info(f"  └─ {detail_name:30s} {detail_time:7.2f}s", indent=1)
 
         # Show unaccounted time
-        if summary['unaccounted_time'] > 1.0:
-            unaccounted = summary['unaccounted_time']
+        if summary["unaccounted_time"] > 1.0:
+            unaccounted = summary["unaccounted_time"]
             percent = (unaccounted / total * 100) if total > 0 else 0
             bar_width = int(percent / 2)
             bar = "░" * bar_width
@@ -128,19 +128,21 @@ class PerformanceTiming:
         print_info("=" * 80)
 
         # Show query statistics if available
-        if summary.get('query_count', 0) > 0:
+        if summary.get("query_count", 0) > 0:
             print_info("")
             print_info("=" * 80)
             print_info("🔍 DATABASE QUERY STATISTICS")
             print_info("=" * 80)
             print_info(f"Total Queries:  {summary['query_count']:,}")
-            print_info(f"Query Time:     {summary['query_time']:.2f}s ({summary['query_time']/total*100:.1f}% of total)")
+            print_info(
+                f"Query Time:     {summary['query_time']:.2f}s ({summary['query_time']/total*100:.1f}% of total)"
+            )
             print_info(f"Avg Query Time: {summary['avg_query_time']*1000:.2f}ms")
 
-            if summary.get('query_breakdown'):
+            if summary.get("query_breakdown"):
                 print_info("")
                 print_info("Query Breakdown by Type:")
-                for query_type, count in sorted(summary['query_breakdown'].items(), key=lambda x: x[1], reverse=True):
+                for query_type, count in sorted(summary["query_breakdown"].items(), key=lambda x: x[1], reverse=True):
                     print_info(f"  {query_type:30s} {count:,} queries")
             print_info("=" * 80)
 
@@ -149,10 +151,10 @@ class PerformanceTiming:
     def save_to_file(self, output_path: str):
         """Save timing data to JSON file."""
         summary = self.get_summary()
-        summary['timestamp'] = datetime.now().isoformat()
+        summary["timestamp"] = datetime.now().isoformat()
 
         try:
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 json.dump(summary, f, indent=2)
             print_info(f"Timing data saved to {output_path}")
         except Exception as e:
@@ -162,12 +164,14 @@ class PerformanceTiming:
 # Global timing instance
 _global_timing = None
 
+
 def get_timing() -> PerformanceTiming:
     """Get or create global timing instance."""
     global _global_timing
     if _global_timing is None:
         _global_timing = PerformanceTiming()
     return _global_timing
+
 
 def reset_timing():
     """Reset global timing instance."""

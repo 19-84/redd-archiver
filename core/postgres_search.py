@@ -2,20 +2,20 @@
 # ABOUTME: PostgreSQL full-text search module for unified posts+comments search
 # ABOUTME: Replaces Lunr.js with native PostgreSQL GIN-indexed full-text search
 
-import psycopg
-from psycopg import sql
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
-from datetime import datetime
-import json
+from dataclasses import dataclass
+from typing import Any
 
-from utils.console_output import print_error, print_info, print_success, print_warning
+from psycopg import sql
+
+from utils.console_output import print_error, print_info
+
 from .postgres_database import PostgresDatabase, get_postgres_connection_string
 
 
 @dataclass
 class SearchResult:
     """Single search result from posts or comments."""
+
     result_type: str  # 'post' or 'comment'
     id: str
     subreddit: str
@@ -25,22 +25,22 @@ class SearchResult:
     score: int
 
     # Post-specific fields
-    title: Optional[str] = None
-    selftext: Optional[str] = None
-    num_comments: Optional[int] = None
-    url: Optional[str] = None
-    permalink: Optional[str] = None
+    title: str | None = None
+    selftext: str | None = None
+    num_comments: int | None = None
+    url: str | None = None
+    permalink: str | None = None
 
     # Comment-specific fields
-    body: Optional[str] = None
-    post_id: Optional[str] = None
-    post_title: Optional[str] = None
+    body: str | None = None
+    post_id: str | None = None
+    post_title: str | None = None
 
     # Search relevance
-    rank: Optional[float] = None
-    headline: Optional[str] = None  # Highlighted excerpt
+    rank: float | None = None
+    headline: str | None = None  # Highlighted excerpt
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
@@ -48,16 +48,17 @@ class SearchResult:
 @dataclass
 class SearchQuery:
     """Search query parameters with filters."""
+
     query_text: str
-    subreddit: Optional[str] = None
-    author: Optional[str] = None
-    result_type: Optional[str] = None  # 'post', 'comment', or None for both
+    subreddit: str | None = None
+    author: str | None = None
+    result_type: str | None = None  # 'post', 'comment', or None for both
     min_score: int = 0
-    start_date: Optional[int] = None  # Unix timestamp
-    end_date: Optional[int] = None  # Unix timestamp
+    start_date: int | None = None  # Unix timestamp
+    end_date: int | None = None  # Unix timestamp
     limit: int = 100
     offset: int = 0
-    order_by: str = 'rank'  # 'rank', 'score', 'created_utc'
+    order_by: str = "rank"  # 'rank', 'score', 'created_utc'
 
 
 class PostgresSearch:
@@ -76,16 +77,16 @@ class PostgresSearch:
     - Support for phrase search, boolean operators, and wildcards
     """
 
-    def __init__(self, connection_string: Optional[str] = None):
+    def __init__(self, connection_string: str | None = None):
         """Initialize search interface.
 
         Args:
             connection_string: PostgreSQL connection string (auto-detected if None)
         """
         self.connection_string = connection_string or get_postgres_connection_string()
-        self.db = PostgresDatabase(self.connection_string, workload_type='search')
+        self.db = PostgresDatabase(self.connection_string, workload_type="search")
 
-    def search(self, query: SearchQuery) -> Tuple[List[SearchResult], int]:
+    def search(self, query: SearchQuery) -> tuple[list[SearchResult], int]:
         """Execute unified search across posts and comments.
 
         Args:
@@ -94,14 +95,14 @@ class PostgresSearch:
         Returns:
             Tuple of (results list, total_count)
         """
-        if not query.query_text or query.query_text.strip() == '':
+        if not query.query_text or query.query_text.strip() == "":
             return [], 0
 
         results = []
 
         # Determine which tables to search
-        search_posts = query.result_type in (None, 'post')
-        search_comments = query.result_type in (None, 'comment')
+        search_posts = query.result_type in (None, "post")
+        search_comments = query.result_type in (None, "comment")
 
         # Build combined query
         with self.db.pool.get_connection() as conn:
@@ -143,7 +144,7 @@ class PostgresSearch:
                     union_query=union_query,
                     order_by=sql.SQL(self._get_order_by_clause(query.order_by)),
                     limit_placeholder=sql.Placeholder(),
-                    offset_placeholder=sql.Placeholder()
+                    offset_placeholder=sql.Placeholder(),
                 )
 
                 query_params.extend([query.limit, query.offset])
@@ -169,7 +170,7 @@ class PostgresSearch:
                     # Use same params but without limit/offset
                     count_params = query_params[:-2]
                     cur.execute(count_query, count_params)
-                    total_count = cur.fetchone()['count']
+                    total_count = cur.fetchone()["count"]
 
                     return results, total_count
 
@@ -196,7 +197,7 @@ class PostgresSearch:
         # - Simple boolean logic
         return query_text
 
-    def _build_posts_query(self, query: SearchQuery, tsquery_text: str) -> Tuple[sql.Composable, List]:
+    def _build_posts_query(self, query: SearchQuery, tsquery_text: str) -> tuple[sql.Composable, list]:
         """Build search query for posts table using safe SQL composition.
 
         Args:
@@ -212,7 +213,9 @@ class PostgresSearch:
 
         # Main full-text search clause (always TRUE for wildcard to enable filter-only searches)
         where_clauses.append(
-            sql.SQL("({} = '*' OR to_tsvector('english', title || ' ' || COALESCE(selftext, '')) @@ websearch_to_tsquery('english', {}))").format(sql.Placeholder(), sql.Placeholder())
+            sql.SQL(
+                "({} = '*' OR to_tsvector('english', title || ' ' || COALESCE(selftext, '')) @@ websearch_to_tsquery('english', {}))"
+            ).format(sql.Placeholder(), sql.Placeholder())
         )
         params.extend([tsquery_text, tsquery_text])
 
@@ -272,11 +275,7 @@ class PostgresSearch:
                        'MaxWords=50, MinWords=25, MaxFragments=1') as headline
         FROM posts
         WHERE {where_clause}
-        """).format(
-            ts_rank_param=sql.Placeholder(),
-            ts_headline_param=sql.Placeholder(),
-            where_clause=where_clause
-        )
+        """).format(ts_rank_param=sql.Placeholder(), ts_headline_param=sql.Placeholder(), where_clause=where_clause)
 
         # Add tsquery_text for ts_rank and ts_headline at the beginning
         # Query parameter order: ts_rank, ts_headline, then WHERE clause params
@@ -285,7 +284,7 @@ class PostgresSearch:
 
         return posts_query, all_params
 
-    def _build_comments_query(self, query: SearchQuery, tsquery_text: str) -> Tuple[sql.Composable, List]:
+    def _build_comments_query(self, query: SearchQuery, tsquery_text: str) -> tuple[sql.Composable, list]:
         """Build search query for comments table using safe SQL composition.
 
         Args:
@@ -301,7 +300,9 @@ class PostgresSearch:
 
         # Main full-text search clause (always TRUE for wildcard to enable filter-only searches)
         where_clauses.append(
-            sql.SQL("({} = '*' OR to_tsvector('english', body) @@ websearch_to_tsquery('english', {}))").format(sql.Placeholder(), sql.Placeholder())
+            sql.SQL("({} = '*' OR to_tsvector('english', body) @@ websearch_to_tsquery('english', {}))").format(
+                sql.Placeholder(), sql.Placeholder()
+            )
         )
         params.extend([tsquery_text, tsquery_text])
 
@@ -357,11 +358,7 @@ class PostgresSearch:
         FROM comments
         LEFT JOIN posts ON comments.post_id = posts.id
         WHERE {where_clause}
-        """).format(
-            ts_rank_param=sql.Placeholder(),
-            ts_headline_param=sql.Placeholder(),
-            where_clause=where_clause
-        )
+        """).format(ts_rank_param=sql.Placeholder(), ts_headline_param=sql.Placeholder(), where_clause=where_clause)
 
         # Add tsquery_text for ts_rank and ts_headline at the beginning
         # Query parameter order: ts_rank, ts_headline, then WHERE clause params
@@ -379,16 +376,16 @@ class PostgresSearch:
             SQL ORDER BY clause
         """
         order_clauses = {
-            'rank': 'rank DESC, score DESC, created_utc DESC',
-            'score': 'score DESC, rank DESC, created_utc DESC',
-            'created_utc': 'created_utc DESC, rank DESC, score DESC',
-            'date': 'created_utc DESC, rank DESC, score DESC',
-            'created_utc_asc': 'created_utc ASC, rank DESC, score DESC'
+            "rank": "rank DESC, score DESC, created_utc DESC",
+            "score": "score DESC, rank DESC, created_utc DESC",
+            "created_utc": "created_utc DESC, rank DESC, score DESC",
+            "date": "created_utc DESC, rank DESC, score DESC",
+            "created_utc_asc": "created_utc ASC, rank DESC, score DESC",
         }
 
-        return order_clauses.get(order_by, order_clauses['rank'])
+        return order_clauses.get(order_by, order_clauses["rank"])
 
-    def _parse_search_result(self, row: Tuple) -> Optional[SearchResult]:
+    def _parse_search_result(self, row: tuple) -> SearchResult | None:
         """Parse database row into SearchResult object.
 
         Args:
@@ -403,23 +400,23 @@ class PostgresSearch:
             # title, selftext, num_comments, url, permalink, body, post_id, post_title, rank, headline
 
             result = SearchResult(
-                result_type=row['result_type'],
-                id=row['id'],
-                subreddit=row['subreddit'],
-                platform=row['platform'],
-                author=row['author'],
-                created_utc=row['created_utc'],
-                score=row['score'],
-                title=row['title'],
-                selftext=row['selftext'],
-                num_comments=row['num_comments'],
-                url=row['url'],
-                permalink=row['permalink'],
-                body=row['body'],
-                post_id=row['post_id'],
-                post_title=row['post_title'],
-                rank=row['rank'],
-                headline=row['headline']
+                result_type=row["result_type"],
+                id=row["id"],
+                subreddit=row["subreddit"],
+                platform=row["platform"],
+                author=row["author"],
+                created_utc=row["created_utc"],
+                score=row["score"],
+                title=row["title"],
+                selftext=row["selftext"],
+                num_comments=row["num_comments"],
+                url=row["url"],
+                permalink=row["permalink"],
+                body=row["body"],
+                post_id=row["post_id"],
+                post_title=row["post_title"],
+                rank=row["rank"],
+                headline=row["headline"],
             )
 
             return result
@@ -428,7 +425,7 @@ class PostgresSearch:
             print_error(f"Failed to parse search result: {e}")
             return None
 
-    def search_subreddit(self, subreddit: str, query_text: str, limit: int = 100) -> List[SearchResult]:
+    def search_subreddit(self, subreddit: str, query_text: str, limit: int = 100) -> list[SearchResult]:
         """Convenience method to search within a specific subreddit.
 
         Args:
@@ -439,15 +436,11 @@ class PostgresSearch:
         Returns:
             List of search results
         """
-        query = SearchQuery(
-            query_text=query_text,
-            subreddit=subreddit,
-            limit=limit
-        )
+        query = SearchQuery(query_text=query_text, subreddit=subreddit, limit=limit)
         results, _ = self.search(query)
         return results
 
-    def search_author(self, author: str, query_text: str = '', limit: int = 100) -> List[SearchResult]:
+    def search_author(self, author: str, query_text: str = "", limit: int = 100) -> list[SearchResult]:
         """Convenience method to search by author.
 
         Args:
@@ -459,19 +452,14 @@ class PostgresSearch:
             List of search results
         """
         # If no query text, search for author's name to get all content
-        if not query_text or query_text.strip() == '':
-            query_text = '*'  # Match all
+        if not query_text or query_text.strip() == "":
+            query_text = "*"  # Match all
 
-        query = SearchQuery(
-            query_text=query_text,
-            author=author,
-            limit=limit,
-            order_by='created_utc'
-        )
+        query = SearchQuery(query_text=query_text, author=author, limit=limit, order_by="created_utc")
         results, _ = self.search(query)
         return results
 
-    def get_search_suggestions(self, prefix: str, limit: int = 10) -> List[str]:
+    def get_search_suggestions(self, prefix: str, limit: int = 10) -> list[str]:
         """Get search suggestions based on prefix.
 
         Uses PostgreSQL's LIKE with index scan for fast autocomplete.
@@ -489,23 +477,26 @@ class PostgresSearch:
             with self.db.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get top post titles matching prefix
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT DISTINCT title
                         FROM posts
                         WHERE title ILIKE %s
                         ORDER BY score DESC
                         LIMIT %s
-                    """, (f"{prefix}%", limit))
+                    """,
+                        (f"{prefix}%", limit),
+                    )
 
                     for row in cur:
-                        suggestions.append(row['title'])
+                        suggestions.append(row["title"])
 
         except Exception as e:
             print_error(f"Failed to get search suggestions: {e}")
 
         return suggestions
 
-    def get_trending_searches(self, subreddit: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_trending_searches(self, subreddit: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         """Get trending search terms based on popular content using safe SQL composition.
 
         Extracts common terms from high-scoring recent posts.
@@ -532,10 +523,7 @@ class PostgresSearch:
                             WHERE subreddit = {subreddit_param}
                             ORDER BY score DESC, created_utc DESC
                             LIMIT {limit_param}
-                        """).format(
-                            subreddit_param=sql.Placeholder(),
-                            limit_param=sql.Placeholder()
-                        )
+                        """).format(subreddit_param=sql.Placeholder(), limit_param=sql.Placeholder())
                         params = [subreddit, limit]
                     else:
                         query = sql.SQL("""
@@ -549,11 +537,7 @@ class PostgresSearch:
                     cur.execute(query, params)
 
                     for row in cur:
-                        trending.append({
-                            'title': row['title'],
-                            'score': row['score'],
-                            'comments': row['num_comments']
-                        })
+                        trending.append({"title": row["title"], "score": row["score"], "comments": row["num_comments"]})
 
         except Exception as e:
             print_error(f"Failed to get trending searches: {e}")
@@ -568,8 +552,8 @@ class PostgresSearch:
 
 # Convenience functions for backwards compatibility with Lunr.js workflow
 
-def search_archive(query_text: str, subreddit: Optional[str] = None,
-                  limit: int = 100) -> List[Dict[str, Any]]:
+
+def search_archive(query_text: str, subreddit: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
     """Simple search function for backwards compatibility.
 
     Args:
@@ -582,11 +566,7 @@ def search_archive(query_text: str, subreddit: Optional[str] = None,
     """
     search = PostgresSearch()
 
-    query = SearchQuery(
-        query_text=query_text,
-        subreddit=subreddit,
-        limit=limit
-    )
+    query = SearchQuery(query_text=query_text, subreddit=subreddit, limit=limit)
 
     results, _ = search.search(query)
     search.cleanup()
@@ -612,7 +592,7 @@ def generate_search_index_for_subreddit(subreddit: str, output_path: str) -> boo
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test search functionality
     import sys
 
@@ -629,11 +609,7 @@ if __name__ == '__main__':
     print()
 
     search = PostgresSearch()
-    query = SearchQuery(
-        query_text=query_text,
-        subreddit=subreddit,
-        limit=10
-    )
+    query = SearchQuery(query_text=query_text, subreddit=subreddit, limit=10)
 
     results, total_count = search.search(query)
 
@@ -643,7 +619,7 @@ if __name__ == '__main__':
     for i, result in enumerate(results, 1):
         print(f"\n{i}. [{result.result_type.upper()}] r/{result.subreddit}")
 
-        if result.result_type == 'post':
+        if result.result_type == "post":
             print(f"   Title: {result.title}")
             print(f"   Score: {result.score} | Comments: {result.num_comments}")
         else:

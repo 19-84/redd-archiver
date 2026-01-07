@@ -37,11 +37,9 @@ Usage:
 import argparse
 import os
 import sys
-from typing import Optional
 
 import httpx
 from fastmcp import FastMCP
-
 
 # Default API URL if not specified
 DEFAULT_API_URL = "http://localhost:5000"
@@ -50,10 +48,10 @@ DEFAULT_API_URL = "http://localhost:5000"
 OPENAPI_PATH = "/api/v1/openapi.json"
 
 # Global client reference for resources
-_http_client: Optional[httpx.AsyncClient] = None
+_http_client: httpx.AsyncClient | None = None
 
 
-def get_api_url(cli_url: Optional[str] = None) -> str:
+def get_api_url(cli_url: str | None = None) -> str:
     """
     Get API URL from CLI argument, environment variable, or default.
 
@@ -100,14 +98,14 @@ def fetch_openapi_spec(api_url: str) -> dict:
         return response.json()
     except httpx.ConnectError as e:
         print(f"Error: Cannot connect to API at {api_url}", file=sys.stderr)
-        print(f"       Make sure the Redd-Archiver search server is running.", file=sys.stderr)
+        print("       Make sure the Redd-Archiver search server is running.", file=sys.stderr)
         print(f"       Details: {e}", file=sys.stderr)
         raise
     except httpx.HTTPStatusError as e:
         print(f"Error: API returned status {e.response.status_code}", file=sys.stderr)
         print(f"       URL: {openapi_url}", file=sys.stderr)
         raise
-    except ValueError as e:
+    except ValueError:
         print(f"Error: Invalid JSON response from {openapi_url}", file=sys.stderr)
         raise
 
@@ -119,6 +117,7 @@ def fetch_openapi_spec(api_url: str) -> dict:
 # ============================================================================
 # MCP PROMPTS (LLM Guidance)
 # ============================================================================
+
 
 def add_prompts(mcp: FastMCP) -> None:
     """
@@ -278,7 +277,7 @@ def add_resources(mcp: FastMCP) -> None:
                 "censorship OR banned",
                 '"shadow ban" sub:technology',
                 "moderator abuse -troll score:10",
-                'type:post "without explanation"'
+                'type:post "without explanation"',
             ],
             "token_limits": {
                 "warning": "Large queries (limit >25) may exceed token limits",
@@ -286,9 +285,9 @@ def add_resources(mcp: FastMCP) -> None:
                     "Use limit=10-25 (not 50-100) to keep responses manageable",
                     "Use fields parameter to select only needed fields",
                     "Use max_body_length parameter to truncate text content",
-                    "Use pagination (page parameter) for large result sets"
-                ]
-            }
+                    "Use pagination (page parameter) for large result sets",
+                ],
+            },
         }
 
 
@@ -307,7 +306,10 @@ def create_mcp_server(api_url: str) -> FastMCP:
     # Fetch OpenAPI spec
     print(f"Fetching OpenAPI spec from {api_url}{OPENAPI_PATH}...", file=sys.stderr)
     openapi_spec = fetch_openapi_spec(api_url)
-    print(f"Successfully fetched OpenAPI spec (v{openapi_spec.get('info', {}).get('version', 'unknown')})", file=sys.stderr)
+    print(
+        f"Successfully fetched OpenAPI spec (v{openapi_spec.get('info', {}).get('version', 'unknown')})",
+        file=sys.stderr,
+    )
 
     # Create async HTTP client for API requests
     _http_client = httpx.AsyncClient(
@@ -339,8 +341,8 @@ def create_mcp_server(api_url: str) -> FastMCP:
     # Count generated tools, prompts, and resources
     tool_count = len(openapi_spec.get("paths", {}))
     print(f"Generated {tool_count} MCP tools from API endpoints", file=sys.stderr)
-    print(f"Added 2 MCP prompts for token safety guidance", file=sys.stderr)
-    print(f"Added 5 MCP resources for quick access to common data", file=sys.stderr)
+    print("Added 2 MCP prompts for token safety guidance", file=sys.stderr)
+    print("Added 5 MCP resources for quick access to common data", file=sys.stderr)
 
     return mcp
 

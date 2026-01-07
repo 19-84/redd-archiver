@@ -13,8 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core.postgres_database import PostgresDatabase
 
 connection_string = os.environ.get(
-    'DATABASE_URL',
-    'postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver'
+    "DATABASE_URL", "postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver"
 )
 
 print("Connecting to PostgreSQL...")

@@ -1,18 +1,20 @@
 # ABOUTME: Auto-tuning effectiveness validation and performance comparison system for Step 4.2
 # ABOUTME: Provides comprehensive validation of auto-tuning decisions and performance impact analysis
 
-import time
 import json
 import os
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field, asdict
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
-from utils.console_output import print_error, print_info, print_success, print_warning
+from typing import Any
+
+from utils.console_output import print_info, print_success, print_warning
 
 
 @dataclass
 class PerformanceSnapshot:
     """Snapshot of system performance at a specific point in time."""
+
     timestamp: float
     batch_size: int
     records_per_second: float
@@ -26,6 +28,7 @@ class PerformanceSnapshot:
 @dataclass
 class AutoTuningComparison:
     """Comparison of performance before and after auto-tuning adjustment."""
+
     before_snapshot: PerformanceSnapshot
     after_snapshot: PerformanceSnapshot
     adjustment_type: str  # 'batch_size', 'connection_pool', 'memory_optimization'
@@ -37,10 +40,11 @@ class AutoTuningComparison:
 @dataclass
 class ValidationSession:
     """Complete validation session tracking multiple performance comparisons."""
+
     session_id: str
     start_time: float
-    end_time: Optional[float] = None
-    comparisons: List[AutoTuningComparison] = field(default_factory=list)
+    end_time: float | None = None
+    comparisons: list[AutoTuningComparison] = field(default_factory=list)
     overall_effectiveness: float = 0.0
     regression_count: int = 0
     improvement_count: int = 0
@@ -58,12 +62,12 @@ class AutoTuningValidator:
         """
         self.output_dir = output_dir or os.getcwd()
         self.enable_detailed_logging = enable_detailed_logging
-        self.current_session: Optional[ValidationSession] = None
-        self.performance_baselines: Dict[str, PerformanceSnapshot] = {}
-        self.validation_history: List[ValidationSession] = []
+        self.current_session: ValidationSession | None = None
+        self.performance_baselines: dict[str, PerformanceSnapshot] = {}
+        self.validation_history: list[ValidationSession] = []
 
         # Ensure validation directory exists
-        os.makedirs(os.path.join(self.output_dir, 'auto_tuning_validation'), exist_ok=True)
+        os.makedirs(os.path.join(self.output_dir, "auto_tuning_validation"), exist_ok=True)
 
     def start_validation_session(self, session_id: str = None) -> str:
         """Start a new validation session.
@@ -77,10 +81,7 @@ class AutoTuningValidator:
         if session_id is None:
             session_id = f"validation_{int(time.time())}"
 
-        self.current_session = ValidationSession(
-            session_id=session_id,
-            start_time=time.time()
-        )
+        self.current_session = ValidationSession(session_id=session_id, start_time=time.time())
 
         print_info(f"🔍 Started auto-tuning validation session: {session_id}")
         return session_id
@@ -98,6 +99,7 @@ class AutoTuningValidator:
         # Get current performance metrics from various sources
         try:
             import psutil
+
             process = psutil.Process()
             memory_usage_mb = process.memory_info().rss / (1024 * 1024)
         except Exception:
@@ -119,17 +121,24 @@ class AutoTuningValidator:
             connection_pool_utilization=0.0,
             auto_adjustments_count=auto_adjustments_count,
             operation_type=operation_type,
-            phase=phase
+            phase=phase,
         )
 
         if self.enable_detailed_logging:
-            print_info(f"📊 Performance snapshot captured: {operation_type}/{phase} - "
-                      f"{records_per_second:.1f} rec/s, {memory_usage_mb:.1f}MB")
+            print_info(
+                f"📊 Performance snapshot captured: {operation_type}/{phase} - "
+                f"{records_per_second:.1f} rec/s, {memory_usage_mb:.1f}MB"
+            )
 
         return snapshot
 
-    def set_current_metrics(self, batch_size: int = None, records_per_second: float = None,
-                           pool_utilization: float = None, auto_adjustments: int = None):
+    def set_current_metrics(
+        self,
+        batch_size: int = None,
+        records_per_second: float = None,
+        pool_utilization: float = None,
+        auto_adjustments: int = None,
+    ):
         """Update current metrics for the next snapshot.
 
         Args:
@@ -139,26 +148,30 @@ class AutoTuningValidator:
             auto_adjustments: Number of auto-adjustments made
         """
         # Store metrics for next snapshot capture
-        if hasattr(self, '_current_metrics'):
-            self._current_metrics.update({
-                k: v for k, v in {
-                    'batch_size': batch_size,
-                    'records_per_second': records_per_second,
-                    'pool_utilization': pool_utilization,
-                    'auto_adjustments': auto_adjustments
-                }.items() if v is not None
-            })
+        if hasattr(self, "_current_metrics"):
+            self._current_metrics.update(
+                {
+                    k: v
+                    for k, v in {
+                        "batch_size": batch_size,
+                        "records_per_second": records_per_second,
+                        "pool_utilization": pool_utilization,
+                        "auto_adjustments": auto_adjustments,
+                    }.items()
+                    if v is not None
+                }
+            )
         else:
             self._current_metrics = {
-                'batch_size': batch_size or 1000,
-                'records_per_second': records_per_second or 0.0,
-                'pool_utilization': pool_utilization or 0.0,
-                'auto_adjustments': auto_adjustments or 0
+                "batch_size": batch_size or 1000,
+                "records_per_second": records_per_second or 0.0,
+                "pool_utilization": pool_utilization or 0.0,
+                "auto_adjustments": auto_adjustments or 0,
             }
 
-    def validate_adjustment_effectiveness(self, before_snapshot: PerformanceSnapshot,
-                                        after_snapshot: PerformanceSnapshot,
-                                        adjustment_type: str) -> AutoTuningComparison:
+    def validate_adjustment_effectiveness(
+        self, before_snapshot: PerformanceSnapshot, after_snapshot: PerformanceSnapshot, adjustment_type: str
+    ) -> AutoTuningComparison:
         """Validate the effectiveness of an auto-tuning adjustment.
 
         Args:
@@ -172,8 +185,9 @@ class AutoTuningValidator:
         # Calculate performance improvement percentage
         if before_snapshot.records_per_second > 0:
             speed_improvement = (
-                (after_snapshot.records_per_second - before_snapshot.records_per_second) /
-                before_snapshot.records_per_second * 100
+                (after_snapshot.records_per_second - before_snapshot.records_per_second)
+                / before_snapshot.records_per_second
+                * 100
             )
         else:
             speed_improvement = 0.0
@@ -198,7 +212,7 @@ class AutoTuningValidator:
             adjustment_type=adjustment_type,
             improvement_percentage=speed_improvement,
             effectiveness_score=effectiveness_score,
-            recommendation=recommendation
+            recommendation=recommendation,
         )
 
         # Add to current session if available
@@ -211,7 +225,9 @@ class AutoTuningValidator:
 
         # Log results
         if effectiveness_score >= 75:
-            print_success(f"✅ Effective auto-tuning: {adjustment_type} improved performance by {speed_improvement:.1f}%")
+            print_success(
+                f"✅ Effective auto-tuning: {adjustment_type} improved performance by {speed_improvement:.1f}%"
+            )
         elif effectiveness_score >= 50:
             print_info(f"✔️  Moderate auto-tuning: {adjustment_type} - {speed_improvement:.1f}% improvement")
         else:
@@ -219,9 +235,9 @@ class AutoTuningValidator:
 
         return comparison
 
-    def _calculate_effectiveness_score(self, speed_improvement: float,
-                                     memory_efficiency_change: float,
-                                     adjustment_type: str) -> float:
+    def _calculate_effectiveness_score(
+        self, speed_improvement: float, memory_efficiency_change: float, adjustment_type: str
+    ) -> float:
         """Calculate effectiveness score for an adjustment.
 
         Args:
@@ -240,9 +256,9 @@ class AutoTuningValidator:
 
         # Adjustment type bonus/penalty
         type_modifier = {
-            'batch_size': 1.0,
-            'connection_pool': 1.1,  # Slightly favor connection pool adjustments
-            'memory_optimization': 0.9
+            "batch_size": 1.0,
+            "connection_pool": 1.1,  # Slightly favor connection pool adjustments
+            "memory_optimization": 0.9,
         }.get(adjustment_type, 1.0)
 
         # Stability penalty for large changes
@@ -254,9 +270,9 @@ class AutoTuningValidator:
         final_score = (speed_score + memory_score) * type_modifier - stability_penalty
         return max(0, min(100, final_score))
 
-    def _generate_adjustment_recommendation(self, speed_improvement: float,
-                                          memory_efficiency_change: float,
-                                          effectiveness_score: float) -> str:
+    def _generate_adjustment_recommendation(
+        self, speed_improvement: float, memory_efficiency_change: float, effectiveness_score: float
+    ) -> str:
         """Generate recommendation based on adjustment results.
 
         Args:
@@ -278,7 +294,7 @@ class AutoTuningValidator:
         else:
             return "Minimal impact - try different optimization approach"
 
-    def generate_session_report(self) -> Optional[Dict[str, Any]]:
+    def generate_session_report(self) -> dict[str, Any] | None:
         """Generate comprehensive report for current validation session.
 
         Returns:
@@ -304,33 +320,34 @@ class AutoTuningValidator:
 
         # Generate detailed report
         report = {
-            'session_id': session.session_id,
-            'duration_minutes': (time.time() - session.start_time) / 60,
-            'total_comparisons': len(comparisons),
-            'improvements': session.improvement_count,
-            'regressions': session.regression_count,
-            'overall_effectiveness': round(avg_effectiveness, 2),
-            'average_improvement_percentage': round(avg_improvement, 2),
-            'trend_analysis': trend_analysis,
-            'detailed_comparisons': [
+            "session_id": session.session_id,
+            "duration_minutes": (time.time() - session.start_time) / 60,
+            "total_comparisons": len(comparisons),
+            "improvements": session.improvement_count,
+            "regressions": session.regression_count,
+            "overall_effectiveness": round(avg_effectiveness, 2),
+            "average_improvement_percentage": round(avg_improvement, 2),
+            "trend_analysis": trend_analysis,
+            "detailed_comparisons": [
                 {
-                    'adjustment_type': c.adjustment_type,
-                    'improvement_percentage': round(c.improvement_percentage, 2),
-                    'effectiveness_score': round(c.effectiveness_score, 2),
-                    'recommendation': c.recommendation,
-                    'before_performance': {
-                        'records_per_second': c.before_snapshot.records_per_second,
-                        'memory_usage_mb': c.before_snapshot.memory_usage_mb,
-                        'batch_size': c.before_snapshot.batch_size
+                    "adjustment_type": c.adjustment_type,
+                    "improvement_percentage": round(c.improvement_percentage, 2),
+                    "effectiveness_score": round(c.effectiveness_score, 2),
+                    "recommendation": c.recommendation,
+                    "before_performance": {
+                        "records_per_second": c.before_snapshot.records_per_second,
+                        "memory_usage_mb": c.before_snapshot.memory_usage_mb,
+                        "batch_size": c.before_snapshot.batch_size,
                     },
-                    'after_performance': {
-                        'records_per_second': c.after_snapshot.records_per_second,
-                        'memory_usage_mb': c.after_snapshot.memory_usage_mb,
-                        'batch_size': c.after_snapshot.batch_size
-                    }
-                } for c in comparisons
+                    "after_performance": {
+                        "records_per_second": c.after_snapshot.records_per_second,
+                        "memory_usage_mb": c.after_snapshot.memory_usage_mb,
+                        "batch_size": c.after_snapshot.batch_size,
+                    },
+                }
+                for c in comparisons
             ],
-            'recommendations': self._generate_session_recommendations(comparisons, avg_effectiveness)
+            "recommendations": self._generate_session_recommendations(comparisons, avg_effectiveness),
         }
 
         # Update session
@@ -339,7 +356,7 @@ class AutoTuningValidator:
 
         return report
 
-    def _analyze_session_trends(self, comparisons: List[AutoTuningComparison]) -> Dict[str, Any]:
+    def _analyze_session_trends(self, comparisons: list[AutoTuningComparison]) -> dict[str, Any]:
         """Analyze performance trends within the session.
 
         Args:
@@ -349,42 +366,45 @@ class AutoTuningValidator:
             Trend analysis results
         """
         if len(comparisons) < 3:
-            return {'trend': 'insufficient_data', 'consistency': 'unknown'}
+            return {"trend": "insufficient_data", "consistency": "unknown"}
 
         # Calculate effectiveness trend
         effectiveness_scores = [c.effectiveness_score for c in comparisons]
-        improvements = [c.improvement_percentage for c in comparisons]
+        [c.improvement_percentage for c in comparisons]
 
         # Simple linear trend analysis
-        early_avg = sum(effectiveness_scores[:len(effectiveness_scores)//2]) / (len(effectiveness_scores)//2)
-        late_avg = sum(effectiveness_scores[len(effectiveness_scores)//2:]) / (len(effectiveness_scores) - len(effectiveness_scores)//2)
+        early_avg = sum(effectiveness_scores[: len(effectiveness_scores) // 2]) / (len(effectiveness_scores) // 2)
+        late_avg = sum(effectiveness_scores[len(effectiveness_scores) // 2 :]) / (
+            len(effectiveness_scores) - len(effectiveness_scores) // 2
+        )
 
         if late_avg > early_avg * 1.1:
-            trend = 'improving'
+            trend = "improving"
         elif late_avg < early_avg * 0.9:
-            trend = 'degrading'
+            trend = "degrading"
         else:
-            trend = 'stable'
+            trend = "stable"
 
         # Consistency analysis
         effectiveness_variance = sum((s - early_avg) ** 2 for s in effectiveness_scores) / len(effectiveness_scores)
         if effectiveness_variance < 100:
-            consistency = 'high'
+            consistency = "high"
         elif effectiveness_variance < 400:
-            consistency = 'medium'
+            consistency = "medium"
         else:
-            consistency = 'low'
+            consistency = "low"
 
         return {
-            'trend': trend,
-            'consistency': consistency,
-            'effectiveness_variance': round(effectiveness_variance, 2),
-            'early_session_avg': round(early_avg, 2),
-            'late_session_avg': round(late_avg, 2)
+            "trend": trend,
+            "consistency": consistency,
+            "effectiveness_variance": round(effectiveness_variance, 2),
+            "early_session_avg": round(early_avg, 2),
+            "late_session_avg": round(late_avg, 2),
         }
 
-    def _generate_session_recommendations(self, comparisons: List[AutoTuningComparison],
-                                         avg_effectiveness: float) -> List[str]:
+    def _generate_session_recommendations(
+        self, comparisons: list[AutoTuningComparison], avg_effectiveness: float
+    ) -> list[str]:
         """Generate session-level recommendations.
 
         Args:
@@ -425,7 +445,7 @@ class AutoTuningValidator:
 
         return recommendations
 
-    def save_session_report(self, report: Dict[str, Any] = None) -> str:
+    def save_session_report(self, report: dict[str, Any] = None) -> str:
         """Save session report to file.
 
         Args:
@@ -443,16 +463,16 @@ class AutoTuningValidator:
         # Generate filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"auto_tuning_validation_{report['session_id']}_{timestamp}.json"
-        filepath = os.path.join(self.output_dir, 'auto_tuning_validation', filename)
+        filepath = os.path.join(self.output_dir, "auto_tuning_validation", filename)
 
         # Save report
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(report, f, indent=2)
 
         print_success(f"Auto-tuning validation report saved: {filepath}")
         return filepath
 
-    def end_validation_session(self, save_report: bool = True) -> Optional[Dict[str, Any]]:
+    def end_validation_session(self, save_report: bool = True) -> dict[str, Any] | None:
         """End current validation session and optionally save report.
 
         Args:
@@ -475,12 +495,14 @@ class AutoTuningValidator:
             self.validation_history.append(self.current_session)
             self.current_session = None
 
-        print_info(f"🏁 Validation session ended: {report['total_comparisons']} comparisons, "
-                  f"{report['overall_effectiveness']:.1f}% avg effectiveness")
+        print_info(
+            f"🏁 Validation session ended: {report['total_comparisons']} comparisons, "
+            f"{report['overall_effectiveness']:.1f}% avg effectiveness"
+        )
 
         return report
 
-    def get_historical_effectiveness(self, operation_type: str = None) -> Dict[str, Any]:
+    def get_historical_effectiveness(self, operation_type: str = None) -> dict[str, Any]:
         """Get historical auto-tuning effectiveness across all sessions.
 
         Args:
@@ -490,7 +512,7 @@ class AutoTuningValidator:
             Historical effectiveness analysis
         """
         if not self.validation_history:
-            return {'message': 'No historical validation data available'}
+            return {"message": "No historical validation data available"}
 
         all_comparisons = []
         for session in self.validation_history:
@@ -499,7 +521,7 @@ class AutoTuningValidator:
                     all_comparisons.append(comp)
 
         if not all_comparisons:
-            return {'message': f'No historical data for operation type: {operation_type}'}
+            return {"message": f"No historical data for operation type: {operation_type}"}
 
         # Calculate historical metrics
         avg_effectiveness = sum(c.effectiveness_score for c in all_comparisons) / len(all_comparisons)
@@ -509,16 +531,18 @@ class AutoTuningValidator:
         regressions = len(all_comparisons) - improvements
 
         return {
-            'operation_type': operation_type or 'all',
-            'total_adjustments': len(all_comparisons),
-            'total_sessions': len(self.validation_history),
-            'average_effectiveness': round(avg_effectiveness, 2),
-            'average_improvement_percentage': round(avg_improvement, 2),
-            'improvement_rate': round(improvements / len(all_comparisons) * 100, 1),
-            'regression_rate': round(regressions / len(all_comparisons) * 100, 1),
-            'recommendation': (
-                'Auto-tuning is highly effective historically' if avg_effectiveness >= 75 else
-                'Auto-tuning shows moderate historical effectiveness' if avg_effectiveness >= 50 else
-                'Historical auto-tuning effectiveness is low - review configuration'
-            )
+            "operation_type": operation_type or "all",
+            "total_adjustments": len(all_comparisons),
+            "total_sessions": len(self.validation_history),
+            "average_effectiveness": round(avg_effectiveness, 2),
+            "average_improvement_percentage": round(avg_improvement, 2),
+            "improvement_rate": round(improvements / len(all_comparisons) * 100, 1),
+            "regression_rate": round(regressions / len(all_comparisons) * 100, 1),
+            "recommendation": (
+                "Auto-tuning is highly effective historically"
+                if avg_effectiveness >= 75
+                else "Auto-tuning shows moderate historical effectiveness"
+                if avg_effectiveness >= 50
+                else "Historical auto-tuning effectiveness is low - review configuration"
+            ),
         }
