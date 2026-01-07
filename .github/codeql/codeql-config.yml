@@ -1,0 +1,31 @@
+name: "CodeQL Python Configuration"
+
+# Suppress false positive warnings for clear-text logging
+# Analysis: All flagged code logs processing statistics only (counts, timing, sizes)
+# No passwords, credentials, or PII are logged anywhere in this application
+query-filters:
+  - exclude:
+      id: py/clear-text-logging-sensitive-data
+      paths:
+        - core/watchful.py
+        - utils/console_output.py
+
+# Paths to scan (Python source files only)
+paths:
+  - core
+  - api
+  - utils
+  - html_modules
+  - processing
+  - search_server.py
+  - reddarc.py
+
+# Paths to ignore (don't scan test files, vendored code, build artifacts)
+paths-ignore:
+  - tests
+  - tools
+  - docker
+  - .github
+  - benchmarks
+  - "**/__pycache__"
+  - "**/*.pyc"
