@@ -42,7 +42,7 @@ dependencies = [
     "psaw==0.1.0",
     "psutil==7.2.1",
     "zstandard==0.23.0",
-    "psycopg[binary,pool]==3.2.3",
+    "psycopg[binary,pool]==3.3.2",
     "jinja2==3.1.6",
     "orjson==3.11.5",
     "rcssmin==1.2.2",
