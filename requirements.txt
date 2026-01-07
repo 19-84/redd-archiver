@@ -5,7 +5,7 @@ zstandard==0.23.0
 
 # PostgreSQL support (required)
 # psycopg3 with binary wheels and connection pooling
-psycopg[binary,pool]==3.2.3
+psycopg[binary,pool]==3.3.2
 
 # Jinja2 template system
 jinja2==3.1.6
