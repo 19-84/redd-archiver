@@ -16,7 +16,7 @@ orjson==3.11.4
 
 # Build optimizations (CSS minification only)
 # rcssmin: Fast CSS minification (~10x faster than csscompressor)
-rcssmin==1.1.2
+rcssmin==1.2.2
 
 # Image processing for favicon generation
 Pillow>=10.0.0
