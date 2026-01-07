@@ -140,8 +140,9 @@ def multiplatform_test_database(postgres_db):
     with postgres_db.pool.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
+                "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
             )
+            cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
             cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
             cur.execute(
                 "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"
@@ -373,14 +374,24 @@ def multiplatform_test_database(postgres_db):
     # Update user statistics to populate the users table
     postgres_db.update_user_statistics()
 
+    # Calculate and save subreddit statistics for the stats endpoint
+    for community in ["banned", "RedditCensors", "videos", "Quarantine"]:
+        stats = postgres_db.calculate_subreddit_statistics(community)
+        postgres_db.save_subreddit_statistics(community, stats)
+
+    # Ensure all data is committed and visible to other connections (Flask app)
+    with postgres_db.pool.get_connection() as conn:
+        conn.commit()
+
     yield postgres_db
 
     # Cleanup after module tests complete
     with postgres_db.pool.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
+                "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
             )
+            cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
             cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
             cur.execute(
                 "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"

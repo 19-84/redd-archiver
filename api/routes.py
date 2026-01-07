@@ -1156,7 +1156,7 @@ def get_post(post_id: str):
                     """
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            permalink, created_utc, score, num_comments, is_self, over_18,
-                           locked, stickied
+                           locked, stickied, platform
                     FROM posts
                     WHERE id = %s
                 """,
@@ -1185,6 +1185,7 @@ def get_post(post_id: str):
                     "nsfw": row["over_18"],
                     "locked": row["locked"],
                     "stickied": row["stickied"],
+                    "platform": row.get("platform", "reddit"),
                 }
 
                 # Apply truncation and field selection
@@ -2100,7 +2101,7 @@ def get_subreddit(subreddit: str):
 
                 if stats_row:
                     subreddit_data = {
-                        "subreddit": subreddit,
+                        "name": subreddit,
                         "total_posts": stats_row["total_posts"],
                         "total_comments": stats_row["total_comments"],
                         "unique_users": stats_row["unique_users"],
@@ -2145,7 +2146,7 @@ def get_subreddit(subreddit: str):
                 comment_count = cur.fetchone()["comment_count"]
 
                 subreddit_data = {
-                    "subreddit": subreddit,
+                    "name": subreddit,
                     "total_posts": row["post_count"],
                     "total_comments": comment_count,
                     "unique_users": row["user_count"],
@@ -3351,7 +3352,7 @@ def api_post_context(post_id: str):
         JSON with post, comments tree, and discussion metadata
     """
     # Validate post_id format
-    if not re.match(r"^[a-zA-Z0-9]{1,10}$", post_id):
+    if not re.match(r"^[a-z0-9_]+$", post_id, re.IGNORECASE):
         return jsonify({"error": "Invalid post ID format"}), 400
 
     top_comments = min(request.args.get("top_comments", type=int, default=10), 50)
@@ -3370,7 +3371,7 @@ def api_post_context(post_id: str):
                     """
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            score, num_comments, created_utc, permalink,
-                           is_self, over_18, locked, stickied
+                           is_self, over_18, locked, stickied, platform
                     FROM posts WHERE id = %s
                 """,
                     (post_id,),
@@ -3397,6 +3398,7 @@ def api_post_context(post_id: str):
                     "nsfw": post_row["over_18"],
                     "locked": post_row["locked"],
                     "stickied": post_row["stickied"],
+                    "platform": post_row.get("platform", "reddit"),
                 }
 
                 # Get top-level comments IDs first

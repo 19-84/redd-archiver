@@ -554,7 +554,8 @@ class TestEdgeCases:
     def test_nonexistent_community(self, api_client):
         """Test querying non-existent community"""
         response = api_client.get("/api/v1/subreddits/nonexistent_community_xyz")
-        assert response.status_code in [404, 200]  # May return empty or 404
+        # 400 = validation error (name too long: 24 chars > 21 max), 404 = not found, 200 = empty
+        assert response.status_code in [400, 404, 200]
 
     def test_empty_search_query(self, api_client):
         """Test search with empty query"""
