@@ -50,7 +50,7 @@ dependencies = [
     "flask==3.1.2",
     "flask-limiter==3.12",
     "flask-wtf==1.2.2",
-    "flask-cors==4.0.2",
+    "flask-cors==6.0.2",
     "sqlparse>=0.5.5",
     "playwright>=1.57.0",
 ]
