@@ -131,7 +131,7 @@ class TestSubredditsEndpoint:
         assert response.status_code == 200
         data = response.get_json()
 
-        assert data["subreddit"] == sample_post_data["subreddit"]
+        assert data["name"] == sample_post_data["subreddit"]
         assert "total_posts" in data
         assert "total_comments" in data
         assert "unique_users" in data

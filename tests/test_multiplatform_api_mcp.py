@@ -140,7 +140,11 @@ class TestPostsEndpoints:
     def test_list_posts_filtered_by_community(self, api_client, platform, community):
         """Test /api/v1/posts with subreddit filter for each platform"""
         response = api_client.get(f"/api/v1/posts?subreddit={community}&limit=5")
-        assert response.status_code == 200
+        if response.status_code != 200:
+            # Debug: print error details to understand 400 errors
+            error_data = response.get_json()
+            print(f"ERROR for {community}: {response.status_code} - {error_data}")
+        assert response.status_code == 200, f"Got {response.status_code} for {community}: {response.get_json()}"
 
         data = response.get_json()
         assert "data" in data
