@@ -1,0 +1,209 @@
+name: Submit New Data Source
+description: Share a new platform dataset or alternative data source
+title: "[Data Source] "
+labels: ["data-source", "community"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🆕 Submit a New Data Source
+
+        Help expand the archive network by sharing new platform datasets!
+
+        **What qualifies as a data source:**
+        - New platform dumps (Lemmy, Hacker News, Kbin, etc.)
+        - Alternative Reddit/Voat/Ruqqus archives
+        - Individual community backups
+        - Platform shutdown archives
+
+        **Please ensure:**
+        - Data is publicly accessible or can be made public
+        - You have rights to share the data
+        - Format is documented (JSON, SQL, etc.)
+
+  - type: input
+    id: platform_name
+    attributes:
+      label: Platform Name
+      description: Name of the platform (e.g., "Lemmy.world", "Hacker News")
+      placeholder: "Lemmy.ml"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform_type
+    attributes:
+      label: Platform Type
+      description: What kind of platform is this?
+      options:
+        - Lemmy (Reddit alternative)
+        - Hacker News (YCombinator)
+        - Kbin (Reddit alternative)
+        - Lobsters (Hacker News alternative)
+        - Reddit (alternative source)
+        - Voat (alternative source)
+        - Other link aggregator
+        - Other social platform
+    validations:
+      required: true
+
+  - type: input
+    id: data_size
+    attributes:
+      label: Dataset Size
+      description: Approximate size of the dataset
+      placeholder: "500MB, 2GB, 50GB"
+    validations:
+      required: true
+
+  - type: input
+    id: post_count
+    attributes:
+      label: Estimated Post/Content Count
+      description: How many posts, toots, or content items?
+      placeholder: "10,000 posts, 50K comments"
+    validations:
+      required: false
+
+  - type: input
+    id: date_range
+    attributes:
+      label: Date Range
+      description: Time period covered by the data
+      placeholder: "2021-01-01 to 2024-12-31"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data_format
+    attributes:
+      label: Data Format
+      description: Format of the dataset
+      options:
+        - JSON
+        - JSON Lines (.jsonl)
+        - SQL dump (.sql)
+        - CSV
+        - Compressed archive (.zst, .7z, .tar.gz)
+        - Database export
+        - API export
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: download_links
+    attributes:
+      label: Download Links
+      description: Where can people download this data?
+      placeholder: |
+        - Direct download: https://...
+        - Torrent: magnet:?xt=...
+        - Archive.org: https://archive.org/...
+        - IPFS: ipfs://...
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the dataset - what communities, what content, any special characteristics
+      placeholder: |
+        This is a complete dump of Lemmy.ml from 2021-2024, including:
+        - 50,000 posts across 200 communities
+        - Full comment trees
+        - User metadata
+        - Focus on technology and open-source communities
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data_status
+    attributes:
+      label: Platform Status
+      description: Is the platform still active?
+      options:
+        - Active (platform still running)
+        - Shutdown (platform closed)
+        - At risk (platform struggling)
+        - Archive (historical backup)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency Level
+      description: How urgent is archiving this data?
+      options:
+        - 🔴 Critical - Platform shutting down soon
+        - 🟠 High - Platform unstable or at risk
+        - 🟡 Medium - Active but worth archiving
+        - 🟢 Low - Historical/reference data
+    validations:
+      required: true
+
+  - type: input
+    id: schema_docs
+    attributes:
+      label: Schema Documentation (Optional)
+      description: Link to data schema/format documentation
+      placeholder: "https://docs.lemmy.ml/api/"
+    validations:
+      required: false
+
+  - type: textarea
+    id: example_data
+    attributes:
+      label: Example Data (Optional)
+      description: Paste a small JSON/SQL sample to help implementers
+      placeholder: |
+        {
+          "post_id": 12345,
+          "title": "Example Post",
+          "author": "user123",
+          "created_utc": 1640000000
+        }
+    validations:
+      required: false
+
+  - type: input
+    id: contact_info
+    attributes:
+      label: Your Contact (Optional)
+      description: How can people reach you with questions?
+      placeholder: "email@example.com, @user:matrix.org, GitHub @username"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      description: Please confirm the following
+      options:
+        - label: Data is publicly accessible or can be made public
+          required: true
+        - label: I have permission to share this data
+          required: true
+        - label: Data format is documented or understandable
+          required: true
+        - label: This is not spam or malicious content
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        ## What Happens Next?
+
+        1. Maintainers will verify the data source
+        2. If valid, it will be added to the **Data Catalog** documentation
+        3. Developers may implement support for this platform
+        4. Community archivists can begin preservation efforts
+
+        **Thank you for helping preserve internet history! 🌐**

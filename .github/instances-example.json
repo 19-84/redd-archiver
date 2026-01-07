@@ -1,0 +1,168 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-01-23T12:00:00Z",
+  "teams": [
+    {
+      "team_id": "privacy-advocates",
+      "name": "Privacy Advocates Network",
+      "description": "Preserving privacy-focused communities for research and education",
+      "founded": "2024-01-15",
+      "members": [
+        "github_user1",
+        "github_user2"
+      ],
+      "contact": {
+        "website": "https://privacyadvocates.org",
+        "matrix": "@privacy-team:matrix.org",
+        "email": "team@privacyadvocates.org"
+      },
+      "tags": ["privacy", "security", "education"]
+    },
+    {
+      "team_id": "academic-research",
+      "name": "Academic Research Collective",
+      "description": "University researchers preserving social media data for scientific study",
+      "founded": "2024-03-01",
+      "members": [
+        "prof_smith",
+        "researcher_jones"
+      ],
+      "contact": {
+        "website": "https://university.edu/social-media-lab",
+        "email": "lab@university.edu"
+      },
+      "tags": ["research", "academic", "data-science"]
+    }
+  ],
+  "instances": [
+    {
+      "instance_id": "privacy-main-archive",
+      "name": "Privacy Archive (Main)",
+      "team_id": "privacy-advocates",
+      "maintainer": "github_user1",
+      "registered": "2024-01-15",
+      "endpoints": {
+        "clearnet": "https://privacy-archive.example.com",
+        "tor": "http://abc123xyz456.onion",
+        "api": "https://privacy-archive.example.com/api/v1/stats"
+      },
+      "static_metadata": {
+        "subreddits": [
+          {
+            "name": "privacy",
+            "url": "/r/privacy/"
+          }
+        ],
+        "hosting": "self-hosted"
+      },
+      "features": [
+        "search",
+        "dark-mode",
+        "mobile",
+        "tor",
+        "api"
+      ],
+      "contact": {
+        "email": "admin@example.com"
+      }
+    },
+    {
+      "instance_id": "privacy-main-archive",
+      "name": "Privacy Subreddit Archive",
+      "team_id": "privacy-advocates",
+      "maintainer": "github_user2",
+      "registered": "2024-02-01",
+      "endpoints": {
+        "clearnet": "https://privacy-archive.net",
+        "api": "https://privacy-archive.net/api/v1/stats"
+      },
+      "static_metadata": {
+        "subreddits": [
+          {
+            "name": "privacy",
+            "url": "/r/privacy/"
+          },
+          {
+            "name": "privacytoolsIO",
+            "url": "/r/privacytoolsIO/"
+          }
+        ],
+        "hosting": "cloudflare-pages"
+      },
+      "features": [
+        "search",
+        "dark-mode",
+        "mobile",
+        "api"
+      ]
+    },
+    {
+      "instance_id": "research-tech-archive",
+      "name": "Technology Research Archive",
+      "team_id": "academic-research",
+      "maintainer": "prof_smith",
+      "registered": "2024-03-15",
+      "endpoints": {
+        "clearnet": "https://tech-archive.university.edu",
+        "api": "https://tech-archive.university.edu/api/v1/stats"
+      },
+      "static_metadata": {
+        "subreddits": [
+          {
+            "name": "technology",
+            "url": "/r/technology/"
+          },
+          {
+            "name": "programming",
+            "url": "/r/programming/"
+          },
+          {
+            "name": "datascience",
+            "url": "/r/datascience/"
+          }
+        ],
+        "hosting": "self-hosted"
+      },
+      "features": [
+        "search",
+        "mobile",
+        "api"
+      ],
+      "contact": {
+        "email": "lab@university.edu"
+      },
+      "notes": "Updated weekly with latest submissions"
+    },
+    {
+      "instance_id": "solo-homelab-archive",
+      "name": "Homelab Technology Archive",
+      "maintainer": "hobbyist_user",
+      "registered": "2024-06-01",
+      "endpoints": {
+        "clearnet": "https://archive.homelab.local",
+        "tor": "http://def789ghi012.onion",
+        "api": "https://archive.homelab.local/api/v1/stats"
+      },
+      "static_metadata": {
+        "subreddits": [
+          {
+            "name": "homelab",
+            "url": "/r/homelab/"
+          },
+          {
+            "name": "selfhosted",
+            "url": "/r/selfhosted/"
+          }
+        ],
+        "hosting": "self-hosted"
+      },
+      "features": [
+        "search",
+        "dark-mode",
+        "mobile",
+        "tor"
+      ],
+      "notes": "Running on Raspberry Pi cluster"
+    }
+  ]
+}
