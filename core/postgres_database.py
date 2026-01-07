@@ -1,29 +1,33 @@
 # ABOUTME: PostgreSQL database implementation for Redd-Archiver archive with psycopg3 connection pooling
 # ABOUTME: High-performance alternative to SQLite with native full-text search, JSONB storage, and concurrent operations
 
+import json
+import logging
+import os
+import threading
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
+from io import StringIO
+from typing import Any
+
+import orjson  # 10x faster JSON parsing for thread reconstruction
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
-import json
-import orjson  # 10x faster JSON parsing for thread reconstruction
-import os
-import time
-import threading
-import logging
-from typing import Dict, List, Optional, Tuple, Any, Iterator, Callable, Union, Set
-from datetime import datetime
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from io import StringIO
+from psycopg_pool import ConnectionPool
+
 from utils.console_output import print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger(__name__)
 
 
-def retry_with_exponential_backoff(max_retries: int = 5, initial_delay: float = 1.0,
-                                   max_delay: float = 60.0, backoff_factor: float = 2.0):
+def retry_with_exponential_backoff(
+    max_retries: int = 5, initial_delay: float = 1.0, max_delay: float = 60.0, backoff_factor: float = 2.0
+):
     """Decorator for retrying database operations with exponential backoff.
 
     Enables automatic recovery from transient failures (OOM, connection loss, etc.).
@@ -38,6 +42,7 @@ def retry_with_exponential_backoff(max_retries: int = 5, initial_delay: float = 
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             delay = initial_delay
@@ -52,14 +57,14 @@ def retry_with_exponential_backoff(max_retries: int = 5, initial_delay: float = 
 
                     # Check if error is retryable
                     retryable_errors = [
-                        'connection',
-                        'timeout',
-                        'too many clients',
-                        'out of memory',
-                        'oom',
-                        'server closed',
-                        'broken pipe',
-                        'reset by peer'
+                        "connection",
+                        "timeout",
+                        "too many clients",
+                        "out of memory",
+                        "oom",
+                        "server closed",
+                        "broken pipe",
+                        "reset by peer",
                     ]
 
                     is_retryable = any(err in error_msg for err in retryable_errors)
@@ -82,11 +87,13 @@ def retry_with_exponential_backoff(max_retries: int = 5, initial_delay: float = 
             raise last_exception
 
         return wrapper
+
     return decorator
 
 
-def get_optimal_pool_size(workload_type: str = 'default', available_cpu_cores: int = None,
-                         max_connections_override: int = None) -> int:
+def get_optimal_pool_size(
+    workload_type: str = "default", available_cpu_cores: int = None, max_connections_override: int = None
+) -> int:
     """
     Determine optimal connection pool size based on workload type and system resources.
 
@@ -115,54 +122,63 @@ def get_optimal_pool_size(workload_type: str = 'default', available_cpu_cores: i
     # PostgreSQL handles concurrent connections much better than SQLite
     # Multi-platform HTML generation needs larger pool for multi-layer parallelism
     pool_sizes = {
-        'user_processing': min(24, max(12, available_cpu_cores)),  # Increased to support 4 + (3*5) = 19 concurrent workers
-        'batch_insert': min(8, max(4, available_cpu_cores // 2)),
-        'search': min(6, max(4, available_cpu_cores // 2)),
-        'default': min(6, max(4, available_cpu_cores // 2))
+        "user_processing": min(
+            24, max(12, available_cpu_cores)
+        ),  # Increased to support 4 + (3*5) = 19 concurrent workers
+        "batch_insert": min(8, max(4, available_cpu_cores // 2)),
+        "search": min(6, max(4, available_cpu_cores // 2)),
+        "default": min(6, max(4, available_cpu_cores // 2)),
     }
 
-    optimal_size = int(pool_sizes.get(workload_type, pool_sizes['default']))
+    optimal_size = int(pool_sizes.get(workload_type, pool_sizes["default"]))
 
-    print_info(f"Connection pool sizing: {workload_type} workload → {optimal_size} connections "
-              f"(CPU cores: {available_cpu_cores})")
+    print_info(
+        f"Connection pool sizing: {workload_type} workload → {optimal_size} connections "
+        f"(CPU cores: {available_cpu_cores})"
+    )
 
     return optimal_size
 
 
 class PostgresDatabaseError(Exception):
     """Base exception for PostgreSQL database operations."""
+
     pass
 
 
 class ConnectionTimeoutError(PostgresDatabaseError):
     """Raised when database connection times out."""
+
     pass
 
 
 class ConnectionRetryExhaustedError(PostgresDatabaseError):
     """Raised when connection retry attempts are exhausted."""
+
     pass
 
 
 @dataclass
 class QueryMetrics:
     """Performance metrics for database queries."""
+
     query: str
     execution_time: float
     timestamp: datetime = field(default_factory=datetime.now)
-    row_count: Optional[int] = None
-    error: Optional[str] = None
+    row_count: int | None = None
+    error: str | None = None
 
 
 @dataclass
 class ConnectionPoolMetrics:
     """Performance metrics for connection pool."""
+
     pool_size: int = 0
     active_connections: int = 0
     total_connections_created: int = 0
     total_queries_executed: int = 0
     average_query_time: float = 0.0
-    slow_queries: List[QueryMetrics] = field(default_factory=list)
+    slow_queries: list[QueryMetrics] = field(default_factory=list)
     connection_errors: int = 0
     retry_attempts: int = 0
 
@@ -170,6 +186,7 @@ class ConnectionPoolMetrics:
 @dataclass
 class BatchMetrics:
     """Performance metrics for batch operations."""
+
     batch_size: int
     records_processed: int = 0
     successful_batches: int = 0
@@ -185,9 +202,16 @@ class BatchMetrics:
 class PostgresConnectionPool:
     """Thread-safe connection pool for PostgreSQL using psycopg3 with monitoring and health checks."""
 
-    def __init__(self, connection_string: str, min_size: int = 10, max_size: int = 50,
-                 connection_timeout: float = 30.0, max_retries: int = 3,
-                 enable_monitoring: bool = True, slow_query_threshold: float = 1.0):
+    def __init__(
+        self,
+        connection_string: str,
+        min_size: int = 10,
+        max_size: int = 50,
+        connection_timeout: float = 30.0,
+        max_retries: int = 3,
+        enable_monitoring: bool = True,
+        slow_query_threshold: float = 1.0,
+    ):
         """Initialize PostgreSQL connection pool.
 
         Args:
@@ -222,10 +246,10 @@ class PostgresConnectionPool:
                 max_idle=30.0,  # 30 seconds max idle time (reduced from 5min for faster memory release)
                 max_lifetime=3600.0,  # 1 hour max connection lifetime
                 kwargs={
-                    'options': '-c jit=on -c max_parallel_workers_per_gather=4',
-                    'connect_timeout': int(self.connection_timeout),
-                    'row_factory': dict_row  # Return dict rows instead of tuples
-                }
+                    "options": "-c jit=on -c max_parallel_workers_per_gather=4",
+                    "connect_timeout": int(self.connection_timeout),
+                    "row_factory": dict_row,  # Return dict rows instead of tuples
+                },
             )
             print_success(f"PostgreSQL connection pool initialized: {min_size}-{max_size} connections")
         except Exception as e:
@@ -277,7 +301,7 @@ class PostgresConnectionPool:
                 try:
                     if conn.info.transaction_status not in (
                         psycopg.pq.TransactionStatus.IDLE,
-                        psycopg.pq.TransactionStatus.UNKNOWN
+                        psycopg.pq.TransactionStatus.UNKNOWN,
                     ):
                         # Connection has uncommitted transaction - rollback
                         conn.rollback()
@@ -300,7 +324,7 @@ class PostgresConnectionPool:
         except Exception as e:
             print_error(f"Failed to close connection pool: {e}")
 
-    def get_pool_stats(self) -> Dict[str, Any]:
+    def get_pool_stats(self) -> dict[str, Any]:
         """Get connection pool statistics.
 
         Returns:
@@ -308,22 +332,24 @@ class PostgresConnectionPool:
         """
         try:
             stats = {
-                'min_size': self.min_size,
-                'max_size': self.max_size,
-                'name': self.pool.name,
-                'timeout': self.connection_timeout
+                "min_size": self.min_size,
+                "max_size": self.max_size,
+                "name": self.pool.name,
+                "timeout": self.connection_timeout,
             }
 
             # Add detailed metrics if monitoring is enabled
             if self.enable_monitoring and self.metrics:
                 with self.metrics_lock:
-                    stats.update({
-                        'total_connections_created': self.metrics.total_connections_created,
-                        'total_queries_executed': self.metrics.total_queries_executed,
-                        'connection_errors': self.metrics.connection_errors,
-                        'retry_attempts': self.metrics.retry_attempts,
-                        'average_query_time': self.metrics.average_query_time
-                    })
+                    stats.update(
+                        {
+                            "total_connections_created": self.metrics.total_connections_created,
+                            "total_queries_executed": self.metrics.total_queries_executed,
+                            "connection_errors": self.metrics.connection_errors,
+                            "retry_attempts": self.metrics.retry_attempts,
+                            "average_query_time": self.metrics.average_query_time,
+                        }
+                    )
 
             return stats
 
@@ -348,10 +374,17 @@ class PostgresDatabase:
     Compatible with existing RedditDatabase API for seamless integration.
     """
 
-    def __init__(self, connection_string: str, pool_size: int = None, workload_type: str = 'default',
-                 connection_timeout: float = None, max_retries: int = 3,
-                 enable_monitoring: bool = True, slow_query_threshold: float = 1.0,
-                 skip_schema_setup: bool = False):
+    def __init__(
+        self,
+        connection_string: str,
+        pool_size: int = None,
+        workload_type: str = "default",
+        connection_timeout: float = None,
+        max_retries: int = 3,
+        enable_monitoring: bool = True,
+        slow_query_threshold: float = 1.0,
+        skip_schema_setup: bool = False,
+    ):
         """Initialize PostgreSQL database with connection pooling.
 
         Args:
@@ -370,9 +403,9 @@ class PostgresDatabase:
 
         # Set workload-specific timeout if not provided
         if connection_timeout is None:
-            if workload_type == 'user_processing':
+            if workload_type == "user_processing":
                 connection_timeout = 120.0  # 2 minutes for HTML export (parallel processing needs longer)
-            elif workload_type == 'batch_insert':
+            elif workload_type == "batch_insert":
                 connection_timeout = 60.0  # 1 minute for imports
             else:
                 connection_timeout = 30.0  # Default 30 seconds
@@ -383,7 +416,7 @@ class PostgresDatabase:
         if pool_size is None:
             max_connections_override = None
             try:
-                max_connections_override = int(os.environ.get('ARCHIVE_MAX_DB_CONNECTIONS', ''))
+                max_connections_override = int(os.environ.get("ARCHIVE_MAX_DB_CONNECTIONS", ""))
             except (ValueError, TypeError):
                 pass
             pool_size = get_optimal_pool_size(workload_type, max_connections_override=max_connections_override)
@@ -398,9 +431,13 @@ class PostgresDatabase:
         for attempt in range(max_startup_retries):
             try:
                 self.pool = PostgresConnectionPool(
-                    connection_string, min_pool_size, pool_size, connection_timeout, max_retries,
+                    connection_string,
+                    min_pool_size,
+                    pool_size,
+                    connection_timeout,
+                    max_retries,
                     enable_monitoring=enable_monitoring,
-                    slow_query_threshold=slow_query_threshold
+                    slow_query_threshold=slow_query_threshold,
                 )
                 # Success - break retry loop
                 if attempt > 0:
@@ -411,32 +448,40 @@ class PostgresDatabase:
 
                 # Check if this is a retryable error (startup or OOM recovery)
                 is_retryable = (
-                    'is not yet accepting connections' in error_msg or
-                    'recovery state has not been yet reached' in error_msg or
-                    'starting up' in error_msg or
-                    'out of memory' in error_msg or
-                    'oom' in error_msg or
-                    'connection refused' in error_msg or  # May occur during OOM recovery
-                    'could not connect' in error_msg or
-                    'server closed' in error_msg
+                    "is not yet accepting connections" in error_msg
+                    or "recovery state has not been yet reached" in error_msg
+                    or "starting up" in error_msg
+                    or "out of memory" in error_msg
+                    or "oom" in error_msg
+                    or "connection refused" in error_msg  # May occur during OOM recovery
+                    or "could not connect" in error_msg
+                    or "server closed" in error_msg
                 )
 
                 if is_retryable and attempt < max_startup_retries - 1:
                     delay = retry_delays[attempt]
 
                     # Provide context-specific messages
-                    if 'out of memory' in error_msg or 'oom' in error_msg:
-                        print_warning(f"PostgreSQL OOM detected, waiting {delay}s for recovery (attempt {attempt + 1}/{max_startup_retries})")
-                    elif 'starting up' in error_msg or 'is not yet accepting connections' in error_msg:
-                        print_info(f"PostgreSQL is starting up, waiting {delay}s before retry (attempt {attempt + 1}/{max_startup_retries})")
+                    if "out of memory" in error_msg or "oom" in error_msg:
+                        print_warning(
+                            f"PostgreSQL OOM detected, waiting {delay}s for recovery (attempt {attempt + 1}/{max_startup_retries})"
+                        )
+                    elif "starting up" in error_msg or "is not yet accepting connections" in error_msg:
+                        print_info(
+                            f"PostgreSQL is starting up, waiting {delay}s before retry (attempt {attempt + 1}/{max_startup_retries})"
+                        )
                     else:
-                        print_info(f"PostgreSQL connection failed, waiting {delay}s before retry (attempt {attempt + 1}/{max_startup_retries})")
+                        print_info(
+                            f"PostgreSQL connection failed, waiting {delay}s before retry (attempt {attempt + 1}/{max_startup_retries})"
+                        )
 
                     time.sleep(delay)
                 else:
                     # Either not retryable, or we've exhausted retries
                     if attempt == max_startup_retries - 1:
-                        raise PostgresDatabaseError(f"Failed to connect to PostgreSQL after {max_startup_retries} attempts (total wait: {sum(retry_delays[:max_startup_retries])}s): {e}")
+                        raise PostgresDatabaseError(
+                            f"Failed to connect to PostgreSQL after {max_startup_retries} attempts (total wait: {sum(retry_delays[:max_startup_retries])}s): {e}"
+                        )
                     else:
                         raise PostgresDatabaseError(f"Failed to initialize connection pool: {e}")
 
@@ -465,19 +510,19 @@ class PostgresDatabase:
             if schema_exists:
                 print_info("PostgreSQL schema already exists, skipping creation")
                 # Check if indexes exist (avoid redundant creation)
-                skip_indexes = os.environ.get('ARCHIVE_SKIP_INDEX_CREATION', 'false').lower() == 'true'
+                skip_indexes = os.environ.get("ARCHIVE_SKIP_INDEX_CREATION", "false").lower() == "true"
                 if skip_indexes:
                     print_info("Indexes disabled for bulk loading - will be created explicitly later")
                 return
 
             # Get paths to SQL files (one level up from core/)
             current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            schema_file = os.path.join(current_dir, 'sql', 'schema.sql')
-            indexes_file = os.path.join(current_dir, 'sql', 'indexes.sql')
+            schema_file = os.path.join(current_dir, "sql", "schema.sql")
+            indexes_file = os.path.join(current_dir, "sql", "indexes.sql")
 
             # Execute schema.sql
             if os.path.exists(schema_file):
-                with open(schema_file, 'r') as f:
+                with open(schema_file) as f:
                     schema_sql = f.read()
 
                 with self.pool.get_connection() as conn:
@@ -490,11 +535,11 @@ class PostgresDatabase:
 
             # Execute indexes.sql ONLY if not in bulk loading mode
             # Check environment variable to share state across PostgresDatabase instances
-            skip_indexes = os.environ.get('ARCHIVE_SKIP_INDEX_CREATION', 'false').lower() == 'true'
+            skip_indexes = os.environ.get("ARCHIVE_SKIP_INDEX_CREATION", "false").lower() == "true"
 
             if not skip_indexes:
                 if os.path.exists(indexes_file):
-                    with open(indexes_file, 'r') as f:
+                    with open(indexes_file) as f:
                         indexes_sql = f.read()
 
                     with self.pool.get_connection() as conn:
@@ -512,8 +557,8 @@ class PostgresDatabase:
 
     def _sanitize_value(self, value: Any) -> Any:
         """Convert problematic types for PostgreSQL compatibility."""
-        from decimal import Decimal
         import math
+        from decimal import Decimal
 
         # Handle Infinity and NaN (invalid in JSON)
         if isinstance(value, float):
@@ -525,7 +570,7 @@ class PostgresDatabase:
 
         # Handle string "Infinity" from Reddit API bugs
         if isinstance(value, str):
-            if value in ('Infinity', '-Infinity', 'NaN'):
+            if value in ("Infinity", "-Infinity", "NaN"):
                 return None
             try:
                 numeric_val = float(value.strip())
@@ -549,7 +594,7 @@ class PostgresDatabase:
         if isinstance(obj, dict):
             # Modify dict values in-place instead of creating new dict
             for key, value in list(obj.items()):  # list() to avoid dict size change during iteration
-                if isinstance(value, (dict, list)):
+                if isinstance(value, dict | list):
                     # Recursively sanitize nested structures in-place
                     self._sanitize_recursive(value)
                 else:
@@ -562,7 +607,7 @@ class PostgresDatabase:
             # Modify list items in-place instead of creating new list
             for i in range(len(obj)):
                 item = obj[i]
-                if isinstance(item, (dict, list)):
+                if isinstance(item, dict | list):
                     # Recursively sanitize nested structures in-place
                     self._sanitize_recursive(item)
                 else:
@@ -590,7 +635,7 @@ class PostgresDatabase:
             Escaped string safe for PostgreSQL COPY text format
         """
         if value is None:
-            return ''
+            return ""
 
         # Convert to string (handles int, float, bool, etc.)
         text = str(value)
@@ -598,14 +643,14 @@ class PostgresDatabase:
         # Escape special characters for PostgreSQL COPY text format
         # CRITICAL: Escape backslash FIRST, then other characters
         # Otherwise we'll double-escape (e.g., \n → \\n → \\\\n)
-        text = text.replace('\\', '\\\\')  # Backslash → \\
-        text = text.replace('\t', '\\t')    # Tab → \t
-        text = text.replace('\n', '\\n')    # Newline → \n
-        text = text.replace('\r', '\\r')    # Carriage return → \r
+        text = text.replace("\\", "\\\\")  # Backslash → \\
+        text = text.replace("\t", "\\t")  # Tab → \t
+        text = text.replace("\n", "\\n")  # Newline → \n
+        text = text.replace("\r", "\\r")  # Carriage return → \r
 
         return text
 
-    def insert_post(self, post: Dict[str, Any]) -> bool:
+    def insert_post(self, post: dict[str, Any]) -> bool:
         """Insert a single post into the database.
 
         Args:
@@ -621,7 +666,8 @@ class PostgresDatabase:
                     sanitized_post = self._sanitize_recursive(post)
                     json_data = json.dumps(sanitized_post, allow_nan=False)
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO posts
                         (id, subreddit, author, title, selftext, url, domain, permalink,
                          created_utc, score, num_comments, is_self, over_18, locked,
@@ -631,24 +677,26 @@ class PostgresDatabase:
                             score = EXCLUDED.score,
                             num_comments = EXCLUDED.num_comments,
                             json_data = EXCLUDED.json_data
-                    """, (
-                        post.get('id', ''),
-                        post.get('subreddit', ''),
-                        post.get('author', '[deleted]'),
-                        post.get('title', ''),
-                        post.get('selftext', ''),
-                        post.get('url', ''),
-                        post.get('domain', ''),
-                        post.get('permalink', ''),
-                        int(self._sanitize_value(post.get('created_utc', 0))),
-                        int(self._sanitize_value(post.get('score', 0))),
-                        int(self._sanitize_value(post.get('num_comments', 0))),
-                        bool(post.get('is_self', False)),
-                        bool(post.get('over_18', False)),
-                        bool(post.get('locked', False)),
-                        bool(post.get('stickied', False)),
-                        json_data
-                    ))
+                    """,
+                        (
+                            post.get("id", ""),
+                            post.get("subreddit", ""),
+                            post.get("author", "[deleted]"),
+                            post.get("title", ""),
+                            post.get("selftext", ""),
+                            post.get("url", ""),
+                            post.get("domain", ""),
+                            post.get("permalink", ""),
+                            int(self._sanitize_value(post.get("created_utc", 0))),
+                            int(self._sanitize_value(post.get("score", 0))),
+                            int(self._sanitize_value(post.get("num_comments", 0))),
+                            bool(post.get("is_self", False)),
+                            bool(post.get("over_18", False)),
+                            bool(post.get("locked", False)),
+                            bool(post.get("stickied", False)),
+                            json_data,
+                        ),
+                    )
                 conn.commit()
                 return True
 
@@ -656,7 +704,7 @@ class PostgresDatabase:
             print_error(f"Failed to insert post {post.get('id', 'unknown')}: {e}")
             return False
 
-    def insert_comment(self, comment: Dict[str, Any]) -> bool:
+    def insert_comment(self, comment: dict[str, Any]) -> bool:
         """Insert a single comment into the database.
 
         Args:
@@ -670,15 +718,15 @@ class PostgresDatabase:
                 with conn.cursor() as cur:
                     # Extract parent_thread_id from permalink or link_id
                     parent_thread_id = None
-                    if 'permalink' in comment and comment['permalink']:
+                    if "permalink" in comment and comment["permalink"]:
                         try:
-                            parent_thread_id = comment['permalink'].split('/')[4]
+                            parent_thread_id = comment["permalink"].split("/")[4]
                         except (IndexError, AttributeError):
                             pass
 
-                    if not parent_thread_id and 'link_id' in comment and comment['link_id']:
+                    if not parent_thread_id and "link_id" in comment and comment["link_id"]:
                         try:
-                            parent_thread_id = comment['link_id'].replace('t3_', '')
+                            parent_thread_id = comment["link_id"].replace("t3_", "")
                         except (AttributeError, TypeError):
                             pass
 
@@ -686,7 +734,8 @@ class PostgresDatabase:
                     sanitized_comment = self._sanitize_recursive(comment)
                     json_data = json.dumps(sanitized_comment, allow_nan=False)
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO comments
                         (id, post_id, parent_id, author, created_utc, score, body,
                          permalink, subreddit, link_id, depth, json_data)
@@ -694,20 +743,22 @@ class PostgresDatabase:
                         ON CONFLICT (id) DO UPDATE SET
                             score = EXCLUDED.score,
                             json_data = EXCLUDED.json_data
-                    """, (
-                        comment.get('id', ''),
-                        parent_thread_id or '',
-                        comment.get('parent_id', ''),
-                        comment.get('author', '[deleted]'),
-                        int(self._sanitize_value(comment.get('created_utc', 0))),
-                        int(self._sanitize_value(comment.get('score', 0))),
-                        comment.get('body', ''),
-                        comment.get('permalink', ''),
-                        comment.get('subreddit', ''),
-                        comment.get('link_id', ''),
-                        int(self._sanitize_value(comment.get('depth', 0))),
-                        json_data
-                    ))
+                    """,
+                        (
+                            comment.get("id", ""),
+                            parent_thread_id or "",
+                            comment.get("parent_id", ""),
+                            comment.get("author", "[deleted]"),
+                            int(self._sanitize_value(comment.get("created_utc", 0))),
+                            int(self._sanitize_value(comment.get("score", 0))),
+                            comment.get("body", ""),
+                            comment.get("permalink", ""),
+                            comment.get("subreddit", ""),
+                            comment.get("link_id", ""),
+                            int(self._sanitize_value(comment.get("depth", 0))),
+                            json_data,
+                        ),
+                    )
                 conn.commit()
                 return True
 
@@ -716,10 +767,13 @@ class PostgresDatabase:
             return False
 
     @retry_with_exponential_backoff(max_retries=5, initial_delay=2.0, max_delay=60.0)
-    def insert_posts_batch(self, posts: List[Dict[str, Any]],
-                          progress_callback: Optional[Callable[[int, int], None]] = None,
-                          auto_tune_batch_size: bool = True,
-                          initial_batch_size: int = 1000) -> Tuple[int, int, Set[str]]:
+    def insert_posts_batch(
+        self,
+        posts: list[dict[str, Any]],
+        progress_callback: Callable[[int, int], None] | None = None,
+        auto_tune_batch_size: bool = True,
+        initial_batch_size: int = 1000,
+    ) -> tuple[int, int, set[str]]:
         """Insert multiple posts in optimized batches using PostgreSQL COPY protocol.
 
         PostgreSQL COPY is 5-10x faster than INSERT statements for bulk loading.
@@ -740,7 +794,7 @@ class PostgresDatabase:
         successful = 0
         failed = 0
         skipped = 0  # Track posts without valid IDs
-        failed_post_ids: Set[str] = set()  # Track which specific posts failed
+        failed_post_ids: set[str] = set()  # Track which specific posts failed
         total_posts = len(posts)
         current_batch_size = initial_batch_size
 
@@ -754,7 +808,7 @@ class PostgresDatabase:
                     cur.execute("SET LOCAL synchronous_commit = OFF")
 
                 for batch_start in range(0, total_posts, current_batch_size):
-                    batch = posts[batch_start:batch_start + current_batch_size]
+                    batch = posts[batch_start : batch_start + current_batch_size]
                     batch_size = len(batch)
 
                     batch_start_time = time.time()
@@ -767,7 +821,7 @@ class PostgresDatabase:
 
                         for post in batch:
                             # Validate post has a valid ID before attempting insertion
-                            post_id = post.get('id')
+                            post_id = post.get("id")
                             if not post_id or (isinstance(post_id, str) and not post_id.strip()):
                                 skipped += 1
                                 continue
@@ -779,31 +833,36 @@ class PostgresDatabase:
                                 # Write directly to COPY buffer (tab-delimited)
                                 # All fields must be properly escaped for PostgreSQL COPY format
                                 # Use validated post_id variable to ensure ID remains valid after sanitization
-                                copy_buffer.write('\t'.join([
-                                    self._escape_copy_text(post_id),
-                                    self._escape_copy_text(post.get('subreddit', '')),
-                                    self._escape_copy_text(post.get('author', '[deleted]')),
-                                    self._escape_copy_text(post.get('title')),
-                                    self._escape_copy_text(post.get('selftext')),
-                                    self._escape_copy_text(post.get('url')),
-                                    self._escape_copy_text(post.get('domain')),
-                                    self._escape_copy_text(post.get('permalink')),
-                                    str(int(self._sanitize_value(post.get('created_utc', 0)))),
-                                    str(int(self._sanitize_value(post.get('score', 0)))),
-                                    str(int(self._sanitize_value(post.get('num_comments', 0)))),
-                                    't' if post.get('is_self', False) else 'f',
-                                    't' if post.get('over_18', False) else 'f',
-                                    't' if post.get('locked', False) else 'f',
-                                    't' if post.get('stickied', False) else 'f',
-                                    self._escape_copy_text(post.get('platform', 'reddit')),  # Platform support
-                                    self._escape_copy_text(json_data)
-                                ]) + '\n')
+                                copy_buffer.write(
+                                    "\t".join(
+                                        [
+                                            self._escape_copy_text(post_id),
+                                            self._escape_copy_text(post.get("subreddit", "")),
+                                            self._escape_copy_text(post.get("author", "[deleted]")),
+                                            self._escape_copy_text(post.get("title")),
+                                            self._escape_copy_text(post.get("selftext")),
+                                            self._escape_copy_text(post.get("url")),
+                                            self._escape_copy_text(post.get("domain")),
+                                            self._escape_copy_text(post.get("permalink")),
+                                            str(int(self._sanitize_value(post.get("created_utc", 0)))),
+                                            str(int(self._sanitize_value(post.get("score", 0)))),
+                                            str(int(self._sanitize_value(post.get("num_comments", 0)))),
+                                            "t" if post.get("is_self", False) else "f",
+                                            "t" if post.get("over_18", False) else "f",
+                                            "t" if post.get("locked", False) else "f",
+                                            "t" if post.get("stickied", False) else "f",
+                                            self._escape_copy_text(post.get("platform", "reddit")),  # Platform support
+                                            self._escape_copy_text(json_data),
+                                        ]
+                                    )
+                                    + "\n"
+                                )
                                 records_prepared += 1
                             except Exception as e:
-                                post_id = post.get('id', 'unknown')
+                                post_id = post.get("id", "unknown")
                                 print_error(f"Failed to prepare post {post_id}: {e}")
                                 failed += 1
-                                if post_id != 'unknown':
+                                if post_id != "unknown":
                                     failed_post_ids.add(post_id)
 
                         if records_prepared > 0:
@@ -836,7 +895,9 @@ class PostgresDatabase:
                                 """)
 
                                 # COPY streams data directly without buffering
-                                with cur.copy("COPY posts_staging (id, subreddit, author, title, selftext, url, domain, permalink, created_utc, score, num_comments, is_self, over_18, locked, stickied, platform, json_data) FROM STDIN") as copy:
+                                with cur.copy(
+                                    "COPY posts_staging (id, subreddit, author, title, selftext, url, domain, permalink, created_utc, score, num_comments, is_self, over_18, locked, stickied, platform, json_data) FROM STDIN"
+                                ) as copy:
                                     copy.write(copy_buffer.read())
 
                                 # Perform upsert from staging table
@@ -864,7 +925,7 @@ class PostgresDatabase:
                         # Track all posts in failed batch as potentially failed
                         # Note: We don't know which specific posts failed during COPY, so we mark all as suspect
                         for post in batch:
-                            post_id = post.get('id')
+                            post_id = post.get("id")
                             if post_id:
                                 failed_post_ids.add(post_id)
 
@@ -885,8 +946,10 @@ class PostgresDatabase:
 
             total_time = time.time() - start_time
             records_per_second = successful / total_time if total_time > 0 else 0
-            print_success(f"Batch insert completed: {successful} posts in {total_time:.2f}s "
-                        f"({records_per_second:.0f} posts/s)")
+            print_success(
+                f"Batch insert completed: {successful} posts in {total_time:.2f}s "
+                f"({records_per_second:.0f} posts/s)"
+            )
 
             if skipped > 0:
                 print_warning(f"Skipped {skipped} posts with missing or empty IDs")
@@ -901,10 +964,13 @@ class PostgresDatabase:
             return successful, failed, failed_post_ids
 
     @retry_with_exponential_backoff(max_retries=5, initial_delay=2.0, max_delay=60.0)
-    def insert_comments_batch(self, comments: List[Dict[str, Any]],
-                             progress_callback: Optional[Callable[[int, int], None]] = None,
-                             auto_tune_batch_size: bool = True,
-                             initial_batch_size: int = 1000) -> Tuple[int, int]:
+    def insert_comments_batch(
+        self,
+        comments: list[dict[str, Any]],
+        progress_callback: Callable[[int, int], None] | None = None,
+        auto_tune_batch_size: bool = True,
+        initial_batch_size: int = 1000,
+    ) -> tuple[int, int]:
         """Insert multiple comments in optimized batches using PostgreSQL executemany.
 
         Args:
@@ -941,10 +1007,12 @@ class PostgresDatabase:
                         cur.execute("SET CONSTRAINTS comments_post_id_fkey DEFERRED")
                     except Exception as e:
                         # Constraint might not be deferrable yet (will be after schema update)
-                        print_warning(f"Could not defer foreign key constraint (this is expected before schema update): {e}")
+                        print_warning(
+                            f"Could not defer foreign key constraint (this is expected before schema update): {e}"
+                        )
 
                 for batch_start in range(0, total_comments, current_batch_size):
-                    batch = comments[batch_start:batch_start + current_batch_size]
+                    batch = comments[batch_start : batch_start + current_batch_size]
                     batch_size = len(batch)
 
                     batch_start_time = time.time()
@@ -956,7 +1024,7 @@ class PostgresDatabase:
 
                         for comment in batch:
                             # Validate comment has a valid ID before attempting insertion
-                            comment_id = comment.get('id')
+                            comment_id = comment.get("id")
                             if not comment_id or (isinstance(comment_id, str) and not comment_id.strip()):
                                 skipped += 1
                                 continue
@@ -964,25 +1032,27 @@ class PostgresDatabase:
                             try:
                                 # Extract post_id (parent thread ID)
                                 # For multi-platform support, prefer post_id field from normalized data
-                                parent_thread_id = comment.get('post_id')
+                                parent_thread_id = comment.get("post_id")
 
                                 # Fallback: extract from permalink for legacy Reddit data
-                                if not parent_thread_id and 'permalink' in comment and comment['permalink']:
+                                if not parent_thread_id and "permalink" in comment and comment["permalink"]:
                                     try:
-                                        parent_thread_id = comment['permalink'].split('/')[4]
+                                        parent_thread_id = comment["permalink"].split("/")[4]
                                     except (IndexError, AttributeError):
                                         pass
 
                                 # Fallback: extract from link_id
-                                if not parent_thread_id and 'link_id' in comment and comment['link_id']:
+                                if not parent_thread_id and "link_id" in comment and comment["link_id"]:
                                     try:
-                                        parent_thread_id = comment['link_id'].replace('t3_', '')
+                                        parent_thread_id = comment["link_id"].replace("t3_", "")
                                     except (AttributeError, TypeError):
                                         pass
 
                                 # Debug logging for missing post_id
                                 if not parent_thread_id:
-                                    logger.debug(f"Comment {comment_id} missing post_id (permalink: {comment.get('permalink')}, link_id: {comment.get('link_id')})")
+                                    logger.debug(
+                                        f"Comment {comment_id} missing post_id (permalink: {comment.get('permalink')}, link_id: {comment.get('link_id')})"
+                                    )
                                     failed += 1
                                     continue
 
@@ -992,21 +1062,28 @@ class PostgresDatabase:
                                 # Write directly to COPY buffer (tab-delimited)
                                 # All fields must be properly escaped for PostgreSQL COPY format
                                 # Use validated comment_id variable to ensure ID remains valid after sanitization
-                                copy_buffer.write('\t'.join([
-                                    self._escape_copy_text(comment_id),
-                                    self._escape_copy_text(parent_thread_id),
-                                    self._escape_copy_text(comment.get('parent_id')),
-                                    self._escape_copy_text(comment.get('author', '[deleted]')),
-                                    str(int(self._sanitize_value(comment.get('created_utc', 0)))),
-                                    str(int(self._sanitize_value(comment.get('score', 0)))),
-                                    self._escape_copy_text(comment.get('body')),
-                                    self._escape_copy_text(comment.get('permalink')),
-                                    self._escape_copy_text(comment.get('subreddit', '')),
-                                    self._escape_copy_text(comment.get('link_id')),
-                                    str(int(self._sanitize_value(comment.get('depth', 0)))),
-                                    self._escape_copy_text(comment.get('platform', 'reddit')),  # Platform support
-                                    self._escape_copy_text(json_data)
-                                ]) + '\n')
+                                copy_buffer.write(
+                                    "\t".join(
+                                        [
+                                            self._escape_copy_text(comment_id),
+                                            self._escape_copy_text(parent_thread_id),
+                                            self._escape_copy_text(comment.get("parent_id")),
+                                            self._escape_copy_text(comment.get("author", "[deleted]")),
+                                            str(int(self._sanitize_value(comment.get("created_utc", 0)))),
+                                            str(int(self._sanitize_value(comment.get("score", 0)))),
+                                            self._escape_copy_text(comment.get("body")),
+                                            self._escape_copy_text(comment.get("permalink")),
+                                            self._escape_copy_text(comment.get("subreddit", "")),
+                                            self._escape_copy_text(comment.get("link_id")),
+                                            str(int(self._sanitize_value(comment.get("depth", 0)))),
+                                            self._escape_copy_text(
+                                                comment.get("platform", "reddit")
+                                            ),  # Platform support
+                                            self._escape_copy_text(json_data),
+                                        ]
+                                    )
+                                    + "\n"
+                                )
                                 records_prepared += 1
                             except Exception as e:
                                 print_error(f"Failed to prepare comment {comment.get('id', 'unknown')}: {e}")
@@ -1038,7 +1115,9 @@ class PostgresDatabase:
                                 """)
 
                                 # COPY streams data directly without buffering
-                                with cur.copy("COPY comments_staging (id, post_id, parent_id, author, created_utc, score, body, permalink, subreddit, link_id, depth, platform, json_data) FROM STDIN") as copy:
+                                with cur.copy(
+                                    "COPY comments_staging (id, post_id, parent_id, author, created_utc, score, body, permalink, subreddit, link_id, depth, platform, json_data) FROM STDIN"
+                                ) as copy:
                                     copy.write(copy_buffer.read())
 
                                 # Perform upsert from staging table
@@ -1059,15 +1138,21 @@ class PostgresDatabase:
                     except Exception as e:
                         conn.rollback()
                         error_msg = str(e)
-                        print_error(f"Batch insert failed for comments {batch_start}-{batch_start + batch_size}: {error_msg}")
+                        print_error(
+                            f"Batch insert failed for comments {batch_start}-{batch_start + batch_size}: {error_msg}"
+                        )
 
                         # Debug logging for FK violations
                         if "foreign key" in error_msg.lower() or "violates foreign key constraint" in error_msg.lower():
-                            logger.debug(f"FK violation in batch {batch_start}-{batch_start + batch_size}: comments referencing missing posts")
+                            logger.debug(
+                                f"FK violation in batch {batch_start}-{batch_start + batch_size}: comments referencing missing posts"
+                            )
 
                         # Retry individual comments if constraint violation (index size limit exceeded)
                         if "index row size" in error_msg or "exceeds btree" in error_msg or "maximum 2704" in error_msg:
-                            print_warning(f"Detected index size constraint violation - retrying {len(batch)} comments individually")
+                            print_warning(
+                                f"Detected index size constraint violation - retrying {len(batch)} comments individually"
+                            )
                             individual_success = 0
                             individual_failed = 0
 
@@ -1077,13 +1162,15 @@ class PostgresDatabase:
                                         individual_success += 1
                                     else:
                                         individual_failed += 1
-                                except Exception as retry_error:
+                                except Exception:
                                     # Even individual insert failed - this comment truly cannot be inserted
                                     individual_failed += 1
 
                             successful += individual_success
                             failed += individual_failed
-                            print_info(f"Individual retry results: {individual_success} succeeded, {individual_failed} failed")
+                            print_info(
+                                f"Individual retry results: {individual_success} succeeded, {individual_failed} failed"
+                            )
                         else:
                             # Non-constraint-related error - entire batch failed
                             failed += batch_size
@@ -1103,8 +1190,10 @@ class PostgresDatabase:
 
             total_time = time.time() - start_time
             records_per_second = successful / total_time if total_time > 0 else 0
-            print_success(f"Batch insert completed: {successful} comments in {total_time:.2f}s "
-                        f"({records_per_second:.0f} comments/s)")
+            print_success(
+                f"Batch insert completed: {successful} comments in {total_time:.2f}s "
+                f"({records_per_second:.0f} comments/s)"
+            )
 
             if skipped > 0:
                 print_warning(f"Skipped {skipped} comments with missing or empty IDs")
@@ -1125,39 +1214,39 @@ class PostgresDatabase:
                 with conn.cursor() as cur:
                     cur.execute("SELECT 1 as result")
                     result = cur.fetchone()
-                    return result is not None and result['result'] == 1
+                    return result is not None and result["result"] == 1
         except Exception as e:
             print_error(f"Database health check failed: {e}")
             return False
 
-    def get_database_info(self) -> Dict[str, Any]:
+    def get_database_info(self) -> dict[str, Any]:
         """Get database size and statistics."""
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get table counts with explicit column names for dict_row access
                     cur.execute("SELECT COUNT(*) as count FROM posts")
-                    post_count = cur.fetchone()['count']
+                    post_count = cur.fetchone()["count"]
 
                     cur.execute("SELECT COUNT(*) as count FROM comments")
-                    comment_count = cur.fetchone()['count']
+                    comment_count = cur.fetchone()["count"]
 
                     cur.execute("SELECT COUNT(*) as count FROM users")
-                    user_count = cur.fetchone()['count']
+                    user_count = cur.fetchone()["count"]
 
                     # Get database size
                     cur.execute("SELECT pg_database_size(current_database()) as size")
-                    db_size = cur.fetchone()['size']
+                    db_size = cur.fetchone()["size"]
 
                     return {
-                        'connection_string': self.connection_string.split('@')[-1],  # Hide credentials
-                        'db_size_bytes': db_size,
-                        'db_size_mb': round(db_size / (1024 * 1024), 2),
-                        'post_count': post_count,
-                        'comment_count': comment_count,
-                        'user_count': user_count,
-                        'pool_size': self.pool.max_size,
-                        'pool_min_size': self.pool.min_size
+                        "connection_string": self.connection_string.split("@")[-1],  # Hide credentials
+                        "db_size_bytes": db_size,
+                        "db_size_mb": round(db_size / (1024 * 1024), 2),
+                        "post_count": post_count,
+                        "comment_count": comment_count,
+                        "user_count": user_count,
+                        "pool_size": self.pool.max_size,
+                        "pool_min_size": self.pool.min_size,
                     }
         except Exception as e:
             raise PostgresDatabaseError(f"Failed to get database info: {e}")
@@ -1169,7 +1258,7 @@ class PostgresDatabase:
                 with conn.cursor() as cur:
                     cur.execute("SELECT MAX(version) as max_version FROM schema_version")
                     result = cur.fetchone()
-                    return result['max_version'] if result and result['max_version'] is not None else 0
+                    return result["max_version"] if result and result["max_version"] is not None else 0
         except Exception:
             return 0
 
@@ -1177,9 +1266,15 @@ class PostgresDatabase:
     # QUERY METHODS FOR HTML GENERATION AND THREAD RECONSTRUCTION
     # ============================================================================
 
-    def get_posts_paginated(self, subreddit: str, limit: int = 100, offset: int = 0,
-                           order_by: str = 'score DESC', min_score: int = 0,
-                           min_comments: int = 0) -> Iterator[Dict[str, Any]]:
+    def get_posts_paginated(
+        self,
+        subreddit: str,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str = "score DESC",
+        min_score: int = 0,
+        min_comments: int = 0,
+    ) -> Iterator[dict[str, Any]]:
         """Get posts in paginated batches with full JSON data.
 
         Args:
@@ -1196,17 +1291,17 @@ class PostgresDatabase:
         """
         # Security: Whitelist valid ORDER BY clauses to prevent SQL injection
         VALID_ORDER_BY = {
-            'score DESC',
-            'score DESC, created_utc DESC',
-            'created_utc DESC',
-            'created_utc DESC, score DESC',
-            'num_comments DESC',
-            'num_comments DESC, score DESC'
+            "score DESC",
+            "score DESC, created_utc DESC",
+            "created_utc DESC",
+            "created_utc DESC, score DESC",
+            "num_comments DESC",
+            "num_comments DESC, score DESC",
         }
 
         if order_by not in VALID_ORDER_BY:
             print_warning(f"Invalid order_by value '{order_by}', using default 'score DESC'")
-            order_by = 'score DESC'
+            order_by = "score DESC"
 
         try:
             with self.pool.get_connection() as conn:
@@ -1223,7 +1318,7 @@ class PostgresDatabase:
 
                     for row in cur:
                         try:
-                            post_data = json.loads(row['json_data'])
+                            post_data = json.loads(row["json_data"])
                             yield post_data
                         except Exception as e:
                             print_error(f"Failed to parse post JSON: {e}")
@@ -1233,10 +1328,17 @@ class PostgresDatabase:
             print_error(f"Failed to query paginated posts: {e}")
             return
 
-    def get_posts_paginated_keyset(self, subreddit: str, limit: int,
-                                    last_score: int = None, last_created_utc: int = None, last_id: str = None,
-                                    order_by: str = 'score DESC', min_score: int = 0,
-                                    min_comments: int = 0) -> List[Dict[str, Any]]:
+    def get_posts_paginated_keyset(
+        self,
+        subreddit: str,
+        limit: int,
+        last_score: int = None,
+        last_created_utc: int = None,
+        last_id: str = None,
+        order_by: str = "score DESC",
+        min_score: int = 0,
+        min_comments: int = 0,
+    ) -> list[dict[str, Any]]:
         """Get posts using keyset (cursor-based) pagination for constant O(1) performance.
 
         Keyset pagination eliminates OFFSET overhead by using WHERE conditions on
@@ -1275,17 +1377,17 @@ class PostgresDatabase:
         """
         # Security: Whitelist valid ORDER BY clauses to prevent SQL injection
         VALID_ORDER_BY = {
-            'score DESC',
-            'score DESC, created_utc DESC',
-            'created_utc DESC',
-            'created_utc DESC, score DESC',
-            'num_comments DESC',
-            'num_comments DESC, score DESC'
+            "score DESC",
+            "score DESC, created_utc DESC",
+            "created_utc DESC",
+            "created_utc DESC, score DESC",
+            "num_comments DESC",
+            "num_comments DESC, score DESC",
         }
 
         if order_by not in VALID_ORDER_BY:
             print_warning(f"Invalid order_by value '{order_by}', using default 'score DESC'")
-            order_by = 'score DESC'
+            order_by = "score DESC"
 
         try:
             with self.pool.get_connection() as conn:
@@ -1299,11 +1401,13 @@ class PostgresDatabase:
                                json_data
                     """
 
-                    if order_by.startswith('score'):
+                    if order_by.startswith("score"):
                         # Score-based sorting: WHERE (score, created_utc, id) < (last_score, last_created_utc, last_id)
                         if last_score is not None and last_created_utc is not None and last_id:
                             # Composite keyset for proper ordering (explicit type casts for composite comparison)
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
@@ -1311,23 +1415,30 @@ class PostgresDatabase:
                                   AND (score, created_utc, id) < (%s::integer, %s::bigint, %s::text)
                                 ORDER BY score DESC, created_utc DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments,
-                                  last_score, last_created_utc, last_id, limit))
+                            """,
+                                (subreddit, min_score, min_comments, last_score, last_created_utc, last_id, limit),
+                            )
                         else:
                             # First page (no keyset)
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY score DESC, created_utc DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments, limit))
+                            """,
+                                (subreddit, min_score, min_comments, limit),
+                            )
 
-                    elif 'num_comments' in order_by:
+                    elif "num_comments" in order_by:
                         # Comments-based sorting
                         if last_score is not None and last_created_utc is not None and last_id:
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
@@ -1335,21 +1446,28 @@ class PostgresDatabase:
                                   AND (num_comments, score, id) < (%s::integer, %s::integer, %s::text)
                                 ORDER BY num_comments DESC, score DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments,
-                                  last_created_utc, last_score, last_id, limit))  # Note: last_created_utc actually holds num_comments value
+                            """,
+                                (subreddit, min_score, min_comments, last_created_utc, last_score, last_id, limit),
+                            )  # Note: last_created_utc actually holds num_comments value
                         else:
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY num_comments DESC, score DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments, limit))
+                            """,
+                                (subreddit, min_score, min_comments, limit),
+                            )
 
                     else:  # created_utc sorting
                         if last_created_utc is not None and last_score is not None and last_id:
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
@@ -1357,42 +1475,49 @@ class PostgresDatabase:
                                   AND (created_utc, score, id) < (%s::bigint, %s::integer, %s::text)
                                 ORDER BY created_utc DESC, score DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments,
-                                  last_created_utc, last_score, last_id, limit))
+                            """,
+                                (subreddit, min_score, min_comments, last_created_utc, last_score, last_id, limit),
+                            )
                         else:
-                            cur.execute(select_clause + """
+                            cur.execute(
+                                select_clause
+                                + """
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY created_utc DESC, score DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, min_score, min_comments, limit))
+                            """,
+                                (subreddit, min_score, min_comments, limit),
+                            )
 
                     # Merge column data with json_data (psycopg3 already parsed JSONB to dict)
                     posts = []
                     for row in cur:
                         try:
                             # Start with json_data (already a Python dict from psycopg3)
-                            post_data = dict(row['json_data'] or {})
+                            post_data = dict(row["json_data"] or {})
 
                             # Override with separate columns (authoritative source of truth)
-                            post_data.update({
-                                'id': row['id'],
-                                'subreddit': row['subreddit'],
-                                'title': row['title'],
-                                'author': row['author'],
-                                'created_utc': row['created_utc'],
-                                'score': row['score'],
-                                'num_comments': row['num_comments'],
-                                'permalink': row['permalink'],
-                                'url': row['url'],
-                                'domain': row['domain'],
-                                'is_self': row['is_self'],
-                                'over_18': row['over_18'],
-                                'locked': row['locked'],
-                                'stickied': row['stickied'],
-                            })
+                            post_data.update(
+                                {
+                                    "id": row["id"],
+                                    "subreddit": row["subreddit"],
+                                    "title": row["title"],
+                                    "author": row["author"],
+                                    "created_utc": row["created_utc"],
+                                    "score": row["score"],
+                                    "num_comments": row["num_comments"],
+                                    "permalink": row["permalink"],
+                                    "url": row["url"],
+                                    "domain": row["domain"],
+                                    "is_self": row["is_self"],
+                                    "over_18": row["over_18"],
+                                    "locked": row["locked"],
+                                    "stickied": row["stickied"],
+                                }
+                            )
                             posts.append(post_data)
                         except Exception as e:
                             print_error(f"Failed to process post data: {e}")
@@ -1404,7 +1529,7 @@ class PostgresDatabase:
             print_error(f"Failed to query posts with keyset pagination: {e}")
             return []
 
-    def get_comments_for_post(self, post_id: str) -> List[Dict[str, Any]]:
+    def get_comments_for_post(self, post_id: str) -> list[dict[str, Any]]:
         """Get all comments for a specific post.
 
         Args:
@@ -1416,21 +1541,25 @@ class PostgresDatabase:
         try:
             # Track query timing for performance profiling
             from monitoring.performance_timing import get_timing
+
             timing = get_timing()
 
             query_start = time.time()
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT json_data::text FROM comments
                         WHERE post_id = %s
                         ORDER BY created_utc ASC
-                    """, (post_id,))
+                    """,
+                        (post_id,),
+                    )
 
                     comments = []
                     for row in cur:
                         try:
-                            comment_data = json.loads(row['json_data'])
+                            comment_data = json.loads(row["json_data"])
                             comments.append(comment_data)
                         except Exception as e:
                             print_error(f"Failed to parse comment JSON: {e}")
@@ -1440,7 +1569,7 @@ class PostgresDatabase:
             query_duration = time.time() - query_start
             timing.query_count += 1
             timing.query_time += query_duration
-            timing.query_breakdown['get_comments_for_post'] = timing.query_breakdown.get('get_comments_for_post', 0) + 1
+            timing.query_breakdown["get_comments_for_post"] = timing.query_breakdown.get("get_comments_for_post", 0) + 1
 
             return comments
 
@@ -1448,7 +1577,7 @@ class PostgresDatabase:
             print_error(f"Failed to get comments for post {post_id}: {e}")
             return []
 
-    def get_post_by_id(self, post_id: str) -> Optional[Dict[str, Any]]:
+    def get_post_by_id(self, post_id: str) -> dict[str, Any] | None:
         """Get a single post by its ID with full JSON data.
 
         Args:
@@ -1460,14 +1589,11 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT json_data::text FROM posts WHERE id = %s",
-                        (post_id,)
-                    )
+                    cur.execute("SELECT json_data::text FROM posts WHERE id = %s", (post_id,))
                     row = cur.fetchone()
 
                     if row:
-                        return json.loads(row['json_data'])
+                        return json.loads(row["json_data"])
                     else:
                         return None
 
@@ -1475,7 +1601,7 @@ class PostgresDatabase:
             print_error(f"Failed to get post {post_id}: {e}")
             return None
 
-    def rebuild_threads_lightweight(self, subreddit: str, batch_size: int = 1000) -> Iterator[Dict[str, Any]]:
+    def rebuild_threads_lightweight(self, subreddit: str, batch_size: int = 1000) -> Iterator[dict[str, Any]]:
         """Stream posts WITHOUT comment aggregation for 10-50x speedup at large scale.
 
         For large subreddits (1M+ posts), the LEFT JOIN + json_agg query becomes
@@ -1497,13 +1623,12 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get total post count
-                    cur.execute(
-                        "SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)",
-                        (subreddit,)
-                    )
-                    total_posts = cur.fetchone()['count']
+                    cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                    total_posts = cur.fetchone()["count"]
 
-                    print_info(f"Lightweight rebuild for r/{subreddit}: {total_posts} posts (comments loaded on-demand)")
+                    print_info(
+                        f"Lightweight rebuild for r/{subreddit}: {total_posts} posts (comments loaded on-demand)"
+                    )
 
                     offset = 0
                     posts_processed = 0
@@ -1511,21 +1636,24 @@ class PostgresDatabase:
 
                     while offset < total_posts:
                         # Simple query: Just fetch posts, no joins, no aggregation
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT json_data::text as post_json
                             FROM posts
                             WHERE LOWER(subreddit) = LOWER(%s)
                             ORDER BY created_utc DESC
                             LIMIT %s OFFSET %s
-                        """, (subreddit, batch_size, offset))
+                        """,
+                            (subreddit, batch_size, offset),
+                        )
 
                         # Stream rows directly
                         batch_rows_processed = 0
                         for row in cur:
                             try:
-                                post_data = orjson.loads(row['post_json'])
+                                post_data = orjson.loads(row["post_json"])
                                 # Preserve original subreddit case from database
-                                post_data['comments'] = None  # Marker: comments not loaded
+                                post_data["comments"] = None  # Marker: comments not loaded
 
                                 posts_processed += 1
                                 batch_rows_processed += 1
@@ -1566,7 +1694,7 @@ class PostgresDatabase:
             print_error(f"Failed to rebuild threads (lightweight) for r/{subreddit}: {e}")
             return
 
-    def rebuild_threads_streamed(self, subreddit: str, batch_size: int = 100) -> Iterator[Dict[str, Any]]:
+    def rebuild_threads_streamed(self, subreddit: str, batch_size: int = 100) -> Iterator[dict[str, Any]]:
         """Stream thread reconstruction with comments attached (generator).
 
         Uses PostgreSQL JSON aggregation to eliminate N+1 query pattern.
@@ -1586,11 +1714,8 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get total post count
-                    cur.execute(
-                        "SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)",
-                        (subreddit,)
-                    )
-                    total_posts = cur.fetchone()['count']
+                    cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                    total_posts = cur.fetchone()["count"]
 
                     print_info(f"Rebuilding threads for r/{subreddit}: {total_posts} posts")
 
@@ -1600,12 +1725,14 @@ class PostgresDatabase:
 
                     # ✅ MEMORY FIX: Auto-tuning variables for dynamic batch sizing
                     import psutil
+
                     process = psutil.Process()
                     initial_memory_mb = process.memory_info().rss / (1024**2)
                     last_tuning_offset = 0
 
                     # Track query timing for performance profiling
                     from monitoring.performance_timing import get_timing
+
                     timing = get_timing()
                     total_query_time = 0.0
 
@@ -1614,7 +1741,8 @@ class PostgresDatabase:
                         # This eliminates N+1 queries and is 4-10x faster
                         # Use current_batch_size (may be auto-tuned) instead of fixed batch_size
                         query_start = time.time()
-                        cur.execute("""
+                        cur.execute(
+                            """
                             WITH post_batch AS (
                                 SELECT id, json_data::text as post_json
                                 FROM posts
@@ -1633,14 +1761,18 @@ class PostgresDatabase:
                             FROM post_batch pb
                             LEFT JOIN comments c ON c.post_id = pb.id
                             GROUP BY pb.id, pb.post_json
-                        """, (subreddit, current_batch_size, offset))
+                        """,
+                            (subreddit, current_batch_size, offset),
+                        )
                         query_duration = time.time() - query_start
                         total_query_time += query_duration
 
                         # Track query metrics
                         timing.query_count += 1
                         timing.query_time += query_duration
-                        timing.query_breakdown['rebuild_threads_batch_aggregation'] = timing.query_breakdown.get('rebuild_threads_batch_aggregation', 0) + 1
+                        timing.query_breakdown["rebuild_threads_batch_aggregation"] = (
+                            timing.query_breakdown.get("rebuild_threads_batch_aggregation", 0) + 1
+                        )
 
                         # ✅ MEMORY FIX: Stream rows directly from cursor instead of fetchall()
                         # This prevents loading entire batch into memory before yielding
@@ -1648,11 +1780,11 @@ class PostgresDatabase:
                         for row in cur:
                             try:
                                 # Use orjson for 10x faster JSON parsing
-                                post_data = orjson.loads(row['post_json'])
-                                comments_data = orjson.loads(row['comments_json'])
+                                post_data = orjson.loads(row["post_json"])
+                                comments_data = orjson.loads(row["comments_json"])
 
                                 # Attach comments to post
-                                post_data['comments'] = comments_data
+                                post_data["comments"] = comments_data
                                 # Preserve original subreddit case from database
 
                                 posts_processed += 1
@@ -1675,6 +1807,7 @@ class PostgresDatabase:
 
                         # ✅ MEMORY FIX: Explicit cleanup after each batch to release memory
                         import gc
+
                         gc.collect(generation=0)
 
                         # ✅ MEMORY FIX: Auto-tune batch size based on memory growth
@@ -1682,17 +1815,25 @@ class PostgresDatabase:
                         if offset - last_tuning_offset >= 10000:  # Tune every 10k posts
                             current_memory_mb = process.memory_info().rss / (1024**2)
                             memory_growth_mb = current_memory_mb - initial_memory_mb
-                            memory_growth_percent = (memory_growth_mb / initial_memory_mb) * 100 if initial_memory_mb > 0 else 0
+                            memory_growth_percent = (
+                                (memory_growth_mb / initial_memory_mb) * 100 if initial_memory_mb > 0 else 0
+                            )
 
                             if memory_growth_percent > 50:  # Growing too fast, reduce batch
                                 new_batch_size = max(50, int(current_batch_size * 0.7))
                                 if new_batch_size != current_batch_size:
-                                    print_warning(f"Reducing batch size: {current_batch_size} → {new_batch_size} (memory: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)")
+                                    print_warning(
+                                        f"Reducing batch size: {current_batch_size} → {new_batch_size} (memory: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)"
+                                    )
                                     current_batch_size = new_batch_size
-                            elif memory_growth_percent < 30 and current_batch_size < 5000:  # Relaxed for large scale (was 20% and 2000)
+                            elif (
+                                memory_growth_percent < 30 and current_batch_size < 5000
+                            ):  # Relaxed for large scale (was 20% and 2000)
                                 new_batch_size = min(5000, int(current_batch_size * 1.5))  # Faster ramp-up (was 1.3)
                                 if new_batch_size != current_batch_size:
-                                    print_info(f"Increasing batch size: {current_batch_size} → {new_batch_size} (memory stable: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)")
+                                    print_info(
+                                        f"Increasing batch size: {current_batch_size} → {new_batch_size} (memory stable: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)"
+                                    )
                                     current_batch_size = new_batch_size
 
                             last_tuning_offset = offset
@@ -1700,8 +1841,14 @@ class PostgresDatabase:
                     # Print query timing breakdown
                     total_elapsed = time.time() - start_time
                     if total_query_time > 0:
-                        print_info(f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)")
-                        print_info(f"  Avg query time: {total_query_time/timing.query_count:.3f}s per batch" if timing.query_count > 0 else "")
+                        print_info(
+                            f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)"
+                        )
+                        print_info(
+                            f"  Avg query time: {total_query_time/timing.query_count:.3f}s per batch"
+                            if timing.query_count > 0
+                            else ""
+                        )
 
                     print_success(f"Thread rebuild complete: {posts_processed} posts processed for r/{subreddit}")
 
@@ -1709,7 +1856,7 @@ class PostgresDatabase:
             print_error(f"Failed to rebuild threads for r/{subreddit}: {e}")
             return
 
-    def rebuild_threads_two_query(self, subreddit: str, batch_size: int = 200) -> Iterator[Dict[str, Any]]:
+    def rebuild_threads_two_query(self, subreddit: str, batch_size: int = 200) -> Iterator[dict[str, Any]]:
         """Stream thread reconstruction using two-query batch pattern for optimal performance.
 
         Eliminates expensive LEFT JOIN + json_agg by using separate simple queries:
@@ -1735,11 +1882,8 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get total post count
-                    cur.execute(
-                        "SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)",
-                        (subreddit,)
-                    )
-                    total_posts = cur.fetchone()['count']
+                    cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                    total_posts = cur.fetchone()["count"]
 
                     print_info(f"Two-query rebuild for r/{subreddit}: {total_posts} posts")
 
@@ -1750,11 +1894,13 @@ class PostgresDatabase:
 
                     # Track query timing for performance profiling
                     from monitoring.performance_timing import get_timing
+
                     timing = get_timing()
                     total_query_time = 0.0
 
                     # Memory monitoring for auto-tuning
                     import psutil
+
                     process = psutil.Process()
                     initial_memory_mb = process.memory_info().rss / (1024**2)
                     last_tuning_offset = 0
@@ -1762,59 +1908,67 @@ class PostgresDatabase:
                     while offset < total_posts:
                         # Query 1: Get batch of posts (simple, fast)
                         query_start = time.time()
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT id, json_data::text as post_json
                             FROM posts
                             WHERE LOWER(subreddit) = LOWER(%s)
                             ORDER BY created_utc DESC
                             LIMIT %s OFFSET %s
-                        """, (subreddit, current_batch_size, offset))
+                        """,
+                            (subreddit, current_batch_size, offset),
+                        )
 
                         # Collect posts and extract IDs
                         post_rows = []
                         post_ids = []
                         for row in cur:
                             post_rows.append(row)
-                            post_ids.append(row['id'])
+                            post_ids.append(row["id"])
 
                         query_duration = time.time() - query_start
                         total_query_time += query_duration
                         timing.query_count += 1
                         timing.query_time += query_duration
-                        timing.query_breakdown['two_query_posts'] = timing.query_breakdown.get('two_query_posts', 0) + 1
+                        timing.query_breakdown["two_query_posts"] = timing.query_breakdown.get("two_query_posts", 0) + 1
 
                         if not post_rows:
                             break
 
                         # Query 2: Get ALL comments for this batch (single query with array lookup)
                         query_start = time.time()
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT post_id, json_data::text as comment_json
                             FROM comments
                             WHERE post_id = ANY(%s)
                             ORDER BY post_id, created_utc ASC
-                        """, (post_ids,))
+                        """,
+                            (post_ids,),
+                        )
 
                         # Group comments by post_id (O(n) hash map, very fast in Python)
                         comments_by_post = {}
                         for row in cur:
-                            post_id = row['post_id']
+                            post_id = row["post_id"]
                             if post_id not in comments_by_post:
                                 comments_by_post[post_id] = []
-                            comments_by_post[post_id].append(orjson.loads(row['comment_json']))
+                            comments_by_post[post_id].append(orjson.loads(row["comment_json"]))
 
                         query_duration = time.time() - query_start
                         total_query_time += query_duration
                         timing.query_count += 1
                         timing.query_time += query_duration
-                        timing.query_breakdown['two_query_comments'] = timing.query_breakdown.get('two_query_comments', 0) + 1
+                        timing.query_breakdown["two_query_comments"] = (
+                            timing.query_breakdown.get("two_query_comments", 0) + 1
+                        )
 
                         # Attach comments to posts and yield
                         for row in post_rows:
                             try:
-                                post_data = orjson.loads(row['post_json'])
+                                post_data = orjson.loads(row["post_json"])
                                 # Preserve original subreddit case from database
-                                post_data['comments'] = comments_by_post.get(row['id'], [])
+                                post_data["comments"] = comments_by_post.get(row["id"], [])
 
                                 posts_processed += 1
                                 yield post_data
@@ -1841,23 +1995,30 @@ class PostgresDatabase:
 
                         # Memory cleanup
                         import gc
+
                         gc.collect(generation=0)
 
                         # Auto-tune batch size based on memory growth
                         if offset - last_tuning_offset >= 10000:
                             current_memory_mb = process.memory_info().rss / (1024**2)
                             memory_growth_mb = current_memory_mb - initial_memory_mb
-                            memory_growth_percent = (memory_growth_mb / initial_memory_mb) * 100 if initial_memory_mb > 0 else 0
+                            memory_growth_percent = (
+                                (memory_growth_mb / initial_memory_mb) * 100 if initial_memory_mb > 0 else 0
+                            )
 
                             if memory_growth_percent > 50:
                                 new_batch_size = max(50, int(current_batch_size * 0.7))
                                 if new_batch_size != current_batch_size:
-                                    print_warning(f"Reducing batch size: {current_batch_size} → {new_batch_size} (memory: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)")
+                                    print_warning(
+                                        f"Reducing batch size: {current_batch_size} → {new_batch_size} (memory: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)"
+                                    )
                                     current_batch_size = new_batch_size
                             elif memory_growth_percent < 30 and current_batch_size < 5000:
                                 new_batch_size = min(5000, int(current_batch_size * 1.5))
                                 if new_batch_size != current_batch_size:
-                                    print_info(f"Increasing batch size: {current_batch_size} → {new_batch_size} (memory stable: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)")
+                                    print_info(
+                                        f"Increasing batch size: {current_batch_size} → {new_batch_size} (memory stable: {current_memory_mb:.1f}MB, +{memory_growth_percent:.1f}%)"
+                                    )
                                     current_batch_size = new_batch_size
 
                             last_tuning_offset = offset
@@ -1865,8 +2026,14 @@ class PostgresDatabase:
                     # Print query timing breakdown
                     total_elapsed = time.time() - start_time
                     if total_query_time > 0:
-                        print_info(f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)")
-                        print_info(f"  Avg query time: {total_query_time/timing.query_count:.3f}s per query" if timing.query_count > 0 else "")
+                        print_info(
+                            f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)"
+                        )
+                        print_info(
+                            f"  Avg query time: {total_query_time/timing.query_count:.3f}s per query"
+                            if timing.query_count > 0
+                            else ""
+                        )
 
                     print_success(f"Two-query rebuild complete: {posts_processed} posts processed for r/{subreddit}")
 
@@ -1874,7 +2041,7 @@ class PostgresDatabase:
             print_error(f"Failed to rebuild threads (two-query) for r/{subreddit}: {e}")
             return
 
-    def rebuild_threads_keyset(self, subreddit: str, batch_size: int = 500) -> Iterator[Dict[str, Any]]:
+    def rebuild_threads_keyset(self, subreddit: str, batch_size: int = 500) -> Iterator[dict[str, Any]]:
         """Stream thread reconstruction using memory-bounded chunked sequential scan.
 
         PERFORMANCE OPTIMIZATION: Chunks posts to prevent OOM while maintaining I/O efficiency.
@@ -1904,13 +2071,14 @@ class PostgresDatabase:
 
                     # Get counts
                     cur.execute("SELECT COUNT(*) FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
-                    total_posts = cur.fetchone()['count']
+                    total_posts = cur.fetchone()["count"]
 
                     cur.execute("SELECT COUNT(*) FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
-                    total_comments = cur.fetchone()['count']
+                    total_comments = cur.fetchone()["count"]
 
                     # Determine chunk size based on available memory
                     import psutil
+
                     available_gb = psutil.virtual_memory().available / (1024**3)
 
                     if available_gb >= 8:
@@ -1918,7 +2086,7 @@ class PostgresDatabase:
                     elif available_gb >= 4:
                         chunk_size = 10000  # ~100 MB posts + ~1 GB comments = 1.5 GB/chunk
                     else:
-                        chunk_size = 5000   # ~50 MB posts + ~500 MB comments = 750 MB/chunk
+                        chunk_size = 5000  # ~50 MB posts + ~500 MB comments = 750 MB/chunk
 
                     # For small subreddits, use single chunk (no overhead)
                     if total_posts <= chunk_size:
@@ -1927,11 +2095,14 @@ class PostgresDatabase:
                     else:
                         num_chunks = (total_posts + chunk_size - 1) // chunk_size
                         print_info(f"Chunked scan: {total_posts:,} posts, {total_comments:,} comments")
-                        print_info(f"  Memory: {available_gb:.1f} GB available → {chunk_size:,} posts/chunk ({num_chunks} chunks)")
+                        print_info(
+                            f"  Memory: {available_gb:.1f} GB available → {chunk_size:,} posts/chunk ({num_chunks} chunks)"
+                        )
 
                     # Track progress
                     from monitoring.performance_timing import get_timing
-                    timing = get_timing()
+
+                    get_timing()
                     posts_yielded = 0
                     comments_attached = 0
 
@@ -1946,22 +2117,28 @@ class PostgresDatabase:
 
                         # STEP 1: Load chunk of posts
                         if last_created_utc is None:
-                            cur.execute("""
+                            cur.execute(
+                                """
                                 SELECT id, created_utc, json_data::text as post_json
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                 ORDER BY created_utc DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, chunk_size))
+                            """,
+                                (subreddit, chunk_size),
+                            )
                         else:
-                            cur.execute("""
+                            cur.execute(
+                                """
                                 SELECT id, created_utc, json_data::text as post_json
                                 FROM posts
                                 WHERE LOWER(subreddit) = LOWER(%s)
                                   AND (created_utc, id) < (%s, %s)
                                 ORDER BY created_utc DESC, id DESC
                                 LIMIT %s
-                            """, (subreddit, last_created_utc, last_id, chunk_size))
+                            """,
+                                (subreddit, last_created_utc, last_id, chunk_size),
+                            )
 
                         # Load posts into memory for this chunk
                         posts_list = []
@@ -1969,30 +2146,33 @@ class PostgresDatabase:
                         post_ids = []
 
                         for row in cur:
-                            post_data = orjson.loads(row['post_json'])
-                            post_data['comments'] = []
+                            post_data = orjson.loads(row["post_json"])
+                            post_data["comments"] = []
                             posts_list.append(post_data)
-                            posts_dict[row['id']] = post_data
-                            post_ids.append(row['id'])
-                            last_created_utc = row['created_utc']
-                            last_id = row['id']
+                            posts_dict[row["id"]] = post_data
+                            post_ids.append(row["id"])
+                            last_created_utc = row["created_utc"]
+                            last_id = row["id"]
 
                         if not posts_list:
                             break  # No more posts
 
                         # STEP 2: Query comments for this chunk (array lookup)
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT post_id, json_data::text as comment_json
                             FROM comments
                             WHERE post_id = ANY(%s)
                             ORDER BY post_id, created_utc ASC
-                        """, (post_ids,))
+                        """,
+                            (post_ids,),
+                        )
 
                         chunk_comments = 0
                         for row in cur:
-                            if row['post_id'] in posts_dict:
-                                comment_data = orjson.loads(row['comment_json'])
-                                posts_dict[row['post_id']]['comments'].append(comment_data)
+                            if row["post_id"] in posts_dict:
+                                comment_data = orjson.loads(row["comment_json"])
+                                posts_dict[row["post_id"]]["comments"].append(comment_data)
                                 chunk_comments += 1
 
                         comments_attached += chunk_comments
@@ -2003,7 +2183,7 @@ class PostgresDatabase:
                             posts_yielded += 1
 
                         chunk_time = time.time() - chunk_start
-                        chunk_rate = len(posts_list) / chunk_time if chunk_time > 0 else 0
+                        len(posts_list) / chunk_time if chunk_time > 0 else 0
 
                         # Progress reporting
                         if chunk_num % 5 == 0 or posts_yielded >= total_posts:
@@ -2024,6 +2204,7 @@ class PostgresDatabase:
                         posts_dict.clear()
                         post_ids.clear()
                         import gc
+
                         gc.collect(generation=0)
 
                     total_time = time.time() - start_time
@@ -2036,10 +2217,11 @@ class PostgresDatabase:
         except Exception as e:
             print_error(f"Chunked scan failed for r/{subreddit}: {e}")
             import traceback
+
             traceback.print_exc()
             return
 
-    def calculate_subreddit_statistics(self, subreddit: str) -> Dict[str, Any]:
+    def calculate_subreddit_statistics(self, subreddit: str) -> dict[str, Any]:
         """Calculate comprehensive statistics for a specific subreddit.
 
         Args:
@@ -2052,30 +2234,30 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Query 1: Basic counts
-                    cur.execute(
-                        "SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)",
-                        (subreddit,)
-                    )
-                    post_count = cur.fetchone()['count']
+                    cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                    post_count = cur.fetchone()["count"]
 
                     cur.execute(
-                        "SELECT COUNT(*) as count FROM comments WHERE LOWER(subreddit) = LOWER(%s)",
-                        (subreddit,)
+                        "SELECT COUNT(*) as count FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,)
                     )
-                    comment_count = cur.fetchone()['count']
+                    comment_count = cur.fetchone()["count"]
 
                     # Query 2: Unique authors (from both posts and comments)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT COUNT(DISTINCT author) as count FROM (
                             SELECT author FROM posts WHERE LOWER(subreddit) = LOWER(%s) AND author != '[deleted]'
                             UNION
                             SELECT author FROM comments WHERE LOWER(subreddit) = LOWER(%s) AND author != '[deleted]'
                         ) AS authors
-                    """, (subreddit, subreddit))
-                    unique_authors = cur.fetchone()['count']
+                    """,
+                        (subreddit, subreddit),
+                    )
+                    unique_authors = cur.fetchone()["count"]
 
                     # Query 3: Date ranges and score statistics
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             MIN(created_utc) as earliest_date,
                             MAX(created_utc) as latest_date,
@@ -2085,44 +2267,55 @@ class PostgresDatabase:
                             COUNT(CASE WHEN is_self = false THEN 1 END) as external_urls
                         FROM posts
                         WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
                     post_stats = cur.fetchone()
 
                     # Query 4: Comment score statistics
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             SUM(score) as total_score,
                             AVG(score) as avg_score
                         FROM comments
                         WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
                     comment_stats = cur.fetchone()
 
                     # Query 5: Deletion statistics
                     # Reddit API behavior:
                     # - User deleted: author = '[deleted]'
                     # - Mod removed: selftext/body = '[removed]' (author stays as username)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             COUNT(CASE WHEN author = '[deleted]' THEN 1 END) as user_deleted_posts,
                             COUNT(CASE WHEN selftext = '[removed]' AND author != '[deleted]' THEN 1 END) as mod_removed_posts
                         FROM posts
                         WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
                     post_deletion = cur.fetchone()
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             COUNT(CASE WHEN author = '[deleted]' THEN 1 END) as user_deleted_comments,
                             COUNT(CASE WHEN body = '[removed]' AND author != '[deleted]' THEN 1 END) as mod_removed_comments
                         FROM comments
                         WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
                     comment_deletion = cur.fetchone()
 
                     # Calculate time span and posts per day
-                    earliest_date = post_stats['earliest_date']
-                    latest_date = post_stats['latest_date']
+                    earliest_date = post_stats["earliest_date"]
+                    latest_date = post_stats["latest_date"]
                     time_span_days = 0
                     posts_per_day = 0.0
 
@@ -2137,79 +2330,79 @@ class PostgresDatabase:
                     mod_removal_rate_posts = 0.0
                     if post_count > 0:
                         user_deletion_rate_posts = round(
-                            (int(post_deletion['user_deleted_posts'] or 0) / post_count) * 100, 1
+                            (int(post_deletion["user_deleted_posts"] or 0) / post_count) * 100, 1
                         )
                         mod_removal_rate_posts = round(
-                            (int(post_deletion['mod_removed_posts'] or 0) / post_count) * 100, 1
+                            (int(post_deletion["mod_removed_posts"] or 0) / post_count) * 100, 1
                         )
 
                     user_deletion_rate_comments = 0.0
                     mod_removal_rate_comments = 0.0
                     if comment_count > 0:
                         user_deletion_rate_comments = round(
-                            (int(comment_deletion['user_deleted_comments'] or 0) / comment_count) * 100, 1
+                            (int(comment_deletion["user_deleted_comments"] or 0) / comment_count) * 100, 1
                         )
                         mod_removal_rate_comments = round(
-                            (int(comment_deletion['mod_removed_comments'] or 0) / comment_count) * 100, 1
+                            (int(comment_deletion["mod_removed_comments"] or 0) / comment_count) * 100, 1
                         )
 
                     return {
-                        'archived_posts': post_count,
-                        'total_posts': post_count,  # Alias for dashboard compatibility
-                        'archived_comments': comment_count,
-                        'total_comments': comment_count,  # Alias for dashboard compatibility
-                        'unique_authors': unique_authors,
-                        'unique_users': unique_authors,  # Alias for dashboard compatibility
-                        'total_score': int(post_stats['total_score'] or 0),
-                        'avg_post_score': round(float(post_stats['avg_score'] or 0), 2),
-                        'avg_comment_score': round(float(comment_stats['avg_score'] or 0), 2),
-                        'earliest_date': earliest_date,
-                        'latest_date': latest_date,
-                        'time_span_days': time_span_days,  # Now properly an integer
-                        'posts_per_day': posts_per_day,  # Rounded to 2 decimals
-                        'self_posts': int(post_stats['self_posts'] or 0),
-                        'external_urls': int(post_stats['external_urls'] or 0),
-                        'user_deleted_posts': int(post_deletion['user_deleted_posts'] or 0),
-                        'mod_removed_posts': int(post_deletion['mod_removed_posts'] or 0),
-                        'user_deleted_comments': int(comment_deletion['user_deleted_comments'] or 0),
-                        'mod_removed_comments': int(comment_deletion['mod_removed_comments'] or 0),
+                        "archived_posts": post_count,
+                        "total_posts": post_count,  # Alias for dashboard compatibility
+                        "archived_comments": comment_count,
+                        "total_comments": comment_count,  # Alias for dashboard compatibility
+                        "unique_authors": unique_authors,
+                        "unique_users": unique_authors,  # Alias for dashboard compatibility
+                        "total_score": int(post_stats["total_score"] or 0),
+                        "avg_post_score": round(float(post_stats["avg_score"] or 0), 2),
+                        "avg_comment_score": round(float(comment_stats["avg_score"] or 0), 2),
+                        "earliest_date": earliest_date,
+                        "latest_date": latest_date,
+                        "time_span_days": time_span_days,  # Now properly an integer
+                        "posts_per_day": posts_per_day,  # Rounded to 2 decimals
+                        "self_posts": int(post_stats["self_posts"] or 0),
+                        "external_urls": int(post_stats["external_urls"] or 0),
+                        "user_deleted_posts": int(post_deletion["user_deleted_posts"] or 0),
+                        "mod_removed_posts": int(post_deletion["mod_removed_posts"] or 0),
+                        "user_deleted_comments": int(comment_deletion["user_deleted_comments"] or 0),
+                        "mod_removed_comments": int(comment_deletion["mod_removed_comments"] or 0),
                         # NEW: Calculated deletion rate percentages
-                        'user_deletion_rate_posts': user_deletion_rate_posts,
-                        'mod_removal_rate_posts': mod_removal_rate_posts,
-                        'user_deletion_rate_comments': user_deletion_rate_comments,
-                        'mod_removal_rate_comments': mod_removal_rate_comments,
-                        'raw_data_size': 0,  # Placeholder - will be set during save_subreddit_statistics()
-                        'output_size': 0,  # Placeholder - will be updated after HTML generation
+                        "user_deletion_rate_posts": user_deletion_rate_posts,
+                        "mod_removal_rate_posts": mod_removal_rate_posts,
+                        "user_deletion_rate_comments": user_deletion_rate_comments,
+                        "mod_removal_rate_comments": mod_removal_rate_comments,
+                        "raw_data_size": 0,  # Placeholder - will be set during save_subreddit_statistics()
+                        "output_size": 0,  # Placeholder - will be updated after HTML generation
                     }
 
         except Exception as e:
             print_error(f"Failed to calculate subreddit statistics: {e}")
             return {
-                'archived_posts': 0,
-                'total_posts': 0,  # Alias for dashboard compatibility
-                'archived_comments': 0,
-                'total_comments': 0,  # Alias for dashboard compatibility
-                'unique_authors': 0,
-                'unique_users': 0,  # Alias for dashboard compatibility
-                'total_score': 0,
-                'avg_post_score': 0.0,
-                'avg_comment_score': 0.0,
-                'earliest_date': None,
-                'latest_date': None,
-                'time_span_days': 0,
-                'posts_per_day': 0.0,
-                'self_posts': 0,
-                'external_urls': 0,
-                'user_deleted_posts': 0,
-                'mod_removed_posts': 0,
-                'user_deleted_comments': 0,
-                'mod_removed_comments': 0,
-                'user_deletion_rate_posts': 0.0,
-                'mod_removal_rate_posts': 0.0,
-                'user_deletion_rate_comments': 0.0,
-                'mod_removal_rate_comments': 0.0,
-                'raw_data_size': 0,  # Placeholder
-                'output_size': 0,  # Placeholder
+                "archived_posts": 0,
+                "total_posts": 0,  # Alias for dashboard compatibility
+                "archived_comments": 0,
+                "total_comments": 0,  # Alias for dashboard compatibility
+                "unique_authors": 0,
+                "unique_users": 0,  # Alias for dashboard compatibility
+                "total_score": 0,
+                "avg_post_score": 0.0,
+                "avg_comment_score": 0.0,
+                "earliest_date": None,
+                "latest_date": None,
+                "time_span_days": 0,
+                "posts_per_day": 0.0,
+                "self_posts": 0,
+                "external_urls": 0,
+                "user_deleted_posts": 0,
+                "mod_removed_posts": 0,
+                "user_deleted_comments": 0,
+                "mod_removed_comments": 0,
+                "user_deletion_rate_posts": 0.0,
+                "mod_removal_rate_posts": 0.0,
+                "user_deletion_rate_comments": 0.0,
+                "mod_removal_rate_comments": 0.0,
+                "raw_data_size": 0,  # Placeholder
+                "output_size": 0,  # Placeholder
             }
 
     def update_user_statistics(self, subreddit_filter: str = None):
@@ -2279,7 +2472,7 @@ class PostgresDatabase:
         except Exception as e:
             raise PostgresDatabaseError(f"Failed to update user statistics: {e}")
 
-    def get_user_list(self, min_activity: int = 0, subreddit_filter: str = None) -> List[str]:
+    def get_user_list(self, min_activity: int = 0, subreddit_filter: str = None) -> list[str]:
         """Get list of usernames meeting minimum activity threshold.
 
         DEPRECATED: Use stream_user_batches() instead for large user sets (>10K users).
@@ -2328,7 +2521,7 @@ class PostgresDatabase:
                         cur.execute(query, (min_activity,))
 
                     # Return list of usernames
-                    return [row['username'] for row in cur]
+                    return [row["username"] for row in cur]
 
         except Exception as e:
             print_error(f"Failed to get user list: {e}")
@@ -2337,10 +2530,10 @@ class PostgresDatabase:
     def stream_user_batches(
         self,
         min_activity: int = 0,
-        batch_size: Optional[int] = None,
-        subreddit_filter: Optional[str] = None,
-        resume_username: Optional[str] = None
-    ) -> Iterator[List[str]]:
+        batch_size: int | None = None,
+        subreddit_filter: str | None = None,
+        resume_username: str | None = None,
+    ) -> Iterator[list[str]]:
         """
         Stream usernames in batches using server-side cursor (PostgreSQL).
 
@@ -2380,7 +2573,7 @@ class PostgresDatabase:
         """
         # Get batch size from environment or use default
         if batch_size is None:
-            batch_size = int(os.getenv('ARCHIVE_USER_BATCH_SIZE', '2000'))
+            batch_size = int(os.getenv("ARCHIVE_USER_BATCH_SIZE", "2000"))
 
         try:
             with self.pool.get_connection() as conn:
@@ -2389,7 +2582,8 @@ class PostgresDatabase:
                     # Get total count for progress tracking (fast with index)
                     with conn.cursor() as count_cur:
                         if subreddit_filter:
-                            count_cur.execute("""
+                            count_cur.execute(
+                                """
                                 SELECT COUNT(DISTINCT username) FROM users
                                 WHERE (post_count + comment_count) >= %s
                                 AND username IN (
@@ -2397,14 +2591,19 @@ class PostgresDatabase:
                                     UNION
                                     SELECT DISTINCT author FROM comments WHERE LOWER(subreddit) = LOWER(%s)
                                 )
-                            """, (min_activity, subreddit_filter.lower(), subreddit_filter.lower()))
+                            """,
+                                (min_activity, subreddit_filter.lower(), subreddit_filter.lower()),
+                            )
                         else:
-                            count_cur.execute("""
+                            count_cur.execute(
+                                """
                                 SELECT COUNT(*) FROM users
                                 WHERE (post_count + comment_count) >= %s
-                            """, (min_activity,))
+                            """,
+                                (min_activity,),
+                            )
 
-                        total_users = count_cur.fetchone()['count']
+                        total_users = count_cur.fetchone()["count"]
                         print_info(f"Streaming {total_users:,} users in batches of {batch_size}")
 
                     # Build query with keyset pagination (WHERE username > ?)
@@ -2437,7 +2636,7 @@ class PostgresDatabase:
                     query += " ORDER BY username"
 
                     # Create server-side cursor (named cursor)
-                    with conn.cursor(name='user_stream_cursor') as cur:
+                    with conn.cursor(name="user_stream_cursor") as cur:
                         cur.execute(query, params)
 
                         processed = 0
@@ -2448,7 +2647,7 @@ class PostgresDatabase:
                                 break
 
                             # Extract usernames from rows
-                            usernames = [row['username'] for row in batch]
+                            usernames = [row["username"] for row in batch]
                             processed += len(usernames)
 
                             # Progress output every 10K users
@@ -2461,10 +2660,13 @@ class PostgresDatabase:
         except Exception as e:
             print_error(f"User streaming failed: {e}")
             import traceback
+
             traceback.print_exc()
             return
 
-    def get_user_activity(self, username: str, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False) -> Dict[str, Any]:
+    def get_user_activity(
+        self, username: str, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False
+    ) -> dict[str, Any]:
         """Get combined posts and comments for a specific user.
 
         Args:
@@ -2477,85 +2679,97 @@ class PostgresDatabase:
             Dictionary with posts, comments, and all_content lists
         """
         try:
-            user_data = {
-                'posts': [],
-                'comments': [],
-                'all_content': []
-            }
+            user_data = {"posts": [], "comments": [], "all_content": []}
 
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Get all posts by user (with optional filtering)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT json_data::text FROM posts
                         WHERE author = %s
                           AND score >= %s
                           AND num_comments >= %s
                           AND (NOT %s OR (author != '[deleted]' AND COALESCE(selftext, '') NOT IN ('[deleted]', '[removed]')))
                         ORDER BY created_utc DESC
-                    """, (username, min_score, min_comments, hide_deleted))
+                    """,
+                        (username, min_score, min_comments, hide_deleted),
+                    )
 
                     for row in cur:
                         try:
-                            post_data = orjson.loads(row['json_data'])
-                            post_data['type'] = 'post'  # Add type field for HTML generation
-                            user_data['posts'].append(post_data)
-                            user_data['all_content'].append(post_data)
+                            post_data = orjson.loads(row["json_data"])
+                            post_data["type"] = "post"  # Add type field for HTML generation
+                            user_data["posts"].append(post_data)
+                            user_data["all_content"].append(post_data)
                         except Exception as e:
                             print_error(f"Failed to parse post JSON: {e}")
                             continue
 
                     # Get all comments by user (with optional filtering)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT json_data::text FROM comments
                         WHERE author = %s
                           AND score >= %s
                           AND (NOT %s OR (body NOT IN ('[deleted]', '[removed]')))
                         ORDER BY created_utc DESC
-                    """, (username, min_score, hide_deleted))
+                    """,
+                        (username, min_score, hide_deleted),
+                    )
 
                     for row in cur:
                         try:
-                            comment_data = orjson.loads(row['json_data'])
-                            comment_data['type'] = 'comment'  # Add type field for HTML generation
-                            user_data['comments'].append(comment_data)
-                            user_data['all_content'].append(comment_data)
+                            comment_data = orjson.loads(row["json_data"])
+                            comment_data["type"] = "comment"  # Add type field for HTML generation
+                            user_data["comments"].append(comment_data)
+                            user_data["all_content"].append(comment_data)
                         except Exception as e:
                             print_error(f"Failed to parse comment JSON: {e}")
                             continue
 
                     # Batch load post titles for all comments (same as get_user_activity_batch)
                     post_ids = set()
-                    for comment in user_data['comments']:
-                        post_id = comment.get('link_id', '').replace('t3_', '')
+                    for comment in user_data["comments"]:
+                        post_id = comment.get("link_id", "").replace("t3_", "")
                         if post_id:
                             post_ids.add(post_id)
 
                     # Query all post titles in ONE query
                     if post_ids:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT id, title FROM posts WHERE id = ANY(%s)
-                        """, (list(post_ids),))
-                        post_titles = {row['id']: row['title'] for row in cur}
+                        """,
+                            (list(post_ids),),
+                        )
+                        post_titles = {row["id"]: row["title"] for row in cur}
 
                         # Apply titles to all comments
-                        for comment in user_data['comments']:
-                            post_id = comment.get('link_id', '').replace('t3_', '')
+                        for comment in user_data["comments"]:
+                            post_id = comment.get("link_id", "").replace("t3_", "")
                             if post_id and post_id in post_titles:
-                                comment['link_title'] = post_titles[post_id]
+                                comment["link_title"] = post_titles[post_id]
                             else:
-                                comment['link_title'] = 'Post Title'  # Fallback
+                                comment["link_title"] = "Post Title"  # Fallback
 
                     # Sort all_content by created_utc for chronological order
-                    user_data['all_content'].sort(key=lambda x: x.get('created_utc', 0), reverse=True)
+                    user_data["all_content"].sort(key=lambda x: x.get("created_utc", 0), reverse=True)
 
                     return user_data
 
         except Exception as e:
             print_error(f"Failed to get user activity for {username}: {e}")
-            return {'posts': [], 'comments': [], 'all_content': []}
+            return {"posts": [], "comments": [], "all_content": []}
 
-    def get_user_activity_batch(self, usernames: List[str], subreddit_filter: str = None, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False) -> Dict[str, Dict[str, Any]]:
+    def get_user_activity_batch(
+        self,
+        usernames: list[str],
+        subreddit_filter: str = None,
+        min_score: int = 0,
+        min_comments: int = 0,
+        hide_deleted: bool = False,
+    ) -> dict[str, dict[str, Any]]:
         """Get combined posts and comments for multiple users efficiently.
 
         This method queries activity for multiple users in a single batch operation,
@@ -2577,41 +2791,47 @@ class PostgresDatabase:
 
         try:
             # Initialize result dictionary for all users
-            user_activities = {username: {'posts': [], 'comments': [], 'all_content': []} for username in usernames}
+            user_activities = {username: {"posts": [], "comments": [], "all_content": []} for username in usernames}
 
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Build query with optional subreddit filter and content filters
                     if subreddit_filter:
                         # Query posts for all users in batch with subreddit filter
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT author, json_data::text FROM posts
                             WHERE author = ANY(%s) AND subreddit = %s
                               AND score >= %s
                               AND num_comments >= %s
                               AND (NOT %s OR (author != '[deleted]' AND COALESCE(selftext, '') NOT IN ('[deleted]', '[removed]')))
                             ORDER BY author, created_utc DESC
-                        """, (usernames, subreddit_filter.lower(), min_score, min_comments, hide_deleted))
+                        """,
+                            (usernames, subreddit_filter.lower(), min_score, min_comments, hide_deleted),
+                        )
                     else:
                         # Query posts for all users in batch
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT author, json_data::text FROM posts
                             WHERE author = ANY(%s)
                               AND score >= %s
                               AND num_comments >= %s
                               AND (NOT %s OR (author != '[deleted]' AND COALESCE(selftext, '') NOT IN ('[deleted]', '[removed]')))
                             ORDER BY author, created_utc DESC
-                        """, (usernames, min_score, min_comments, hide_deleted))
+                        """,
+                            (usernames, min_score, min_comments, hide_deleted),
+                        )
 
                     # Group posts by author
                     for row in cur:
-                        username = row['author']
+                        username = row["author"]
                         if username in user_activities:
                             try:
-                                post_data = orjson.loads(row['json_data'])
-                                post_data['type'] = 'post'  # Add type field for HTML generation
-                                user_activities[username]['posts'].append(post_data)
-                                user_activities[username]['all_content'].append(post_data)
+                                post_data = orjson.loads(row["json_data"])
+                                post_data["type"] = "post"  # Add type field for HTML generation
+                                user_activities[username]["posts"].append(post_data)
+                                user_activities[username]["all_content"].append(post_data)
                             except Exception as e:
                                 print_error(f"Failed to parse post JSON for {username}: {e}")
                                 continue
@@ -2619,33 +2839,39 @@ class PostgresDatabase:
                     # Build query for comments with optional subreddit filter and content filters
                     if subreddit_filter:
                         # Query comments for all users in batch with subreddit filter
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT author, json_data::text FROM comments
                             WHERE author = ANY(%s) AND subreddit = %s
                               AND score >= %s
                               AND (NOT %s OR (body NOT IN ('[deleted]', '[removed]')))
                             ORDER BY author, created_utc DESC
-                        """, (usernames, subreddit_filter.lower(), min_score, hide_deleted))
+                        """,
+                            (usernames, subreddit_filter.lower(), min_score, hide_deleted),
+                        )
                     else:
                         # Query comments for all users in batch
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT author, json_data::text FROM comments
                             WHERE author = ANY(%s)
                               AND score >= %s
                               AND (NOT %s OR (body NOT IN ('[deleted]', '[removed]')))
                             ORDER BY author, created_utc DESC
-                        """, (usernames, min_score, hide_deleted))
+                        """,
+                            (usernames, min_score, hide_deleted),
+                        )
 
                     # Group comments by author
                     for row in cur:
-                        username = row['author']
+                        username = row["author"]
                         if username in user_activities:
                             try:
-                                comment_data = orjson.loads(row['json_data'])
-                                comment_data['type'] = 'comment'  # Add type field for HTML generation
+                                comment_data = orjson.loads(row["json_data"])
+                                comment_data["type"] = "comment"  # Add type field for HTML generation
 
-                                user_activities[username]['comments'].append(comment_data)
-                                user_activities[username]['all_content'].append(comment_data)
+                                user_activities[username]["comments"].append(comment_data)
+                                user_activities[username]["all_content"].append(comment_data)
                             except Exception as e:
                                 print_error(f"Failed to parse comment JSON for {username}: {e}")
                                 continue
@@ -2654,34 +2880,36 @@ class PostgresDatabase:
                     # Collect all unique post IDs from comments
                     post_ids = set()
                     for username, user_data in user_activities.items():
-                        for comment in user_data['comments']:
-                            post_id = comment.get('link_id', '').replace('t3_', '')
+                        for comment in user_data["comments"]:
+                            post_id = comment.get("link_id", "").replace("t3_", "")
                             if post_id:
                                 post_ids.add(post_id)
 
                     # Batch query all post titles in ONE query
                     post_titles = {}
                     if post_ids:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT id, title FROM posts WHERE id = ANY(%s)
-                        """, (list(post_ids),))
+                        """,
+                            (list(post_ids),),
+                        )
                         for row in cur:
-                            post_titles[row['id']] = row['title']
+                            post_titles[row["id"]] = row["title"]
 
                     # Apply titles to all comments
                     for username, user_data in user_activities.items():
-                        for comment in user_data['comments']:
-                            post_id = comment.get('link_id', '').replace('t3_', '')
+                        for comment in user_data["comments"]:
+                            post_id = comment.get("link_id", "").replace("t3_", "")
                             if post_id and post_id in post_titles:
-                                comment['link_title'] = post_titles[post_id]
+                                comment["link_title"] = post_titles[post_id]
                             else:
-                                comment['link_title'] = 'Post Title'  # Fallback
+                                comment["link_title"] = "Post Title"  # Fallback
 
                     # Sort all_content by created_utc for chronological order (newest first)
                     for username in user_activities:
-                        user_activities[username]['all_content'].sort(
-                            key=lambda x: x.get('created_utc', 0),
-                            reverse=True
+                        user_activities[username]["all_content"].sort(
+                            key=lambda x: x.get("created_utc", 0), reverse=True
                         )
 
                     return user_activities
@@ -2689,10 +2917,11 @@ class PostgresDatabase:
         except Exception as e:
             print_error(f"Failed to get user activity batch: {e}")
             # Return empty data for all requested users
-            return {username: {'posts': [], 'comments': [], 'all_content': []} for username in usernames}
+            return {username: {"posts": [], "comments": [], "all_content": []} for username in usernames}
 
-    def link_posts_to_users(self, user_db_path: str,
-                           progress_callback: Optional[Callable[[Dict], None]] = None) -> Dict[str, int]:
+    def link_posts_to_users(
+        self, user_db_path: str, progress_callback: Callable[[dict], None] | None = None
+    ) -> dict[str, int]:
         """Link posts and comments to user database (compatibility method for redarch.py).
 
         This method is a compatibility stub - PostgresDatabase already has unified user tracking
@@ -2713,34 +2942,23 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT COUNT(*) as count FROM users")
-                    user_count = cur.fetchone()['count']
+                    user_count = cur.fetchone()["count"]
 
                     cur.execute("SELECT COUNT(*) as count FROM posts")
-                    post_count = cur.fetchone()['count']
+                    post_count = cur.fetchone()["count"]
 
                     cur.execute("SELECT COUNT(*) as count FROM comments")
-                    comment_count = cur.fetchone()['count']
+                    comment_count = cur.fetchone()["count"]
 
             # Call progress callback if provided
             if progress_callback:
-                progress_callback({
-                    'processed': user_count,
-                    'total': user_count
-                })
+                progress_callback({"processed": user_count, "total": user_count})
 
-            return {
-                'users_processed': user_count,
-                'posts_linked': post_count,
-                'comments_linked': comment_count
-            }
+            return {"users_processed": user_count, "posts_linked": post_count, "comments_linked": comment_count}
 
         except Exception as e:
             print_error(f"Failed to link posts to users: {e}")
-            return {
-                'users_processed': 0,
-                'posts_linked': 0,
-                'comments_linked': 0
-            }
+            return {"users_processed": 0, "posts_linked": 0, "comments_linked": 0}
 
     def sync_transactions(self) -> bool:
         """Ensure all pending transactions are committed and visible.
@@ -2765,7 +2983,7 @@ class PostgresDatabase:
             print_error(f"Failed to sync database transactions: {e}")
             return False
 
-    def analyze_tables(self, tables: List[str] = None) -> bool:
+    def analyze_tables(self, tables: list[str] = None) -> bool:
         """Run ANALYZE on specified tables to update query planner statistics.
 
         Should be called after bulk insert operations complete to ensure optimal
@@ -2786,7 +3004,7 @@ class PostgresDatabase:
             db.analyze_tables(['posts', 'comments', 'users'])
         """
         if tables is None:
-            tables = ['posts', 'comments', 'users']
+            tables = ["posts", "comments", "users"]
 
         try:
             start_time = time.time()
@@ -2804,7 +3022,7 @@ class PostgresDatabase:
                 conn.commit()
 
             total_time = time.time() - start_time
-            tables_str = ', '.join(tables)
+            tables_str = ", ".join(tables)
             print_success(f"Database statistics updated for {tables_str} in {total_time:.2f}s")
             return True
 
@@ -2834,30 +3052,29 @@ class PostgresDatabase:
         # All indexes from sql/indexes.sql
         indexes_to_drop = [
             # Posts table indexes
-            'idx_posts_subreddit',
-            'idx_posts_subreddit_score',
-            'idx_posts_subreddit_comments',
-            'idx_posts_subreddit_created',
-            'idx_posts_author',
-            'idx_posts_author_subreddit',
-            'idx_posts_permalink',
-            'idx_posts_created_utc_brin',
-            'idx_posts_search',
-            'idx_posts_author_search',
-            'idx_posts_json_data',
-
+            "idx_posts_subreddit",
+            "idx_posts_subreddit_score",
+            "idx_posts_subreddit_comments",
+            "idx_posts_subreddit_created",
+            "idx_posts_author",
+            "idx_posts_author_subreddit",
+            "idx_posts_permalink",
+            "idx_posts_created_utc_brin",
+            "idx_posts_search",
+            "idx_posts_author_search",
+            "idx_posts_json_data",
             # Comments table indexes
-            'idx_comments_subreddit',
-            'idx_comments_post_id',
-            'idx_comments_parent_id',
-            'idx_comments_author',
-            'idx_comments_author_subreddit',
-            'idx_comments_subreddit_created',
-            'idx_comments_permalink',
-            'idx_comments_created_utc_brin',
-            'idx_comments_search',
-            'idx_comments_author_search',
-            'idx_comments_json_data'
+            "idx_comments_subreddit",
+            "idx_comments_post_id",
+            "idx_comments_parent_id",
+            "idx_comments_author",
+            "idx_comments_author_subreddit",
+            "idx_comments_subreddit_created",
+            "idx_comments_permalink",
+            "idx_comments_created_utc_brin",
+            "idx_comments_search",
+            "idx_comments_author_search",
+            "idx_comments_json_data",
         ]
 
         try:
@@ -2877,10 +3094,12 @@ class PostgresDatabase:
 
             # Disable index auto-creation globally via environment variable
             # This affects ALL PostgresDatabase instances to prevent setup_schema() from recreating indexes
-            os.environ['ARCHIVE_SKIP_INDEX_CREATION'] = 'true'
+            os.environ["ARCHIVE_SKIP_INDEX_CREATION"] = "true"
 
             drop_time = time.time() - start_time
-            print_success(f"Dropped {dropped_count}/{len(indexes_to_drop)} indexes for bulk loading in {drop_time:.2f}s")
+            print_success(
+                f"Dropped {dropped_count}/{len(indexes_to_drop)} indexes for bulk loading in {drop_time:.2f}s"
+            )
             print_info("Import performance will be 10-15x faster without index overhead")
             return True
 
@@ -2913,22 +3132,23 @@ class PostgresDatabase:
             start_time = time.time()
 
             # Read indexes.sql file
-            indexes_file = os.path.join(os.path.dirname(__file__), 'sql', 'indexes.sql')
+            indexes_file = os.path.join(os.path.dirname(__file__), "sql", "indexes.sql")
             if not os.path.exists(indexes_file):
                 print_error(f"Indexes file not found: {indexes_file}")
                 return False
 
-            with open(indexes_file, 'r') as f:
+            with open(indexes_file) as f:
                 indexes_sql = f.read()
 
             print_info("Creating indexes with parallel workers (this may take 60-90 minutes for large datasets)...")
 
             # Parse SQL file to time individual index creation
             import re
+
             index_statements = []
-            for statement in indexes_sql.split(';'):
+            for statement in indexes_sql.split(";"):
                 statement = statement.strip()
-                if statement and statement.upper().startswith('CREATE INDEX'):
+                if statement and statement.upper().startswith("CREATE INDEX"):
                     index_statements.append(statement)
 
             with self.pool.get_connection() as conn:
@@ -2940,11 +3160,11 @@ class PostgresDatabase:
                     # Execute index creation statements individually with timing
                     for statement in index_statements:
                         # Extract index name for logging
-                        match = re.search(r'CREATE INDEX (?:IF NOT EXISTS )?(\w+)', statement, re.IGNORECASE)
+                        match = re.search(r"CREATE INDEX (?:IF NOT EXISTS )?(\w+)", statement, re.IGNORECASE)
                         index_name = match.group(1) if match else "unknown"
 
                         stmt_start = time.time()
-                        cur.execute(statement + ';')
+                        cur.execute(statement + ";")
                         stmt_time = time.time() - stmt_start
 
                         # Log slow index creation (>1s)
@@ -2954,19 +3174,18 @@ class PostgresDatabase:
 
                     # Execute remaining statements (ANALYZE, COMMENT, etc.)
                     remaining_sql = []
-                    in_create_index = False
-                    for statement in indexes_sql.split(';'):
+                    for statement in indexes_sql.split(";"):
                         statement = statement.strip()
-                        if statement and not statement.upper().startswith('CREATE INDEX'):
+                        if statement and not statement.upper().startswith("CREATE INDEX"):
                             remaining_sql.append(statement)
 
                     if remaining_sql:
-                        cur.execute(';\n'.join(remaining_sql) + ';')
+                        cur.execute(";\n".join(remaining_sql) + ";")
 
                 conn.commit()
 
             # Re-enable index auto-creation globally
-            os.environ['ARCHIVE_SKIP_INDEX_CREATION'] = 'false'
+            os.environ["ARCHIVE_SKIP_INDEX_CREATION"] = "false"
 
             creation_time = time.time() - start_time
             print_success(f"All indexes created successfully in {creation_time:.2f}s")
@@ -3039,43 +3258,48 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Build dynamic UPDATE query based on provided metrics
-                    update_fields = ['status = %s', 'updated_at = NOW()']
+                    update_fields = ["status = %s", "updated_at = NOW()"]
                     params = [status]
 
                     # Map metric names to column names
                     valid_metrics = {
-                        'import_started_at', 'import_completed_at',
-                        'export_started_at', 'export_completed_at',
-                        'posts_imported', 'comments_imported',
-                        'posts_exported', 'pages_generated',
-                        'error_message', 'metadata'
+                        "import_started_at",
+                        "import_completed_at",
+                        "export_started_at",
+                        "export_completed_at",
+                        "posts_imported",
+                        "comments_imported",
+                        "posts_exported",
+                        "pages_generated",
+                        "error_message",
+                        "metadata",
                     }
 
                     # Determine platform from posts (for multi-platform support)
                     cur.execute("SELECT platform FROM posts WHERE subreddit = %s LIMIT 1", (subreddit,))
                     platform_row = cur.fetchone()
-                    platform = platform_row['platform'] if platform_row else 'reddit'
+                    platform = platform_row["platform"] if platform_row else "reddit"
 
                     # Build INSERT columns and values for metrics
-                    insert_columns = ['subreddit', 'platform', 'status', 'updated_at']
-                    insert_values = ['%s', '%s', '%s', 'NOW()']
+                    insert_columns = ["subreddit", "platform", "status", "updated_at"]
+                    insert_values = ["%s", "%s", "%s", "NOW()"]
                     insert_params = [subreddit, platform, status]
 
                     for key, value in metrics.items():
                         if key in valid_metrics:
                             # Convert dict to Jsonb for PostgreSQL JSONB columns
-                            if key == 'metadata' and isinstance(value, dict):
+                            if key == "metadata" and isinstance(value, dict):
                                 value = Jsonb(value)
-                            update_fields.append(f'{key} = %s')
+                            update_fields.append(f"{key} = %s")
                             params.append(value)
                             insert_columns.append(key)
-                            insert_values.append('%s')
+                            insert_values.append("%s")
                             insert_params.append(value)
 
                     # Construct full query
-                    update_clause = ', '.join(update_fields)
-                    insert_columns_str = ', '.join(insert_columns)
-                    insert_values_str = ', '.join(insert_values)
+                    update_clause = ", ".join(update_fields)
+                    insert_columns_str = ", ".join(insert_columns)
+                    insert_values_str = ", ".join(insert_values)
 
                     query = f"""
                         INSERT INTO processing_metadata ({insert_columns_str})
@@ -3093,7 +3317,7 @@ class PostgresDatabase:
             print_error(f"Failed to update progress for r/{subreddit}: {e}")
             return False
 
-    def get_progress_status(self, subreddit: str) -> Optional[Dict[str, Any]]:
+    def get_progress_status(self, subreddit: str) -> dict[str, Any] | None:
         """Get processing progress status for a subreddit.
 
         Args:
@@ -3121,10 +3345,13 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT * FROM processing_metadata
                         WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
 
                     row = cur.fetchone()
                     return dict(row) if row else None
@@ -3133,7 +3360,7 @@ class PostgresDatabase:
             print_error(f"Failed to get progress for r/{subreddit}: {e}")
             return None
 
-    def get_pending_subreddits(self, mode: str = 'import') -> List[str]:
+    def get_pending_subreddits(self, mode: str = "import") -> list[str]:
         """Get list of subreddits pending import or export.
 
         Used for resume capability - returns subreddits that haven't completed
@@ -3159,14 +3386,14 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    if mode == 'import':
+                    if mode == "import":
                         # Subreddits not yet imported (pending, importing, or failed)
                         cur.execute("""
                             SELECT subreddit FROM processing_metadata
                             WHERE status IN ('pending', 'importing', 'failed')
                             ORDER BY updated_at DESC
                         """)
-                    elif mode == 'export':
+                    elif mode == "export":
                         # Subreddits imported but not yet exported
                         cur.execute("""
                             SELECT subreddit FROM processing_metadata
@@ -3177,13 +3404,13 @@ class PostgresDatabase:
                         print_error(f"Invalid mode: {mode}. Must be 'import' or 'export'")
                         return []
 
-                    return [row['subreddit'] for row in cur]
+                    return [row["subreddit"] for row in cur]
 
         except Exception as e:
             print_error(f"Failed to get pending subreddits: {e}")
             return []
 
-    def get_all_imported_subreddits(self) -> List[str]:
+    def get_all_imported_subreddits(self) -> list[str]:
         """Get list of all successfully imported subreddits.
 
         For multi-platform archives, falls back to querying posts table
@@ -3202,7 +3429,7 @@ class PostgresDatabase:
                         ORDER BY subreddit
                     """)
 
-                    subreddits = [row['subreddit'] for row in cur]
+                    subreddits = [row["subreddit"] for row in cur]
 
                     # Fallback: query posts table if processing_metadata is empty
                     # (supports multi-platform imports without metadata tracking)
@@ -3212,7 +3439,7 @@ class PostgresDatabase:
                             FROM posts
                             ORDER BY subreddit
                         """)
-                        subreddits = [row['subreddit'] for row in cur]
+                        subreddits = [row["subreddit"] for row in cur]
 
                     return subreddits
 
@@ -3224,8 +3451,7 @@ class PostgresDatabase:
     # PER-SUBREDDIT FILTER STORAGE METHODS
     # ============================================================================
 
-    def save_subreddit_filters(self, subreddit: str, min_score: int = 0,
-                              min_comments: int = 0) -> bool:
+    def save_subreddit_filters(self, subreddit: str, min_score: int = 0, min_comments: int = 0) -> bool:
         """
         Save filter values for a subreddit to processing_metadata.
 
@@ -3249,28 +3475,26 @@ class PostgresDatabase:
             # Get existing metadata or create empty dict
             existing_metadata = {}
             progress = self.get_progress_status(subreddit)
-            if progress and progress.get('metadata'):
-                existing_metadata = progress['metadata']
+            if progress and progress.get("metadata"):
+                existing_metadata = progress["metadata"]
 
             # Update filters in metadata
-            existing_metadata['filters'] = {
-                'min_score': min_score,
-                'min_comments': min_comments,
-                'saved_at': datetime.now().isoformat()
+            existing_metadata["filters"] = {
+                "min_score": min_score,
+                "min_comments": min_comments,
+                "saved_at": datetime.now().isoformat(),
             }
 
             # Save back to database
             return self.update_progress_status(
-                subreddit,
-                progress.get('status', 'pending') if progress else 'pending',
-                metadata=existing_metadata
+                subreddit, progress.get("status", "pending") if progress else "pending", metadata=existing_metadata
             )
 
         except Exception as e:
             print_error(f"Failed to save filters for r/{subreddit}: {e}")
             return False
 
-    def get_subreddit_filters(self, subreddit: str) -> Dict[str, int]:
+    def get_subreddit_filters(self, subreddit: str) -> dict[str, int]:
         """
         Retrieve stored filter values for a subreddit.
 
@@ -3287,22 +3511,22 @@ class PostgresDatabase:
         """
         try:
             progress = self.get_progress_status(subreddit)
-            if progress and progress.get('metadata'):
-                metadata = progress['metadata']
-                if 'filters' in metadata:
+            if progress and progress.get("metadata"):
+                metadata = progress["metadata"]
+                if "filters" in metadata:
                     return {
-                        'min_score': metadata['filters'].get('min_score', 0),
-                        'min_comments': metadata['filters'].get('min_comments', 0)
+                        "min_score": metadata["filters"].get("min_score", 0),
+                        "min_comments": metadata["filters"].get("min_comments", 0),
                     }
 
             # Default: no filters
-            return {'min_score': 0, 'min_comments': 0}
+            return {"min_score": 0, "min_comments": 0}
 
         except Exception as e:
             print_error(f"Failed to get filters for r/{subreddit}: {e}")
-            return {'min_score': 0, 'min_comments': 0}
+            return {"min_score": 0, "min_comments": 0}
 
-    def get_all_subreddit_filters(self) -> Dict[str, Dict[str, int]]:
+    def get_all_subreddit_filters(self) -> dict[str, dict[str, int]]:
         """
         Retrieve stored filter values for all subreddits.
 
@@ -3330,17 +3554,17 @@ class PostgresDatabase:
 
                     result = {}
                     for row in cur:
-                        subreddit = row['subreddit']
-                        metadata = row['metadata'] or {}
+                        subreddit = row["subreddit"]
+                        metadata = row["metadata"] or {}
 
-                        if 'filters' in metadata:
+                        if "filters" in metadata:
                             result[subreddit] = {
-                                'min_score': metadata['filters'].get('min_score', 0),
-                                'min_comments': metadata['filters'].get('min_comments', 0)
+                                "min_score": metadata["filters"].get("min_score", 0),
+                                "min_comments": metadata["filters"].get("min_comments", 0),
                             }
                         else:
                             # Default: no filters
-                            result[subreddit] = {'min_score': 0, 'min_comments': 0}
+                            result[subreddit] = {"min_score": 0, "min_comments": 0}
 
                     return result
 
@@ -3352,8 +3576,9 @@ class PostgresDatabase:
     # SUBREDDIT STATISTICS PERSISTENCE METHODS (DATABASE-FIRST APPROACH)
     # ============================================================================
 
-    def save_subreddit_statistics(self, subreddit: str, stats: Dict[str, Any],
-                                  raw_data_size: int = 0, output_size: int = 0) -> bool:
+    def save_subreddit_statistics(
+        self, subreddit: str, stats: dict[str, Any], raw_data_size: int = 0, output_size: int = 0
+    ) -> bool:
         """Persist calculated statistics to subreddit_statistics table.
 
         This replaces JSON-based statistics storage with database persistence,
@@ -3374,9 +3599,10 @@ class PostgresDatabase:
                     # Determine platform from posts (for multi-platform support)
                     cur.execute("SELECT platform FROM posts WHERE subreddit = %s LIMIT 1", (subreddit,))
                     platform_row = cur.fetchone()
-                    platform = platform_row['platform'] if platform_row else 'reddit'
+                    platform = platform_row["platform"] if platform_row else "reddit"
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO subreddit_statistics (
                             subreddit, platform, total_posts, archived_posts, total_comments,
                             archived_comments, unique_users, self_posts, external_urls,
@@ -3418,34 +3644,36 @@ class PostgresDatabase:
                             raw_data_size = EXCLUDED.raw_data_size,
                             output_size = EXCLUDED.output_size,
                             updated_at = NOW()
-                    """, (
-                        subreddit,
-                        platform,
-                        stats.get('total_posts', 0),
-                        stats.get('archived_posts', 0),
-                        stats.get('total_comments', 0),
-                        stats.get('archived_comments', 0),
-                        stats.get('unique_users', 0),
-                        stats.get('self_posts', 0),
-                        stats.get('external_urls', 0),
-                        stats.get('user_deleted_posts', 0),
-                        stats.get('mod_removed_posts', 0),
-                        stats.get('user_deleted_comments', 0),
-                        stats.get('mod_removed_comments', 0),
-                        stats.get('user_deletion_rate_posts', 0.0),
-                        stats.get('mod_removal_rate_posts', 0.0),
-                        stats.get('user_deletion_rate_comments', 0.0),
-                        stats.get('mod_removal_rate_comments', 0.0),
-                        stats.get('earliest_date'),
-                        stats.get('latest_date'),
-                        stats.get('time_span_days', 0),
-                        stats.get('posts_per_day', 0.0),
-                        stats.get('total_score', 0),
-                        stats.get('avg_post_score', 0.0),
-                        stats.get('avg_comment_score', 0.0),
-                        raw_data_size,
-                        output_size
-                    ))
+                    """,
+                        (
+                            subreddit,
+                            platform,
+                            stats.get("total_posts", 0),
+                            stats.get("archived_posts", 0),
+                            stats.get("total_comments", 0),
+                            stats.get("archived_comments", 0),
+                            stats.get("unique_users", 0),
+                            stats.get("self_posts", 0),
+                            stats.get("external_urls", 0),
+                            stats.get("user_deleted_posts", 0),
+                            stats.get("mod_removed_posts", 0),
+                            stats.get("user_deleted_comments", 0),
+                            stats.get("mod_removed_comments", 0),
+                            stats.get("user_deletion_rate_posts", 0.0),
+                            stats.get("mod_removal_rate_posts", 0.0),
+                            stats.get("user_deletion_rate_comments", 0.0),
+                            stats.get("mod_removal_rate_comments", 0.0),
+                            stats.get("earliest_date"),
+                            stats.get("latest_date"),
+                            stats.get("time_span_days", 0),
+                            stats.get("posts_per_day", 0.0),
+                            stats.get("total_score", 0),
+                            stats.get("avg_post_score", 0.0),
+                            stats.get("avg_comment_score", 0.0),
+                            raw_data_size,
+                            output_size,
+                        ),
+                    )
                     conn.commit()
 
             print_success(f"Statistics persisted to database for r/{subreddit}")
@@ -3455,7 +3683,7 @@ class PostgresDatabase:
             print_error(f"Failed to save statistics for r/{subreddit}: {e}")
             return False
 
-    def get_subreddit_statistics_from_db(self, subreddit: str) -> Optional[Dict[str, Any]]:
+    def get_subreddit_statistics_from_db(self, subreddit: str) -> dict[str, Any] | None:
         """Retrieve statistics from subreddit_statistics table.
 
         Args:
@@ -3467,9 +3695,12 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT * FROM subreddit_statistics WHERE LOWER(subreddit) = LOWER(%s)
-                    """, (subreddit,))
+                    """,
+                        (subreddit,),
+                    )
 
                     row = cur.fetchone()
                     return dict(row) if row else None
@@ -3478,7 +3709,7 @@ class PostgresDatabase:
             print_error(f"Failed to get statistics for r/{subreddit}: {e}")
             return None
 
-    def get_all_subreddit_statistics_from_db(self) -> List[Dict[str, Any]]:
+    def get_all_subreddit_statistics_from_db(self) -> list[dict[str, Any]]:
         """Retrieve all subreddit statistics for index page generation.
 
         Returns:
@@ -3498,8 +3729,7 @@ class PostgresDatabase:
             print_error(f"Failed to get all statistics: {e}")
             return []
 
-    def update_statistics_file_sizes(self, subreddit: str, raw_data_size: int = None,
-                                    output_size: int = None) -> bool:
+    def update_statistics_file_sizes(self, subreddit: str, raw_data_size: int = None, output_size: int = None) -> bool:
         """Update file sizes after HTML generation completes.
 
         Args:
@@ -3516,18 +3746,18 @@ class PostgresDatabase:
             params = []
 
             if raw_data_size is not None:
-                update_fields.append('raw_data_size = %s')
+                update_fields.append("raw_data_size = %s")
                 params.append(raw_data_size)
 
             if output_size is not None:
-                update_fields.append('output_size = %s')
+                update_fields.append("output_size = %s")
                 params.append(output_size)
 
             if not update_fields:
                 print_warning(f"No file sizes provided to update for r/{subreddit}")
                 return False
 
-            update_fields.append('updated_at = NOW()')
+            update_fields.append("updated_at = NOW()")
             params.append(subreddit)
 
             with self.pool.get_connection() as conn:
@@ -3572,14 +3802,14 @@ def get_postgres_connection_string() -> str:
         PostgreSQL connection string
     """
     # Check for full connection string
-    if 'DATABASE_URL' in os.environ:
-        return os.environ['DATABASE_URL']
+    if "DATABASE_URL" in os.environ:
+        return os.environ["DATABASE_URL"]
 
     # Build from components
-    host = os.environ.get('POSTGRES_HOST', 'localhost')
-    port = os.environ.get('POSTGRES_PORT', '5432')
-    database = os.environ.get('POSTGRES_DB', 'archive_db')
-    user = os.environ.get('POSTGRES_USER', 'archive_db')
-    password = os.environ.get('POSTGRES_PASSWORD', 'changeme')
+    host = os.environ.get("POSTGRES_HOST", "localhost")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    database = os.environ.get("POSTGRES_DB", "archive_db")
+    user = os.environ.get("POSTGRES_USER", "archive_db")
+    password = os.environ.get("POSTGRES_PASSWORD", "changeme")
 
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"

@@ -4,10 +4,11 @@ ABOUTME: Generate web-optimized favicons from source images.
 ABOUTME: Creates favicon.ico, favicon.svg, apple-touch-icon.png, favicon-192.png, favicon-512.png
 """
 
-from PIL import Image
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
+
+from PIL import Image
 
 
 def process_favicons(source_dir: Path, output_dir: Path):
@@ -46,15 +47,10 @@ def process_favicons(source_dir: Path, output_dir: Path):
 
     # Android icons (192x192, 512x512)
     print("Generating Android icons...")
-    img_512.resize((192, 192), Image.Resampling.LANCZOS).save(
-        output_dir / "favicon-192.png", optimize=True
-    )
+    img_512.resize((192, 192), Image.Resampling.LANCZOS).save(output_dir / "favicon-192.png", optimize=True)
     print("✓ favicon-192.png")
 
-    shutil.copy(
-        source_dir / "512x512-noun-folder-650-FF001C.png",
-        output_dir / "favicon-512.png"
-    )
+    shutil.copy(source_dir / "512x512-noun-folder-650-FF001C.png", output_dir / "favicon-512.png")
     print("✓ favicon-512.png")
 
     # Multi-resolution favicon.ico (16x16, 32x32, 48x48)
@@ -64,10 +60,7 @@ def process_favicons(source_dir: Path, output_dir: Path):
 
     # Save as ICO with all sizes
     icons[0].save(
-        output_dir / "favicon.ico",
-        format="ICO",
-        sizes=[(16, 16), (32, 32), (48, 48)],
-        append_images=icons[1:]
+        output_dir / "favicon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48)], append_images=icons[1:]
     )
     print("✓ favicon.ico (16x16, 32x32, 48x48)")
 

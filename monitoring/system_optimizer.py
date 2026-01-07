@@ -1,17 +1,20 @@
 # ABOUTME: System resource optimizer for automatic performance configuration
 # ABOUTME: Detects optimal settings based on available hardware without user configuration
 
-import psutil
 import os
 import platform
-from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
-from utils.console_output import print_info, print_success, print_warning
+from typing import Any
+
+import psutil
+
+from utils.console_output import print_info, print_success
 
 
 @dataclass
 class SystemProfile:
     """System performance profile with automatically detected optimal settings."""
+
     memory_limit_gb: float
     max_db_connections: int
     max_parallel_workers: int
@@ -24,6 +27,7 @@ class SystemProfile:
 @dataclass
 class SystemCapabilities:
     """Raw system capabilities detected from hardware."""
+
     total_memory_gb: float
     available_memory_gb: float
     cpu_cores: int
@@ -74,7 +78,7 @@ class SystemResourceDetector:
             cpu_frequency_ghz=cpu_frequency_ghz,
             storage_type=storage_type,
             platform=platform_name,
-            architecture=architecture
+            architecture=architecture,
         )
 
     def _detect_storage_type(self) -> str:
@@ -82,24 +86,24 @@ class SystemResourceDetector:
         try:
             # Check for common SSD indicators on Linux
             current_platform = platform.system().lower()
-            if current_platform == 'linux':
+            if current_platform == "linux":
                 # Check /sys/block for rotational devices
                 for disk in psutil.disk_partitions():
                     try:
-                        device = disk.device.split('/')[-1].rstrip('0123456789')
-                        rotational_file = f'/sys/block/{device}/queue/rotational'
+                        device = disk.device.split("/")[-1].rstrip("0123456789")
+                        rotational_file = f"/sys/block/{device}/queue/rotational"
                         if os.path.exists(rotational_file):
-                            with open(rotational_file, 'r') as f:
-                                if f.read().strip() == '0':
-                                    return 'ssd'
+                            with open(rotational_file) as f:
+                                if f.read().strip() == "0":
+                                    return "ssd"
                     except:
                         continue
-                return 'hdd'  # Default assumption for Linux
+                return "hdd"  # Default assumption for Linux
             else:
                 # For non-Linux systems, assume SSD (modern default)
-                return 'ssd'
+                return "ssd"
         except:
-            return 'unknown'
+            return "unknown"
 
     def _create_optimal_profile(self) -> SystemProfile:
         """Create optimal performance profile based on detected capabilities."""
@@ -130,7 +134,7 @@ class SystemResourceDetector:
             performance_target=performance_target,
             batch_size_hint=batch_size_hint,
             profile_name=profile_name,
-            confidence_score=confidence_score
+            confidence_score=confidence_score,
         )
 
     def _calculate_optimal_db_connections(self) -> int:
@@ -147,7 +151,7 @@ class SystemResourceDetector:
             base_connections = min(15, base_connections + 2)  # High memory
 
         # Storage adjustment
-        if caps.storage_type == 'ssd':
+        if caps.storage_type == "ssd":
             base_connections = min(15, base_connections + 1)  # SSD can handle more concurrent I/O
 
         return max(2, min(15, base_connections))
@@ -180,7 +184,7 @@ class SystemResourceDetector:
         memory_multiplier = min(2.0, caps.available_memory_gb / 4.0)
 
         # Storage adjustment
-        storage_multiplier = 1.5 if caps.storage_type == 'ssd' else 1.0
+        storage_multiplier = 1.5 if caps.storage_type == "ssd" else 1.0
 
         target = base_target * cpu_multiplier * memory_multiplier * storage_multiplier
 
@@ -203,7 +207,7 @@ class SystemResourceDetector:
         # Round to nearest 50 for cleaner values
         return ((batch_size + 25) // 50) * 50
 
-    def _classify_system_profile(self) -> Tuple[str, float]:
+    def _classify_system_profile(self) -> tuple[str, float]:
         """Classify system into performance profile with confidence score."""
         caps = self.capabilities
 
@@ -211,7 +215,7 @@ class SystemResourceDetector:
         memory_score = min(3.0, caps.available_memory_gb / 2.0)
         cpu_score = min(4.0, caps.cpu_cores / 2.0)
         frequency_score = min(2.0, caps.cpu_frequency_ghz / 2.0)
-        storage_score = 1.0 if caps.storage_type == 'ssd' else 0.5
+        storage_score = 1.0 if caps.storage_type == "ssd" else 0.5
 
         total_score = memory_score + cpu_score + frequency_score + storage_score
 
@@ -240,8 +244,12 @@ class SystemResourceDetector:
 
         print_info("🔍 System Analysis Results:")
         print_info(f"  Hardware Profile: {profile.profile_name} (confidence: {profile.confidence_score:.1%})", indent=1)
-        print_info(f"  CPU: {caps.cpu_cores} cores @ {caps.cpu_frequency_ghz:.1f}GHz ({caps.cpu_threads} threads)", indent=1)
-        print_info(f"  Memory: {caps.available_memory_gb:.1f}GB available / {caps.total_memory_gb:.1f}GB total", indent=1)
+        print_info(
+            f"  CPU: {caps.cpu_cores} cores @ {caps.cpu_frequency_ghz:.1f}GHz ({caps.cpu_threads} threads)", indent=1
+        )
+        print_info(
+            f"  Memory: {caps.available_memory_gb:.1f}GB available / {caps.total_memory_gb:.1f}GB total", indent=1
+        )
         print_info(f"  Storage: {caps.storage_type.upper()}", indent=1)
         print_info(f"  Platform: {caps.platform} ({caps.architecture})", indent=1)
         print_info("", indent=1)
@@ -256,12 +264,12 @@ class SystemResourceDetector:
         """Get memory limit in MB for compatibility with existing code."""
         return self.profile.memory_limit_gb * 1024
 
-    def get_batch_config_params(self) -> Dict[str, Any]:
+    def get_batch_config_params(self) -> dict[str, Any]:
         """Get parameters for creating BatchConfig with optimal settings."""
         return {
-            'memory_limit_mb': self.get_memory_limit_mb(),
-            'performance_target': self.profile.performance_target,
-            'auto_tune': True
+            "memory_limit_mb": self.get_memory_limit_mb(),
+            "performance_target": self.profile.performance_target,
+            "auto_tune": True,
         }
 
 

@@ -1,0 +1,68 @@
+# Data directories (mounted as volumes, not copied into image)
+data/
+output/
+logs/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentation
+*.md
+docs/
+CHANGELOG.md
+LICENSE
+CONTRIBUTING.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Tor (contains private keys)
+tor-hidden-service/
+tor-public/
+
+# PostgreSQL data
+postgres-data/
+.postgres-data/
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Misc
+.DS_Store
+Thumbs.db
+*.bak
+*.backup
+*.tmp

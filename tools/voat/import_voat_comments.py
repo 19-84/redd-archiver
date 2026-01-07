@@ -4,31 +4,27 @@ ABOUTME: Import Voat comments from multi-part SQL dump files into PostgreSQL
 ABOUTME: Handles comment.sql.gz, comment.sql.gz.0, comment.sql.gz.1 sequentially
 """
 
+import logging
 import os
 import sys
 import time
-import logging
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.postgres_database import PostgresDatabase
 from core.importers.voat_importer import VoatImporter
+from core.postgres_database import PostgresDatabase
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def main():
     # Database connection
     connection_string = os.environ.get(
-        'DATABASE_URL',
-        'postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver'
+        "DATABASE_URL", "postgresql://reddarchiver:CHANGE_THIS_PASSWORD@localhost:5435/reddarchiver"
     )
 
     # Initialize database
@@ -40,9 +36,9 @@ def main():
     importer = VoatImporter()
 
     # Detect comment files
-    data_dir = '/data/voat'
+    data_dir = "/data/voat"
     detected = importer.detect_files(data_dir)
-    comment_files = detected.get('comments', [])
+    comment_files = detected.get("comments", [])
 
     if not comment_files:
         logger.error(f"No comment files found in {data_dir}")
@@ -86,10 +82,7 @@ def main():
                     # Progress
                     elapsed = time.time() - file_start
                     rate = file_imported / elapsed if elapsed > 0 else 0
-                    logger.info(
-                        f"  Progress: {file_imported:,} comments ({rate:.0f}/sec), "
-                        f"{file_errors} errors"
-                    )
+                    logger.info(f"  Progress: {file_imported:,} comments ({rate:.0f}/sec), " f"{file_errors} errors")
 
                     batch = []
 
@@ -176,5 +169,5 @@ def main():
     logger.info("\nDone!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

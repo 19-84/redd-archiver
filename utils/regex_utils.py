@@ -3,16 +3,18 @@
 ABOUTME: Safe regex execution module with timeout protection against ReDoS attacks
 ABOUTME: Wraps regex operations with timeout to prevent catastrophic backtracking
 """
+
 import re
 import signal
-from typing import Optional, Pattern, Match
 from contextlib import contextmanager
+from re import Match
 
 from .console_output import print_warning
 
 
 class RegexTimeout(Exception):
     """Raised when regex execution exceeds timeout."""
+
     pass
 
 
@@ -36,6 +38,7 @@ class SafeRegex:
 
         Uses SIGALRM to interrupt long-running regex operations.
         """
+
         def timeout_handler(signum, frame):
             raise RegexTimeout("Regex execution timed out")
 
@@ -50,7 +53,7 @@ class SafeRegex:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, old_handler)
 
-    def search(self, pattern: str, text: str, flags: int = 0) -> Optional[Match]:
+    def search(self, pattern: str, text: str, flags: int = 0) -> Match | None:
         """
         Execute regex search with timeout protection.
 
@@ -114,7 +117,7 @@ class SafeRegex:
             print_warning(f"Regex timeout #{self._timeout_count} on findall: {pattern[:50]}...")
             return []
 
-    def match(self, pattern: str, text: str, flags: int = 0) -> Optional[Match]:
+    def match(self, pattern: str, text: str, flags: int = 0) -> Match | None:
         """
         Execute regex match with timeout protection.
 
@@ -154,7 +157,7 @@ safe_regex = SafeRegex(timeout_seconds=0.1)
 
 
 # Convenience functions for easy import
-def search(pattern: str, text: str, flags: int = 0) -> Optional[Match]:
+def search(pattern: str, text: str, flags: int = 0) -> Match | None:
     """
     Safe regex search with timeout protection.
 
@@ -201,7 +204,7 @@ def findall(pattern: str, text: str, flags: int = 0) -> list:
 
 
 # Test module functionality
-if __name__ == '__main__':
+if __name__ == "__main__":
     """Test regex timeout protection with various patterns."""
     print("Safe Regex Module Test")
     print("=" * 80)
@@ -210,26 +213,26 @@ if __name__ == '__main__':
 
     # Test 1: Normal regex (should succeed)
     print("Test 1: Normal regex search")
-    result = safe_regex.search(r'\bsub:(\w+)', 'hello sub:technology world', re.IGNORECASE)
-    print(f"Pattern: \\bsub:(\\w+)")
-    print(f"Text: 'hello sub:technology world'")
+    result = safe_regex.search(r"\bsub:(\w+)", "hello sub:technology world", re.IGNORECASE)
+    print("Pattern: \\bsub:(\\w+)")
+    print("Text: 'hello sub:technology world'")
     print(f"Match: {result.group(0) if result else 'None'}")
     print()
 
     # Test 2: Normal substitution (should succeed)
     print("Test 2: Normal regex substitution")
-    result = safe_regex.sub(r'\bsub:\w+', '', 'test sub:tech query', re.IGNORECASE)
-    print(f"Pattern: \\bsub:\\w+")
-    print(f"Text: 'test sub:tech query'")
+    result = safe_regex.sub(r"\bsub:\w+", "", "test sub:tech query", re.IGNORECASE)
+    print("Pattern: \\bsub:\\w+")
+    print("Text: 'test sub:tech query'")
     print(f"Result: '{result}'")
     print()
 
     # Test 3: Potentially slow regex (should timeout)
     print("Test 3: Potentially slow regex (catastrophic backtracking)")
     long_text = "sub:" + "a" * 10000 + "!"
-    result = safe_regex.search(r'\b(?:sub|subreddit):(\w+)', long_text, re.IGNORECASE)
-    print(f"Pattern: \\b(?:sub|subreddit):(\\w+)")
-    print(f"Text: 'sub:' + 'a' * 10000 + '!'")
+    result = safe_regex.search(r"\b(?:sub|subreddit):(\w+)", long_text, re.IGNORECASE)
+    print("Pattern: \\b(?:sub|subreddit):(\\w+)")
+    print("Text: 'sub:' + 'a' * 10000 + '!'")
     print(f"Match: {result.group(0) if result else 'None (timeout)'}")
     print()
 

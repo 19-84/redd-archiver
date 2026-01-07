@@ -33,16 +33,16 @@ def detect_platform(input_dir: str) -> str:
     files = os.listdir(input_dir)
 
     # Reddit: .zst files
-    if any(f.endswith('.zst') for f in files):
-        return 'reddit'
+    if any(f.endswith(".zst") for f in files):
+        return "reddit"
 
     # Voat: SQL dumps with specific naming
-    if any('submission.sql.gz' in f or 'comment.sql.gz' in f for f in files):
-        return 'voat'
+    if any("submission.sql.gz" in f or "comment.sql.gz" in f for f in files):
+        return "voat"
 
     # Ruqqus: .7z archives
-    if any(f.endswith('.7z') for f in files):
-        return 'ruqqus'
+    if any(f.endswith(".7z") for f in files):
+        return "ruqqus"
 
     raise ValueError(
         f"Could not detect platform from files in {input_dir}. "
@@ -66,20 +66,20 @@ def get_importer(platform: str, **kwargs) -> BaseImporter:
         ValueError: If platform is invalid
     """
     # Lazy imports to avoid circular dependencies
-    if platform == 'reddit':
+    if platform == "reddit":
         from .reddit_importer import RedditImporter
+
         return RedditImporter(**kwargs)
-    elif platform == 'voat':
+    elif platform == "voat":
         from .voat_importer import VoatImporter
+
         return VoatImporter(**kwargs)
-    elif platform == 'ruqqus':
+    elif platform == "ruqqus":
         from .ruqqus_importer import RuqqusImporter
+
         return RuqqusImporter(**kwargs)
     else:
-        raise ValueError(
-            f"Invalid platform: {platform}. "
-            f"Must be one of: reddit, voat, ruqqus"
-        )
+        raise ValueError(f"Invalid platform: {platform}. " f"Must be one of: reddit, voat, ruqqus")
 
 
-__all__ = ['BaseImporter', 'get_importer', 'detect_platform']
+__all__ = ["BaseImporter", "get_importer", "detect_platform"]

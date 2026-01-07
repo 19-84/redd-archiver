@@ -3,21 +3,22 @@
 ABOUTME: Safe error handling module for production - prevents information disclosure
 ABOUTME: Logs detailed errors internally while showing generic messages to users
 """
-import os
+
 import logging
-from typing import Optional
+import os
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 class SafeErrorHandler:
     """Handles errors safely by showing generic messages in production."""
 
     def __init__(self):
         """Initialize error handler with environment detection."""
-        self.is_production = os.getenv('FLASK_ENV', 'production') == 'production'
+        self.is_production = os.getenv("FLASK_ENV", "production") == "production"
 
-    def format_user_error(self, exception: Exception, context: str = '') -> str:
+    def format_user_error(self, exception: Exception, context: str = "") -> str:
         """
         Format error message safe for user display.
 
@@ -35,11 +36,7 @@ class SafeErrorHandler:
         logger.error(
             f"Error in {context}: {type(exception).__name__}: {str(exception)}",
             exc_info=True,
-            extra={
-                'context': context,
-                'exception_type': type(exception).__name__,
-                'exception_message': str(exception)
-            }
+            extra={"context": context, "exception_type": type(exception).__name__, "exception_message": str(exception)},
         )
 
         if self.is_production:
@@ -65,26 +62,26 @@ class SafeErrorHandler:
 
         # Map exception types to generic messages
         if isinstance(exception, psycopg.OperationalError):
-            return 'The search service is temporarily unavailable. Please try again in a few moments.'
+            return "The search service is temporarily unavailable. Please try again in a few moments."
 
         elif isinstance(exception, psycopg.Error):
-            return 'A database error occurred. Please try a different search query.'
+            return "A database error occurred. Please try a different search query."
 
-        elif isinstance(exception, (ValueError, TypeError)):
-            return 'Invalid search parameters. Please check your search query and try again.'
+        elif isinstance(exception, ValueError | TypeError):
+            return "Invalid search parameters. Please check your search query and try again."
 
         elif isinstance(exception, TimeoutError):
-            return 'Your search request timed out. Please try a simpler query.'
+            return "Your search request timed out. Please try a simpler query."
 
         else:
             # Fallback generic message for unknown errors
             error_messages = {
-                'search': 'Your search could not be completed. Please try again.',
-                'query': 'Invalid search query. Please check your search terms.',
-                'database': 'A service error occurred. Please try again later.',
-                'connection': 'Connection error. Please try again.',
+                "search": "Your search could not be completed. Please try again.",
+                "query": "Invalid search query. Please check your search terms.",
+                "database": "A service error occurred. Please try again later.",
+                "connection": "Connection error. Please try again.",
             }
-            return error_messages.get(context, 'An error occurred. Please try again.')
+            return error_messages.get(context, "An error occurred. Please try again.")
 
     def is_safe_to_display(self, message: str) -> bool:
         """
@@ -104,11 +101,18 @@ class SafeErrorHandler:
         """
         # Patterns that indicate sensitive information
         sensitive_patterns = [
-            '/var/', '/usr/', '/home/',  # File paths
-            'postgresql://', 'password=', 'host=',  # Connection strings
-            'Traceback', 'File "', 'line ',  # Stack traces
-            'psycopg', 'sqlalchemy',  # Database internals
-            'at 0x',  # Memory addresses
+            "/var/",
+            "/usr/",
+            "/home/",  # File paths
+            "postgresql://",
+            "password=",
+            "host=",  # Connection strings
+            "Traceback",
+            'File "',
+            "line ",  # Stack traces
+            "psycopg",
+            "sqlalchemy",  # Database internals
+            "at 0x",  # Memory addresses
         ]
 
         message_lower = message.lower()
@@ -134,7 +138,7 @@ class SafeErrorHandler:
         # Truncate very long messages
         max_length = 200
         if len(message) > max_length:
-            message = message[:max_length] + '...'
+            message = message[:max_length] + "..."
 
         return message
 
@@ -144,7 +148,7 @@ error_handler = SafeErrorHandler()
 
 
 # Convenience functions
-def format_user_error(exception: Exception, context: str = '') -> str:
+def format_user_error(exception: Exception, context: str = "") -> str:
     """
     Format exception for user display (convenience function).
 
@@ -176,7 +180,7 @@ def sanitize_message(message: str) -> str:
     return error_handler.sanitize_error_message(message)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """Test error handling with various exception types."""
     import psycopg
 

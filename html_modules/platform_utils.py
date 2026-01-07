@@ -8,36 +8,33 @@ This module centralizes platform-specific logic:
 - Output directory paths with platform awareness
 """
 
-from typing import Dict, Optional
-
-
 # Platform metadata mapping
 PLATFORM_METADATA = {
-    'reddit': {
-        'display_name': 'Reddit',
-        'community_term': 'subreddit',
-        'community_term_plural': 'subreddits',
-        'url_prefix': 'r',
-        'symbol': '🔴'
+    "reddit": {
+        "display_name": "Reddit",
+        "community_term": "subreddit",
+        "community_term_plural": "subreddits",
+        "url_prefix": "r",
+        "symbol": "🔴",
     },
-    'voat': {
-        'display_name': 'Voat',
-        'community_term': 'subverse',
-        'community_term_plural': 'subverses',
-        'url_prefix': 'v',
-        'symbol': '🔵'
+    "voat": {
+        "display_name": "Voat",
+        "community_term": "subverse",
+        "community_term_plural": "subverses",
+        "url_prefix": "v",
+        "symbol": "🔵",
     },
-    'ruqqus': {
-        'display_name': 'Ruqqus',
-        'community_term': 'guild',
-        'community_term_plural': 'guilds',
-        'url_prefix': 'g',
-        'symbol': '🟢'
-    }
+    "ruqqus": {
+        "display_name": "Ruqqus",
+        "community_term": "guild",
+        "community_term_plural": "guilds",
+        "url_prefix": "g",
+        "symbol": "🟢",
+    },
 }
 
 
-def get_url_prefix(platform: Optional[str] = None) -> str:
+def get_url_prefix(platform: str | None = None) -> str:
     """
     Get URL prefix for a platform.
 
@@ -48,12 +45,12 @@ def get_url_prefix(platform: Optional[str] = None) -> str:
         str: URL prefix ('r', 'v', 'g'), defaults to 'r' for None/unknown
     """
     if not platform or platform not in PLATFORM_METADATA:
-        return 'r'  # Default to Reddit prefix for backward compatibility
+        return "r"  # Default to Reddit prefix for backward compatibility
 
-    return PLATFORM_METADATA[platform]['url_prefix']
+    return PLATFORM_METADATA[platform]["url_prefix"]
 
 
-def get_community_term(platform: Optional[str] = None, plural: bool = False) -> str:
+def get_community_term(platform: str | None = None, plural: bool = False) -> str:
     """
     Get community terminology for a platform.
 
@@ -65,13 +62,13 @@ def get_community_term(platform: Optional[str] = None, plural: bool = False) -> 
         str: Community term ('subreddit', 'subverse', 'guild')
     """
     if not platform or platform not in PLATFORM_METADATA:
-        return 'subreddits' if plural else 'subreddit'
+        return "subreddits" if plural else "subreddit"
 
-    key = 'community_term_plural' if plural else 'community_term'
+    key = "community_term_plural" if plural else "community_term"
     return PLATFORM_METADATA[platform][key]
 
 
-def get_platform_display_name(platform: Optional[str] = None) -> str:
+def get_platform_display_name(platform: str | None = None) -> str:
     """
     Get display name for a platform.
 
@@ -82,12 +79,12 @@ def get_platform_display_name(platform: Optional[str] = None) -> str:
         str: Display name ('Reddit', 'Voat', 'Ruqqus')
     """
     if not platform or platform not in PLATFORM_METADATA:
-        return 'Reddit'
+        return "Reddit"
 
-    return PLATFORM_METADATA[platform]['display_name']
+    return PLATFORM_METADATA[platform]["display_name"]
 
 
-def build_community_path(platform: Optional[str], community: str) -> str:
+def build_community_path(platform: str | None, community: str) -> str:
     """
     Build directory path for a community.
 
@@ -99,10 +96,10 @@ def build_community_path(platform: Optional[str], community: str) -> str:
         str: Directory path (e.g., 'r/example', 'v/pics', 'g/News')
     """
     prefix = get_url_prefix(platform)
-    return f'{prefix}/{community}'
+    return f"{prefix}/{community}"
 
 
-def build_post_url(platform: Optional[str], community: str, post_id: str, slug: str = '') -> str:
+def build_post_url(platform: str | None, community: str, post_id: str, slug: str = "") -> str:
     """
     Build relative URL for a post.
 
@@ -117,9 +114,9 @@ def build_post_url(platform: Optional[str], community: str, post_id: str, slug: 
     """
     prefix = get_url_prefix(platform)
     if slug:
-        return f'{prefix}/{community}/post/{post_id}/{slug}/'
+        return f"{prefix}/{community}/post/{post_id}/{slug}/"
     else:
-        return f'{prefix}/{community}/post/{post_id}/'
+        return f"{prefix}/{community}/post/{post_id}/"
 
 
 def extract_post_id_from_prefixed(prefixed_id: str) -> str:
@@ -132,12 +129,12 @@ def extract_post_id_from_prefixed(prefixed_id: str) -> str:
     Returns:
         str: Raw ID without prefix
     """
-    if '_' in prefixed_id:
-        return prefixed_id.split('_', 1)[1]
+    if "_" in prefixed_id:
+        return prefixed_id.split("_", 1)[1]
     return prefixed_id
 
 
-def detect_platform_from_id(post_id: str) -> Optional[str]:
+def detect_platform_from_id(post_id: str) -> str | None:
     """
     Detect platform from a prefixed post ID.
 
@@ -147,10 +144,10 @@ def detect_platform_from_id(post_id: str) -> Optional[str]:
     Returns:
         str or None: Platform identifier or None if no prefix detected
     """
-    if post_id.startswith('reddit_'):
-        return 'reddit'
-    elif post_id.startswith('voat_'):
-        return 'voat'
-    elif post_id.startswith('ruqqus_'):
-        return 'ruqqus'
+    if post_id.startswith("reddit_"):
+        return "reddit"
+    elif post_id.startswith("voat_"):
+        return "voat"
+    elif post_id.startswith("ruqqus_"):
+        return "ruqqus"
     return None  # No prefix (legacy Reddit data)

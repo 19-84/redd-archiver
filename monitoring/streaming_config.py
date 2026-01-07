@@ -3,7 +3,6 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -55,7 +54,7 @@ class StreamingUserConfig:
 
             # Get available memory in GB
             mem = psutil.virtual_memory()
-            available_gb = mem.available / (1024 ** 3)
+            available_gb = mem.available / (1024**3)
 
             # Calculate batch size based on available memory
             # Rule: 1GB available = 2000 users, scale linearly
@@ -93,7 +92,7 @@ class StreamingUserConfig:
             # Fallback if psutil not available
             return 4
 
-    def validate(self) -> 'StreamingUserConfig':
+    def validate(self) -> "StreamingUserConfig":
         """
         Validate configuration values.
 
@@ -104,33 +103,25 @@ class StreamingUserConfig:
             StreamingUserConfig: Self for method chaining
         """
         if self.batch_size < 100 or self.batch_size > 10000:
-            raise ValueError(
-                f"ARCHIVE_USER_BATCH_SIZE must be 100-10000, got {self.batch_size}"
-            )
+            raise ValueError(f"ARCHIVE_USER_BATCH_SIZE must be 100-10000, got {self.batch_size}")
 
         if self.queue_max_batches < 2 or self.queue_max_batches > 100:
-            raise ValueError(
-                f"ARCHIVE_QUEUE_MAX_BATCHES must be 2-100, got {self.queue_max_batches}"
-            )
+            raise ValueError(f"ARCHIVE_QUEUE_MAX_BATCHES must be 2-100, got {self.queue_max_batches}")
 
         if self.checkpoint_interval < 1 or self.checkpoint_interval > 1000:
-            raise ValueError(
-                f"ARCHIVE_CHECKPOINT_INTERVAL must be 1-1000, got {self.checkpoint_interval}"
-            )
+            raise ValueError(f"ARCHIVE_CHECKPOINT_INTERVAL must be 1-1000, got {self.checkpoint_interval}")
 
         if self.max_workers < 1 or self.max_workers > 32:
-            raise ValueError(
-                f"ARCHIVE_USER_PAGE_WORKERS must be 1-32, got {self.max_workers}"
-            )
+            raise ValueError(f"ARCHIVE_USER_PAGE_WORKERS must be 1-32, got {self.max_workers}")
 
         return self
 
 
 def get_streaming_config(
-    batch_size: Optional[int] = None,
-    queue_max_batches: Optional[int] = None,
-    checkpoint_interval: Optional[int] = None,
-    max_workers: Optional[int] = None
+    batch_size: int | None = None,
+    queue_max_batches: int | None = None,
+    checkpoint_interval: int | None = None,
+    max_workers: int | None = None,
 ) -> StreamingUserConfig:
     """
     Get validated streaming configuration from environment with auto-detect fallback.
@@ -162,7 +153,7 @@ def get_streaming_config(
     """
     # Get batch_size (priority: param > env > auto-detect)
     if batch_size is None:
-        batch_size_env = os.getenv('ARCHIVE_USER_BATCH_SIZE')
+        batch_size_env = os.getenv("ARCHIVE_USER_BATCH_SIZE")
         if batch_size_env:
             batch_size = int(batch_size_env)
         else:
@@ -170,15 +161,15 @@ def get_streaming_config(
 
     # Get queue_max_batches (priority: param > env > default)
     if queue_max_batches is None:
-        queue_max_batches = int(os.getenv('ARCHIVE_QUEUE_MAX_BATCHES', '10'))
+        queue_max_batches = int(os.getenv("ARCHIVE_QUEUE_MAX_BATCHES", "10"))
 
     # Get checkpoint_interval (priority: param > env > default)
     if checkpoint_interval is None:
-        checkpoint_interval = int(os.getenv('ARCHIVE_CHECKPOINT_INTERVAL', '10'))
+        checkpoint_interval = int(os.getenv("ARCHIVE_CHECKPOINT_INTERVAL", "10"))
 
     # Get max_workers (priority: param > env > auto-detect)
     if max_workers is None:
-        workers_env = os.getenv('ARCHIVE_USER_PAGE_WORKERS')
+        workers_env = os.getenv("ARCHIVE_USER_PAGE_WORKERS")
         if workers_env:
             max_workers = int(workers_env)
         else:
@@ -189,7 +180,7 @@ def get_streaming_config(
         batch_size=batch_size,
         queue_max_batches=queue_max_batches,
         checkpoint_interval=checkpoint_interval,
-        max_workers=max_workers
+        max_workers=max_workers,
     )
 
     config.validate()

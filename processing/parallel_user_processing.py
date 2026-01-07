@@ -4,22 +4,19 @@ ABOUTME: Parallel User Processing Implementation
 ABOUTME: Multi-threaded user page generation with concurrent database loading and batched queries
 """
 
-import os
-import time
-import threading
+import gc
 import queue
-import concurrent.futures
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any, Callable
-import psutil
-import gc
-import sys
 
-from utils.console_output import create_progress_bar, print_info, print_success, print_error
-from html_modules.html_pages import write_user_page, check_memory_pressure
+import psutil
+
 from core.postgres_database import PostgresDatabase, get_postgres_connection_string
+from html_modules.html_pages import check_memory_pressure, write_user_page
+from utils.console_output import print_error, print_info, print_success
 
 
 def get_archive_database_connection_string() -> str:
@@ -30,18 +27,20 @@ def get_archive_database_connection_string() -> str:
 @dataclass
 class ParallelUserProcessingConfig:
     """Configuration for parallel user processing operations."""
-    max_worker_threads: int = 4           # Number of HTML generation threads (auto-optimized)
-    max_db_connections: int = 3           # Number of concurrent database connections (auto-optimized)
-    batch_size: int = 100                 # Users per batch for database queries (auto-optimized)
-    prefetch_batches: int = 2             # Number of batches to prefetch
-    memory_limit_mb: float = 600.0        # Memory limit for batch processing (auto-optimized)
-    enable_monitoring: bool = True        # Enable performance monitoring
-    html_generation_timeout: float = 30.0 # Timeout for individual user page generation
+
+    max_worker_threads: int = 4  # Number of HTML generation threads (auto-optimized)
+    max_db_connections: int = 3  # Number of concurrent database connections (auto-optimized)
+    batch_size: int = 100  # Users per batch for database queries (auto-optimized)
+    prefetch_batches: int = 2  # Number of batches to prefetch
+    memory_limit_mb: float = 600.0  # Memory limit for batch processing (auto-optimized)
+    enable_monitoring: bool = True  # Enable performance monitoring
+    html_generation_timeout: float = 30.0  # Timeout for individual user page generation
 
 
 @dataclass
 class ParallelProcessingMetrics:
     """Enhanced metrics for parallel user processing performance."""
+
     total_users_processed: int = 0
     users_per_second: float = 0.0
     html_generation_time: float = 0.0
@@ -53,10 +52,10 @@ class ParallelProcessingMetrics:
     html_generation_successes: int = 0
     html_generation_failures: int = 0
     database_connection_errors: int = 0
-    thread_efficiency: float = 0.0        # Ratio of active to idle time
-    memory_pressure_events: int = 0       # Memory pressure adjustments
-    batch_size_adjustments: int = 0       # Dynamic batch size changes
-    database_cleanup_triggers: int = 0    # Database cleanup invocations
+    thread_efficiency: float = 0.0  # Ratio of active to idle time
+    memory_pressure_events: int = 0  # Memory pressure adjustments
+    batch_size_adjustments: int = 0  # Dynamic batch size changes
+    database_cleanup_triggers: int = 0  # Database cleanup invocations
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -74,15 +73,16 @@ class BatchedDatabaseLoader:
         self.cache_lock = threading.RLock()
         self.metrics_lock = threading.RLock()
         self.loading_metrics = {
-            'batches_loaded': 0,
-            'users_loaded': 0,
-            'db_connection_errors': 0,
-            'cache_hits': 0,
-            'cache_misses': 0
+            "batches_loaded": 0,
+            "users_loaded": 0,
+            "db_connection_errors": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
 
     def start_prefetch_worker(self, user_batches_generator, stop_event: threading.Event):
         """Start background thread to prefetch user data batches."""
+
         def prefetch_worker():
             try:
                 db_connection_pool = []
@@ -90,11 +90,11 @@ class BatchedDatabaseLoader:
                 # Create connection pool
                 for _ in range(self.config.max_db_connections):
                     try:
-                        conn = PostgresDatabase(self.connection_string, workload_type='user_processing')
+                        conn = PostgresDatabase(self.connection_string, workload_type="user_processing")
                         db_connection_pool.append(conn)
                     except Exception as e:
                         with self.metrics_lock:
-                            self.loading_metrics['db_connection_errors'] += 1
+                            self.loading_metrics["db_connection_errors"] += 1
                         print(f"[WARNING] Failed to create database connection: {e}")
 
                 if not db_connection_pool:
@@ -119,13 +119,17 @@ class BatchedDatabaseLoader:
                         try:
                             batch_user_data = db.get_user_activity_batch(batch)
                             with self.metrics_lock:
-                                self.loading_metrics['users_loaded'] += len(batch_user_data)
+                                self.loading_metrics["users_loaded"] += len(batch_user_data)
 
                             # Log performance improvement
                             if len(batch_user_data) > 0:
-                                improvement_factor = len(batch) / 2  # 2 queries (posts+comments) vs len(batch)*2 queries
+                                improvement_factor = (
+                                    len(batch) / 2
+                                )  # 2 queries (posts+comments) vs len(batch)*2 queries
                                 if improvement_factor >= 5:
-                                    print(f"[PERF] Bulk loading: {len(batch_user_data)} users in 2 queries vs {len(batch)*2} queries ({improvement_factor:.1f}x faster)")
+                                    print(
+                                        f"[PERF] Bulk loading: {len(batch_user_data)} users in 2 queries vs {len(batch)*2} queries ({improvement_factor:.1f}x faster)"
+                                    )
 
                         except Exception as e:
                             print(f"[ERROR] Bulk user data loading failed, falling back to individual queries: {e}")
@@ -133,8 +137,7 @@ class BatchedDatabaseLoader:
                             batch_user_data = {}
                             with ThreadPoolExecutor(max_workers=min(4, len(batch))) as executor:
                                 future_to_username = {
-                                    executor.submit(db.get_user_activity, username): username
-                                    for username in batch
+                                    executor.submit(db.get_user_activity, username): username for username in batch
                                 }
 
                                 for future in as_completed(future_to_username):
@@ -144,7 +147,7 @@ class BatchedDatabaseLoader:
                                         if user_data:
                                             batch_user_data[username] = user_data
                                             with self.metrics_lock:
-                                                self.loading_metrics['users_loaded'] += 1
+                                                self.loading_metrics["users_loaded"] += 1
                                     except Exception as e:
                                         print(f"[WARNING] Failed to load user data for {username}: {e}")
 
@@ -156,21 +159,21 @@ class BatchedDatabaseLoader:
 
                         # Put batch in queue for processing
                         batch_info = {
-                            'usernames': list(batch_user_data.keys()),
-                            'load_time': batch_time,
-                            'user_count': len(batch_user_data)
+                            "usernames": list(batch_user_data.keys()),
+                            "load_time": batch_time,
+                            "user_count": len(batch_user_data),
                         }
 
                         try:
                             self.batch_queue.put(batch_info, timeout=1.0)
                             with self.metrics_lock:
-                                self.loading_metrics['batches_loaded'] += 1
+                                self.loading_metrics["batches_loaded"] += 1
                         except queue.Full:
                             print("[WARNING] Batch queue full, dropping batch")
 
                     except Exception as e:
                         with self.metrics_lock:
-                            self.loading_metrics['db_connection_errors'] += 1
+                            self.loading_metrics["db_connection_errors"] += 1
                         print(f"[ERROR] Database batch loading failed: {e}")
 
                 # Signal end of batches
@@ -191,28 +194,28 @@ class BatchedDatabaseLoader:
         prefetch_thread.start()
         return prefetch_thread
 
-    def get_user_data(self, username: str) -> Optional[Dict]:
+    def get_user_data(self, username: str) -> dict | None:
         """Get user data from cache or load directly."""
         with self.cache_lock:
             if username in self.user_data_cache:
                 with self.metrics_lock:
-                    self.loading_metrics['cache_hits'] += 1
+                    self.loading_metrics["cache_hits"] += 1
                 return self.user_data_cache.pop(username)  # Remove from cache after use
 
         # Cache miss - load directly (fallback)
         with self.metrics_lock:
-            self.loading_metrics['cache_misses'] += 1
+            self.loading_metrics["cache_misses"] += 1
 
         try:
-            with PostgresDatabase(self.connection_string, workload_type='user_processing') as db:
+            with PostgresDatabase(self.connection_string, workload_type="user_processing") as db:
                 return db.get_user_activity(username)
         except Exception as e:
             with self.metrics_lock:
-                self.loading_metrics['db_connection_errors'] += 1
+                self.loading_metrics["db_connection_errors"] += 1
             print(f"[WARNING] Direct user data load failed for {username}: {e}")
             return None
 
-    def get_next_batch(self, timeout: float = 5.0) -> Optional[Dict]:
+    def get_next_batch(self, timeout: float = 5.0) -> dict | None:
         """Get next batch of ready user data."""
         try:
             return self.batch_queue.get(timeout=timeout)
@@ -227,7 +230,7 @@ class BatchedDatabaseLoader:
             if cache_size > 0:
                 gc.collect()
 
-    def get_loading_metrics(self) -> Dict:
+    def get_loading_metrics(self) -> dict:
         """Get database loading performance metrics."""
         with self.metrics_lock:
             return self.loading_metrics.copy()
@@ -239,32 +242,31 @@ class ParallelUserPageGenerator:
     Manages parallel user page generation with proper resource management.
     """
 
-    def __init__(self, subs: List, seo_config: Optional[Dict], config: ParallelUserProcessingConfig):
+    def __init__(self, subs: list, seo_config: dict | None, config: ParallelUserProcessingConfig):
         self.subs = subs
         self.seo_config = seo_config
         self.config = config
         self.generation_lock = threading.RLock()
         self.metrics_lock = threading.RLock()
         self.generation_metrics = {
-            'pages_generated': 0,
-            'generation_failures': 0,
-            'total_generation_time': 0.0,
-            'avg_generation_time': 0.0,
-            'concurrent_peak': 0,
-            'current_active': 0
+            "pages_generated": 0,
+            "generation_failures": 0,
+            "total_generation_time": 0.0,
+            "avg_generation_time": 0.0,
+            "concurrent_peak": 0,
+            "current_active": 0,
         }
 
-    def generate_user_pages_batch(self, user_batch: Dict[str, Dict]) -> Dict[str, bool]:
+    def generate_user_pages_batch(self, user_batch: dict[str, dict]) -> dict[str, bool]:
         """Generate user pages for a batch of users with thread-safe operations."""
         if not user_batch:
             return {}
 
         # Track concurrent workers
         with self.metrics_lock:
-            self.generation_metrics['current_active'] += 1
-            self.generation_metrics['concurrent_peak'] = max(
-                self.generation_metrics['concurrent_peak'],
-                self.generation_metrics['current_active']
+            self.generation_metrics["current_active"] += 1
+            self.generation_metrics["concurrent_peak"] = max(
+                self.generation_metrics["concurrent_peak"], self.generation_metrics["current_active"]
             )
 
         try:
@@ -283,16 +285,15 @@ class ParallelUserPageGenerator:
             # Update metrics thread-safely
             with self.metrics_lock:
                 if success:
-                    self.generation_metrics['pages_generated'] += len(user_batch)
+                    self.generation_metrics["pages_generated"] += len(user_batch)
                 else:
-                    self.generation_metrics['generation_failures'] += len(user_batch)
+                    self.generation_metrics["generation_failures"] += len(user_batch)
 
-                self.generation_metrics['total_generation_time'] += batch_time
+                self.generation_metrics["total_generation_time"] += batch_time
 
-                if self.generation_metrics['pages_generated'] > 0:
-                    self.generation_metrics['avg_generation_time'] = (
-                        self.generation_metrics['total_generation_time'] /
-                        self.generation_metrics['pages_generated']
+                if self.generation_metrics["pages_generated"] > 0:
+                    self.generation_metrics["avg_generation_time"] = (
+                        self.generation_metrics["total_generation_time"] / self.generation_metrics["pages_generated"]
                     )
 
             return results
@@ -300,14 +301,14 @@ class ParallelUserPageGenerator:
         except Exception as e:
             print(f"[ERROR] Batch HTML generation failed: {e}")
             with self.metrics_lock:
-                self.generation_metrics['generation_failures'] += len(user_batch)
+                self.generation_metrics["generation_failures"] += len(user_batch)
             return {username: False for username in user_batch.keys()}
 
         finally:
             with self.metrics_lock:
-                self.generation_metrics['current_active'] -= 1
+                self.generation_metrics["current_active"] -= 1
 
-    def get_generation_metrics(self) -> Dict:
+    def get_generation_metrics(self) -> dict:
         """Get HTML generation performance metrics."""
         with self.metrics_lock:
             return self.generation_metrics.copy()
@@ -341,19 +342,21 @@ class ContinuousMemoryMonitor:
 
                 with self.monitor_lock:
                     if pressure != self.current_pressure:
-                        self.memory_events.append({
-                            'timestamp': time.time(),
-                            'pressure': pressure,
-                            'memory_mb': psutil.Process().memory_info().rss / (1024 * 1024),
-                            'adjustment_recommended': pressure < 1.0
-                        })
+                        self.memory_events.append(
+                            {
+                                "timestamp": time.time(),
+                                "pressure": pressure,
+                                "memory_mb": psutil.Process().memory_info().rss / (1024 * 1024),
+                                "adjustment_recommended": pressure < 1.0,
+                            }
+                        )
 
                         if pressure < 1.0:
                             self.adjustment_count += 1
 
                     self.current_pressure = pressure
 
-            except Exception as e:
+            except Exception:
                 # Don't crash monitor thread on errors
                 pass
 
@@ -364,7 +367,7 @@ class ContinuousMemoryMonitor:
         with self.monitor_lock:
             return self.current_pressure
 
-    def get_pressure_events(self) -> List[Dict]:
+    def get_pressure_events(self) -> list[dict]:
         """Get memory pressure event history."""
         with self.monitor_lock:
             return self.memory_events.copy()
@@ -379,9 +382,17 @@ class ContinuousMemoryMonitor:
         self.stop_event.set()
 
 
-def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[int] = None,
-                             min_activity: int = 0, seo_config: Optional[Dict] = None,
-                             max_workers: Optional[int] = None, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False) -> bool:
+def write_user_pages_parallel(
+    subs: list,
+    output_dir: str,
+    batch_size: int | None = None,
+    min_activity: int = 0,
+    seo_config: dict | None = None,
+    max_workers: int | None = None,
+    min_score: int = 0,
+    min_comments: int = 0,
+    hide_deleted: bool = False,
+) -> bool:
     """
     Parallel processing for all users using streaming architecture.
 
@@ -410,33 +421,36 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
     """
     from queue import Queue
     from threading import Thread
-    from utils.console_output import print_info, print_success, print_error
+
     from monitoring.streaming_config import get_streaming_config
+
     try:
-        print(f"🚀 Starting streaming user processing for ALL users")
+        print("🚀 Starting streaming user processing for ALL users")
 
         # Get configuration from environment with auto-detect fallback
         config = get_streaming_config(batch_size=batch_size, max_workers=max_workers)
 
-        print_info(f"Configuration: batch_size={config.batch_size}, "
-                  f"workers={config.max_workers}, queue_max={config.queue_max_batches}, "
-                  f"checkpoint_interval={config.checkpoint_interval}")
+        print_info(
+            f"Configuration: batch_size={config.batch_size}, "
+            f"workers={config.max_workers}, queue_max={config.queue_max_batches}, "
+            f"checkpoint_interval={config.checkpoint_interval}"
+        )
 
         # Get PostgreSQL connection string
         connection_string = get_archive_database_connection_string()
 
         # Check for resume point
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             # Verify database connectivity
             if not db.health_check():
-                print_error(f"No archive database connection")
+                print_error("No archive database connection")
                 return False
 
             # Load checkpoint (resume from last_username)
-            progress_info = db.get_progress_status(f"user_pages_all")
+            progress_info = db.get_progress_status("user_pages_all")
             resume_username = None
-            if progress_info and progress_info.get('metadata'):
-                resume_username = progress_info['metadata'].get('last_username')
+            if progress_info and progress_info.get("metadata"):
+                resume_username = progress_info["metadata"].get("last_username")
                 if resume_username:
                     print_info(f"Resuming from username: {resume_username}")
 
@@ -454,12 +468,12 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
         def producer():
             nonlocal error_count, last_username
             try:
-                with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+                with PostgresDatabase(connection_string, workload_type="user_processing") as db:
                     for batch in db.stream_user_batches(
                         min_activity=min_activity,
                         batch_size=config.batch_size,
                         subreddit_filter=None,  # No subreddit filter for full mode
-                        resume_username=resume_username
+                        resume_username=resume_username,
                     ):
                         # Put batch in queue (blocks if queue full - backpressure!)
                         batch_queue.put(batch)
@@ -468,20 +482,21 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
             except Exception as e:
                 print_error(f"Producer thread failed: {e}")
                 import traceback
+
                 traceback.print_exc()
                 error_count += 1
             finally:
                 # Signal workers to exit (poison pills)
                 for _ in range(config.max_workers):
                     batch_queue.put(None)
-                print_info(f"Producer finished streaming users")
+                print_info("Producer finished streaming users")
 
         # Worker: Process batches
         def worker(worker_id: int):
             nonlocal users_processed, batches_processed, error_count
 
             # Each worker gets its own database connection
-            with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+            with PostgresDatabase(connection_string, workload_type="user_processing") as db:
                 while True:
                     # Get next batch from queue
                     batch = batch_queue.get()
@@ -493,7 +508,7 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
 
                     try:
                         # Process batch (generate HTML pages)
-                        batch_result = process_user_batch_streaming(
+                        process_user_batch_streaming(
                             usernames=batch,
                             db=db,
                             output_dir=output_dir,
@@ -501,7 +516,7 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
                             seo_config=seo_config,
                             min_score=min_score,
                             min_comments=min_comments,
-                            hide_deleted=hide_deleted
+                            hide_deleted=hide_deleted,
                         )
 
                         users_processed += len(batch)
@@ -513,15 +528,17 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
                                 db=db,
                                 target_subreddit="all",  # All users mode
                                 users_processed=users_processed,
-                                last_username=batch[-1]
+                                last_username=batch[-1],
                             )
                             print_info(f"[Worker {worker_id}] Checkpoint saved at {users_processed:,} users")
 
                         # Progress output
                         elapsed = time.time() - start_time
                         rate = users_processed / elapsed if elapsed > 0 else 0
-                        print_info(f"[Worker {worker_id}] Batch {batches_processed}: "
-                                  f"{users_processed:,} users processed ({rate:.1f} users/sec)")
+                        print_info(
+                            f"[Worker {worker_id}] Batch {batches_processed}: "
+                            f"{users_processed:,} users processed ({rate:.1f} users/sec)"
+                        )
 
                     except Exception as e:
                         print_error(f"[Worker {worker_id}] Failed on batch: {e}")
@@ -553,19 +570,19 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
             thread.join()
 
         # Final checkpoint
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             checkpoint_streaming_progress(
                 db=db,
                 target_subreddit="all",  # All users mode
                 users_processed=users_processed,
                 last_username=last_username,
-                final=True
+                final=True,
             )
 
         # Summary
         elapsed = time.time() - start_time
         rate = users_processed / elapsed if elapsed > 0 else 0
-        print_success(f"Streaming user processing complete for ALL users")
+        print_success("Streaming user processing complete for ALL users")
         print_info(f"  Users processed: {users_processed:,}")
         print_info(f"  Batches processed: {batches_processed}")
         print_info(f"  Errors: {error_count}")
@@ -576,20 +593,21 @@ def write_user_pages_parallel(subs: List, output_dir: str, batch_size: Optional[
     except Exception as e:
         print_error(f"Streaming user processing failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def process_user_batch_streaming(
-    usernames: List[str],
+    usernames: list[str],
     db: PostgresDatabase,
     output_dir: str,
-    subs: List,
-    seo_config: Optional[Dict],
+    subs: list,
+    seo_config: dict | None,
     min_score: int = 0,
     min_comments: int = 0,
-    hide_deleted: bool = False
-) -> Dict[str, int]:
+    hide_deleted: bool = False,
+) -> dict[str, int]:
     """
     Process a batch of users (generate HTML pages) for streaming architecture.
 
@@ -609,14 +627,15 @@ def process_user_batch_streaming(
     Returns:
         Dict with success/failure counts: {'success': int, 'failure': int}
     """
-    from utils.console_output import print_error
 
     success_count = 0
     failure_count = 0
 
     try:
         # Batch load all users in 2 queries instead of N queries (with filters)
-        batch_user_data = db.get_user_activity_batch(usernames, min_score=min_score, min_comments=min_comments, hide_deleted=hide_deleted)
+        batch_user_data = db.get_user_activity_batch(
+            usernames, min_score=min_score, min_comments=min_comments, hide_deleted=hide_deleted
+        )
 
         # Process each user from batch data
         for username in usernames:
@@ -625,18 +644,14 @@ def process_user_batch_streaming(
                 user_data = batch_user_data.get(username)
 
                 # Skip users with no data or empty content
-                if not user_data or not user_data.get('all_content'):
+                if not user_data or not user_data.get("all_content"):
                     failure_count += 1
                     continue
 
                 # Generate user page HTML using the streaming function
                 from html_modules.html_pages import write_user_page_streaming
-                write_user_page_streaming(
-                    subs=subs,
-                    username=username,
-                    user_data=user_data,
-                    seo_config=seo_config
-                )
+
+                write_user_page_streaming(subs=subs, username=username, user_data=user_data, seo_config=seo_config)
 
                 success_count += 1
 
@@ -646,20 +661,13 @@ def process_user_batch_streaming(
 
     except Exception as e:
         print_error(f"Batch loading failed for {len(usernames)} users: {e}")
-        return {'success': 0, 'failure': len(usernames)}
+        return {"success": 0, "failure": len(usernames)}
 
-    return {
-        'success': success_count,
-        'failure': failure_count
-    }
+    return {"success": success_count, "failure": failure_count}
 
 
 def checkpoint_streaming_progress(
-    db: PostgresDatabase,
-    target_subreddit: str,
-    users_processed: int,
-    last_username: str,
-    final: bool = False
+    db: PostgresDatabase, target_subreddit: str, users_processed: int, last_username: str, final: bool = False
 ) -> None:
     """
     Save checkpoint for streaming user page generation.
@@ -676,27 +684,31 @@ def checkpoint_streaming_progress(
         last_username: Last username processed (for resume)
         final: True if this is the final checkpoint
     """
-    from utils.console_output import print_error
 
     try:
-        status = 'completed' if final else 'exporting'
+        status = "completed" if final else "exporting"
 
         db.update_progress_status(
             subreddit=f"user_pages_{target_subreddit}",
             status=status,
             pages_generated=users_processed,
-            metadata={
-                'last_username': last_username,
-                'checkpoint_time': time.time()
-            }
+            metadata={"last_username": last_username, "checkpoint_time": time.time()},
         )
     except Exception as e:
         print_error(f"Failed to save checkpoint: {e}")
 
 
-def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_subreddit: str,
-                                           batch_size: Optional[int] = None, min_activity: int = 0,
-                                           seo_config: Optional[Dict] = None, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False) -> bool:
+def write_user_pages_parallel_for_subreddit(
+    subs: list,
+    output_dir: str,
+    target_subreddit: str,
+    batch_size: int | None = None,
+    min_activity: int = 0,
+    seo_config: dict | None = None,
+    min_score: int = 0,
+    min_comments: int = 0,
+    hide_deleted: bool = False,
+) -> bool:
     """
     Parallel processing for users from a specific subreddit using streaming.
 
@@ -725,7 +737,7 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
     """
     from queue import Queue
     from threading import Thread
-    from utils.console_output import print_info, print_success, print_error
+
     from monitoring.streaming_config import get_streaming_config
 
     try:
@@ -734,15 +746,17 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
         # Get configuration from environment with auto-detect fallback
         config = get_streaming_config(batch_size=batch_size)
 
-        print_info(f"Configuration: batch_size={config.batch_size}, "
-                  f"workers={config.max_workers}, queue_max={config.queue_max_batches}, "
-                  f"checkpoint_interval={config.checkpoint_interval}")
+        print_info(
+            f"Configuration: batch_size={config.batch_size}, "
+            f"workers={config.max_workers}, queue_max={config.queue_max_batches}, "
+            f"checkpoint_interval={config.checkpoint_interval}"
+        )
 
         # Get PostgreSQL connection string
         connection_string = get_archive_database_connection_string()
 
         # Check for resume point
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             # Verify database connectivity
             if not db.health_check():
                 print_error(f"No archive database connection for r/{target_subreddit}")
@@ -751,8 +765,8 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
             # Load checkpoint (resume from last_username)
             progress_info = db.get_progress_status(f"user_pages_{target_subreddit}")
             resume_username = None
-            if progress_info and progress_info.get('metadata'):
-                resume_username = progress_info['metadata'].get('last_username')
+            if progress_info and progress_info.get("metadata"):
+                resume_username = progress_info["metadata"].get("last_username")
                 if resume_username:
                     print_info(f"Resuming from username: {resume_username}")
 
@@ -770,12 +784,12 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
         def producer():
             nonlocal error_count, last_username
             try:
-                with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+                with PostgresDatabase(connection_string, workload_type="user_processing") as db:
                     for batch in db.stream_user_batches(
                         min_activity=min_activity,
                         batch_size=config.batch_size,
                         subreddit_filter=target_subreddit,
-                        resume_username=resume_username
+                        resume_username=resume_username,
                     ):
                         # Put batch in queue (blocks if queue full - backpressure!)
                         batch_queue.put(batch)
@@ -784,20 +798,21 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
             except Exception as e:
                 print_error(f"Producer thread failed: {e}")
                 import traceback
+
                 traceback.print_exc()
                 error_count += 1
             finally:
                 # Signal workers to exit (poison pills)
                 for _ in range(config.max_workers):
                     batch_queue.put(None)
-                print_info(f"Producer finished streaming users")
+                print_info("Producer finished streaming users")
 
         # Worker: Process batches
         def worker(worker_id: int):
             nonlocal users_processed, batches_processed, error_count
 
             # Each worker gets its own database connection
-            with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+            with PostgresDatabase(connection_string, workload_type="user_processing") as db:
                 while True:
                     # Get next batch from queue
                     batch = batch_queue.get()
@@ -809,7 +824,7 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
 
                     try:
                         # Process batch (generate HTML pages)
-                        batch_result = process_user_batch_streaming(
+                        process_user_batch_streaming(
                             usernames=batch,
                             db=db,
                             output_dir=output_dir,
@@ -817,7 +832,7 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
                             seo_config=seo_config,
                             min_score=min_score,
                             min_comments=min_comments,
-                            hide_deleted=hide_deleted
+                            hide_deleted=hide_deleted,
                         )
 
                         users_processed += len(batch)
@@ -829,15 +844,17 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
                                 db=db,
                                 target_subreddit=target_subreddit,
                                 users_processed=users_processed,
-                                last_username=batch[-1]
+                                last_username=batch[-1],
                             )
                             print_info(f"[Worker {worker_id}] Checkpoint saved at {users_processed:,} users")
 
                         # Progress output
                         elapsed = time.time() - start_time
                         rate = users_processed / elapsed if elapsed > 0 else 0
-                        print_info(f"[Worker {worker_id}] Batch {batches_processed}: "
-                                  f"{users_processed:,} users processed ({rate:.1f} users/sec)")
+                        print_info(
+                            f"[Worker {worker_id}] Batch {batches_processed}: "
+                            f"{users_processed:,} users processed ({rate:.1f} users/sec)"
+                        )
 
                     except Exception as e:
                         print_error(f"[Worker {worker_id}] Failed on batch: {e}")
@@ -869,13 +886,13 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
             thread.join()
 
         # Final checkpoint
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             checkpoint_streaming_progress(
                 db=db,
                 target_subreddit=target_subreddit,
                 users_processed=users_processed,
                 last_username=last_username,
-                final=True
+                final=True,
             )
 
         # Summary
@@ -892,5 +909,6 @@ def write_user_pages_parallel_for_subreddit(subs: List, output_dir: str, target_
     except Exception as e:
         print_error(f"Streaming user processing failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False

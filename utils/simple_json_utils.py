@@ -4,10 +4,9 @@ ABOUTME: Simple JSON file utilities with read-merge-write operations for resume 
 ABOUTME: Replaces complex AtomicJSONManager with straightforward file operations and merging
 """
 
-import os
 import json
-from datetime import datetime
-from typing import Dict, List, Any, Union, Optional
+import os
+from typing import Any
 
 
 def read_json_safe(file_path: str, default_value: Any = None) -> Any:
@@ -16,11 +15,11 @@ def read_json_safe(file_path: str, default_value: Any = None) -> Any:
     """
     if not os.path.exists(file_path):
         return default_value
-    
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"[WARNING] Error reading {file_path}: {e}, using default value")
         return default_value
 
@@ -32,8 +31,8 @@ def write_json_safe(file_path: str, data: Any) -> bool:
     try:
         # Ensure directory exists
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
+
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except Exception as e:
@@ -49,10 +48,10 @@ def merge_and_write_json(file_path: str, new_data: Any, merge_function) -> bool:
     try:
         # Read existing data
         existing_data = read_json_safe(file_path, {})
-        
+
         # Merge with new data
         merged_data = merge_function(existing_data, new_data)
-        
+
         # Write merged data back
         return write_json_safe(file_path, merged_data)
     except Exception as e:
@@ -62,13 +61,14 @@ def merge_and_write_json(file_path: str, new_data: Any, merge_function) -> bool:
 
 # Specific merge functions for different data types
 
-def merge_subreddit_stats(existing_data: Dict, new_data: Dict) -> Dict:
+
+def merge_subreddit_stats(existing_data: dict, new_data: dict) -> dict:
     """
     Merge subreddit statistics. Preserves existing data while adding new subreddits.
     During resume operations, this ensures we don't lose previously processed subreddits.
     """
     merged = existing_data.copy() if existing_data else {}
-    
+
     for subreddit, stats in new_data.items():
         if subreddit in merged:
             # Update existing subreddit with new data (in case we're reprocessing)
@@ -76,44 +76,44 @@ def merge_subreddit_stats(existing_data: Dict, new_data: Dict) -> Dict:
         else:
             # Add new subreddit
             merged[subreddit] = stats
-    
+
     return merged
 
 
-def merge_search_metadata(existing_data: Dict, new_data: Dict) -> Dict:
+def merge_search_metadata(existing_data: dict, new_data: dict) -> dict:
     """
     Merge search metadata. Preserves existing indices while adding new ones.
     """
     merged = existing_data.copy() if existing_data else {}
-    
+
     # Search metadata can be safely overwritten per subreddit
     for subreddit, metadata in new_data.items():
         merged[subreddit] = metadata
-    
+
     return merged
 
 
-def merge_user_activity(existing_data: Dict, new_data: Dict) -> Dict:
+def merge_user_activity(existing_data: dict, new_data: dict) -> dict:
     """
     Merge user activity data. Combines user counts and activity metrics.
     """
     merged = existing_data.copy() if existing_data else {}
-    
+
     # Merge users_by_subreddit
-    if 'users_by_subreddit' in new_data:
-        if 'users_by_subreddit' not in merged:
-            merged['users_by_subreddit'] = {}
-        merged['users_by_subreddit'].update(new_data['users_by_subreddit'])
-    
+    if "users_by_subreddit" in new_data:
+        if "users_by_subreddit" not in merged:
+            merged["users_by_subreddit"] = {}
+        merged["users_by_subreddit"].update(new_data["users_by_subreddit"])
+
     # Update other fields
     for key, value in new_data.items():
-        if key != 'users_by_subreddit':
+        if key != "users_by_subreddit":
             merged[key] = value
-    
+
     return merged
 
 
-def merge_subreddit_list(existing_data: Union[List, Dict, None], new_data: Union[List, Dict]) -> Union[List, Dict]:
+def merge_subreddit_list(existing_data: list | dict | None, new_data: list | dict) -> list | dict:
     """
     Merge global subreddit list. This is critical for resume operations to ensure
     all subreddits (previous + new) appear in search pages and index.
@@ -121,67 +121,68 @@ def merge_subreddit_list(existing_data: Union[List, Dict, None], new_data: Union
     # Handle None existing data
     if existing_data is None:
         return new_data
-    
+
     # Handle list format (array of subreddit objects)
     if isinstance(new_data, list):
         if not isinstance(existing_data, list):
             existing_data = []
-        
+
         # Create a map of existing subreddits by name to avoid duplicates
         existing_map = {}
         for item in existing_data:
-            if isinstance(item, dict) and 'name' in item:
-                existing_map[item['name']] = item
-        
+            if isinstance(item, dict) and "name" in item:
+                existing_map[item["name"]] = item
+
         # Add or update subreddits from new data
         for item in new_data:
-            if isinstance(item, dict) and 'name' in item:
-                existing_map[item['name']] = item
-        
+            if isinstance(item, dict) and "name" in item:
+                existing_map[item["name"]] = item
+
         # Return as sorted list by post count (descending)
         result = list(existing_map.values())
-        result.sort(key=lambda x: x.get('posts', 0), reverse=True)
+        result.sort(key=lambda x: x.get("posts", 0), reverse=True)
         return result
-    
+
     # Handle dict format (with 'subreddits' key)
     elif isinstance(new_data, dict):
         if not isinstance(existing_data, dict):
             existing_data = {}
-        
+
         merged = existing_data.copy()
-        
+
         # Handle 'subreddits' key specifically
-        if 'subreddits' in new_data:
-            if 'subreddits' not in merged:
-                merged['subreddits'] = []
-            
+        if "subreddits" in new_data:
+            if "subreddits" not in merged:
+                merged["subreddits"] = []
+
             # Create map of existing subreddits
             existing_names = set()
-            for s in merged['subreddits']:
-                name = s.get('name') if isinstance(s, dict) else s
+            for s in merged["subreddits"]:
+                name = s.get("name") if isinstance(s, dict) else s
                 if name:
                     existing_names.add(name)
-            
+
             # Add new subreddits that don't already exist
-            for subreddit in new_data['subreddits']:
-                name = subreddit.get('name') if isinstance(subreddit, dict) else subreddit
+            for subreddit in new_data["subreddits"]:
+                name = subreddit.get("name") if isinstance(subreddit, dict) else subreddit
                 if name and name not in existing_names:
-                    merged['subreddits'].append(subreddit)
-        
+                    merged["subreddits"].append(subreddit)
+
         # Update other keys
         for key, value in new_data.items():
-            if key != 'subreddits':
+            if key != "subreddits":
                 merged[key] = value
-        
+
         return merged
-    
+
     # Fallback: return new data
     return new_data
 
 
 # Convenience functions for specific file operations
 
-def save_subreddit_stats(output_dir: str, subreddit_name: str, stats: Dict) -> bool:
+
+def save_subreddit_stats(output_dir: str, subreddit_name: str, stats: dict) -> bool:
     """
     DEPRECATED: Save subreddit statistics to JSON file.
 
@@ -197,12 +198,12 @@ def save_subreddit_stats(output_dir: str, subreddit_name: str, stats: Dict) -> b
     """
     # ✅ FIX: Ensure we use absolute path to prevent double-nested directories
     abs_output_dir = os.path.abspath(output_dir)
-    stats_file = os.path.join(abs_output_dir, '.archive-subreddit-stats.json')
+    stats_file = os.path.join(abs_output_dir, ".archive-subreddit-stats.json")
     new_data = {subreddit_name: stats}
     return merge_and_write_json(stats_file, new_data, merge_subreddit_stats)
 
 
-def save_search_metadata(output_dir: str, subreddit_name: str, metadata: Dict) -> bool:
+def save_search_metadata(output_dir: str, subreddit_name: str, metadata: dict) -> bool:
     """
     DEPRECATED: Save search metadata to JSON file.
 
@@ -218,28 +219,28 @@ def save_search_metadata(output_dir: str, subreddit_name: str, metadata: Dict) -
     """
     # ✅ FIX: Ensure we use absolute path to prevent double-nested directories
     abs_output_dir = os.path.abspath(output_dir)
-    metadata_file = os.path.join(abs_output_dir, '.archive-search-metadata.json')
+    metadata_file = os.path.join(abs_output_dir, ".archive-search-metadata.json")
     new_data = {subreddit_name: metadata}
     return merge_and_write_json(metadata_file, new_data, merge_search_metadata)
 
 
-def save_user_activity(output_dir: str, activity_data: Dict) -> bool:
+def save_user_activity(output_dir: str, activity_data: dict) -> bool:
     """Save user activity data with proper merging."""
     # ✅ FIX: Ensure we use absolute path to prevent double-nested directories
     abs_output_dir = os.path.abspath(output_dir)
-    activity_file = os.path.join(abs_output_dir, '.archive-user-activity.json')
+    activity_file = os.path.join(abs_output_dir, ".archive-user-activity.json")
     return merge_and_write_json(activity_file, activity_data, merge_user_activity)
 
 
-def save_subreddit_list(output_dir: str, subreddit_list: Union[List, Dict]) -> bool:
+def save_subreddit_list(output_dir: str, subreddit_list: list | dict) -> bool:
     """Save global subreddit list with proper merging - CRITICAL for resume operations."""
     # ✅ FIX: Ensure we use absolute path to prevent double-nested directories
     abs_output_dir = os.path.abspath(output_dir)
-    list_file = os.path.join(abs_output_dir, 'static', 'data', 'subreddit-list.json')
+    list_file = os.path.join(abs_output_dir, "static", "data", "subreddit-list.json")
     return merge_and_write_json(list_file, subreddit_list, merge_subreddit_list)
 
 
-def load_subreddit_stats(output_dir: str) -> Dict:
+def load_subreddit_stats(output_dir: str) -> dict:
     """
     DEPRECATED: Load all subreddit statistics from JSON file.
 
@@ -255,11 +256,11 @@ def load_subreddit_stats(output_dir: str) -> Dict:
     """
     # ✅ FIX: Ensure we use absolute path for consistent access
     abs_output_dir = os.path.abspath(output_dir)
-    stats_file = os.path.join(abs_output_dir, '.archive-subreddit-stats.json')
+    stats_file = os.path.join(abs_output_dir, ".archive-subreddit-stats.json")
     return read_json_safe(stats_file, {})
 
 
-def load_search_metadata(output_dir: str) -> Dict:
+def load_search_metadata(output_dir: str) -> dict:
     """
     DEPRECATED: Load all search metadata from JSON file.
 
@@ -275,25 +276,24 @@ def load_search_metadata(output_dir: str) -> Dict:
     """
     # ✅ FIX: Ensure we use absolute path for consistent access
     abs_output_dir = os.path.abspath(output_dir)
-    metadata_file = os.path.join(abs_output_dir, '.archive-search-metadata.json')
+    metadata_file = os.path.join(abs_output_dir, ".archive-search-metadata.json")
     return read_json_safe(metadata_file, {})
 
 
-def load_user_activity(output_dir: str) -> Dict:
+def load_user_activity(output_dir: str) -> dict:
     """Load user activity data."""
     # ✅ FIX: Ensure we use absolute path for consistent access
     abs_output_dir = os.path.abspath(output_dir)
-    activity_file = os.path.join(abs_output_dir, '.archive-user-activity.json')
+    activity_file = os.path.join(abs_output_dir, ".archive-user-activity.json")
     return read_json_safe(activity_file, {})
 
 
-def load_subreddit_list(output_dir: str) -> Union[List, Dict]:
+def load_subreddit_list(output_dir: str) -> list | dict:
     """Load global subreddit list."""
     # ✅ FIX: Ensure we use absolute path for consistent access
     abs_output_dir = os.path.abspath(output_dir)
-    list_file = os.path.join(abs_output_dir, 'static', 'data', 'subreddit-list.json')
+    list_file = os.path.join(abs_output_dir, "static", "data", "subreddit-list.json")
     return read_json_safe(list_file, [])
-
 
 
 # ===============================================================================
@@ -301,13 +301,15 @@ def load_subreddit_list(output_dir: str) -> Union[List, Dict]:
 # All user data now managed in PostgreSQL via PostgresDatabase
 # ===============================================================================
 
+
 def get_archive_database_connection_string() -> str:
     """Get PostgreSQL connection string from environment."""
     from core.postgres_database import get_postgres_connection_string
+
     return get_postgres_connection_string()
 
 
-def save_user_index_sqlite(output_dir: str, user_index: Dict) -> bool:
+def save_user_index_sqlite(output_dir: str, user_index: dict) -> bool:
     """
     DEPRECATED: User data is now automatically tracked in RedditDatabase.
 
@@ -318,7 +320,7 @@ def save_user_index_sqlite(output_dir: str, user_index: Dict) -> bool:
     return True  # No-op for backward compatibility
 
 
-def load_user_index_sqlite(output_dir: str) -> Dict:
+def load_user_index_sqlite(output_dir: str) -> dict:
     """
     DEPRECATED: User data is now queried directly from RedditDatabase.
 
@@ -331,7 +333,7 @@ def load_user_index_sqlite(output_dir: str) -> Dict:
     return {}  # Return empty dict for backward compatibility
 
 
-def save_user_index_incremental_sqlite(output_dir: str, subreddit_name: str, user_data: Dict) -> bool:
+def save_user_index_incremental_sqlite(output_dir: str, subreddit_name: str, user_data: dict) -> bool:
     """
     DEPRECATED: User data is now automatically tracked in RedditDatabase.
 
@@ -342,7 +344,14 @@ def save_user_index_incremental_sqlite(output_dir: str, subreddit_name: str, use
     return True  # No-op for backward compatibility
 
 
-def get_user_batches_sqlite(output_dir: str, batch_size: int = 500, min_activity: int = 0, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False):
+def get_user_batches_sqlite(
+    output_dir: str,
+    batch_size: int = 500,
+    min_activity: int = 0,
+    min_score: int = 0,
+    min_comments: int = 0,
+    hide_deleted: bool = False,
+):
     """
     Generator that yields batches of users from unified RedditDatabase.
 
@@ -365,7 +374,7 @@ def get_user_batches_sqlite(output_dir: str, batch_size: int = 500, min_activity
 
         connection_string = get_archive_database_connection_string()
 
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             all_usernames = db.get_user_list(min_activity)
             total_users = len(all_usernames)
             print(f"Processing {total_users} users in batches of {batch_size}")
@@ -381,13 +390,17 @@ def get_user_batches_sqlite(output_dir: str, batch_size: int = 500, min_activity
 
                 # PERFORMANCE FIX: Use bulk query method instead of N+1 individual queries
                 # This reduces database query time from 20+ seconds to <100ms
-                users_data_dict = db.get_user_activity_batch(usernames, min_score=min_score, min_comments=min_comments, hide_deleted=hide_deleted)
+                users_data_dict = db.get_user_activity_batch(
+                    usernames, min_score=min_score, min_comments=min_comments, hide_deleted=hide_deleted
+                )
 
                 # Convert dict to list of tuples format expected by caller
                 # Skip users with no content after filtering (prevents dead links)
-                batch_data = [(username, users_data_dict[username])
-                             for username in usernames
-                             if username in users_data_dict and users_data_dict[username].get('all_content')]
+                batch_data = [
+                    (username, users_data_dict[username])
+                    for username in usernames
+                    if username in users_data_dict and users_data_dict[username].get("all_content")
+                ]
 
                 print(f"Loaded batch: {len(batch_data)} users (offset {offset})")
                 yield batch_data
@@ -396,13 +409,22 @@ def get_user_batches_sqlite(output_dir: str, batch_size: int = 500, min_activity
 
                 # Cleanup memory after each batch
                 import gc
+
                 gc.collect()
 
     except Exception as e:
         print(f"[ERROR] Failed to load user batches from RedditDatabase: {e}")
 
 
-def get_user_batches_for_subreddit_sqlite(output_dir: str, subreddit: str, batch_size: int = 500, min_activity: int = 0, min_score: int = 0, min_comments: int = 0, hide_deleted: bool = False):
+def get_user_batches_for_subreddit_sqlite(
+    output_dir: str,
+    subreddit: str,
+    batch_size: int = 500,
+    min_activity: int = 0,
+    min_score: int = 0,
+    min_comments: int = 0,
+    hide_deleted: bool = False,
+):
     """
     Generator that yields batches of users from unified RedditDatabase for a specific subreddit.
 
@@ -426,7 +448,7 @@ def get_user_batches_for_subreddit_sqlite(output_dir: str, subreddit: str, batch
 
         connection_string = get_archive_database_connection_string()
 
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             # Get all users (subreddit filtering done in memory for now)
             all_usernames = db.get_user_list(min_activity)
             print(f"Filtering users with r/{subreddit} activity from {len(all_usernames)} users")
@@ -441,7 +463,13 @@ def get_user_batches_for_subreddit_sqlite(output_dir: str, subreddit: str, batch
                     break
 
                 # PERFORMANCE FIX: Use bulk query method instead of N+1 individual queries
-                users_data_dict = db.get_user_activity_batch(usernames, subreddit_filter=subreddit, min_score=min_score, min_comments=min_comments, hide_deleted=hide_deleted)
+                users_data_dict = db.get_user_activity_batch(
+                    usernames,
+                    subreddit_filter=subreddit,
+                    min_score=min_score,
+                    min_comments=min_comments,
+                    hide_deleted=hide_deleted,
+                )
 
                 # Filter users who have activity in the target subreddit after filtering
                 # Skip users with no content after applying filters (prevents dead links)
@@ -449,20 +477,23 @@ def get_user_batches_for_subreddit_sqlite(output_dir: str, subreddit: str, batch
                 for username, user_data in users_data_dict.items():
                     # Check if user has posts or comments in target subreddit after filtering
                     has_activity = any(
-                        item.get('subreddit', '').lower() == subreddit.lower()
-                        for item in user_data.get('all_content', [])
+                        item.get("subreddit", "").lower() == subreddit.lower()
+                        for item in user_data.get("all_content", [])
                     )
-                    if has_activity and user_data.get('all_content'):
+                    if has_activity and user_data.get("all_content"):
                         batch_data.append((username, user_data))
 
                 if batch_data:
-                    print(f"Loaded batch: {len(batch_data)} users from r/{subreddit} (filtered from {len(usernames)} users)")
+                    print(
+                        f"Loaded batch: {len(batch_data)} users from r/{subreddit} (filtered from {len(usernames)} users)"
+                    )
                     yield batch_data
 
                 offset += batch_size
 
                 # Cleanup memory after each batch
                 import gc
+
                 gc.collect()
 
     except Exception as e:
@@ -483,7 +514,7 @@ def migrate_json_to_sqlite(output_dir: str, force: bool = False) -> bool:
     return True  # No-op for backward compatibility
 
 
-def get_sqlite_database_stats(output_dir: str) -> Dict:
+def get_sqlite_database_stats(output_dir: str) -> dict:
     """
     Get unified RedditDatabase statistics for monitoring.
 
@@ -495,10 +526,8 @@ def get_sqlite_database_stats(output_dir: str) -> Dict:
 
         connection_string = get_archive_database_connection_string()
 
-        with PostgresDatabase(connection_string, workload_type='user_processing') as db:
+        with PostgresDatabase(connection_string, workload_type="user_processing") as db:
             return db.get_database_info()
     except Exception as e:
         print(f"[ERROR] Failed to get database stats: {e}")
         return {}
-
-

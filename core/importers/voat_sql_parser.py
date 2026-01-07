@@ -12,7 +12,8 @@ Handles MariaDB-specific SQL syntax that PostgreSQL cannot parse directly:
 import gzip
 import logging
 import re
-from typing import Iterator, Dict, Any, List, Tuple, Optional
+from collections.abc import Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +28,59 @@ class VoatSQLParser:
 
     # Hardcoded column mappings for Voat tables (from CREATE TABLE statements)
     COLUMN_MAPS = {
-        'submission': [
-            'submissionid', 'archiveDate', 'commentCount', 'content',
-            'creationDate', 'domain', 'downCount', 'formattedContent',
-            'isAdult', 'isAnonymized', 'isDeleted', 'lastEditDate',
-            'subverse', 'sum', 'thumbnail', 'title', 'type', 'upCount',
-            'url', 'userName', 'views', 'archivedLink', 'archivedDomain',
-            'deletedMeaning', 'fetchCount', 'lastFetched', 'flags'
+        "submission": [
+            "submissionid",
+            "archiveDate",
+            "commentCount",
+            "content",
+            "creationDate",
+            "domain",
+            "downCount",
+            "formattedContent",
+            "isAdult",
+            "isAnonymized",
+            "isDeleted",
+            "lastEditDate",
+            "subverse",
+            "sum",
+            "thumbnail",
+            "title",
+            "type",
+            "upCount",
+            "url",
+            "userName",
+            "views",
+            "archivedLink",
+            "archivedDomain",
+            "deletedMeaning",
+            "fetchCount",
+            "lastFetched",
+            "flags",
         ],
-        'comment': [
-            'commentid', 'content', 'creationDate', 'downCount',
-            'formattedContent', 'isAnonymized', 'isCollapsed', 'isDeleted',
-            'isDistinguished', 'isOwner', 'isSaved', 'isSubmitter',
-            'lastEditDate', 'parentid', 'submissionid', 'subverse',
-            'sum', 'upCount', 'userName', 'vote', 'fetchCount', 'lastFetched'
-        ]
+        "comment": [
+            "commentid",
+            "content",
+            "creationDate",
+            "downCount",
+            "formattedContent",
+            "isAnonymized",
+            "isCollapsed",
+            "isDeleted",
+            "isDistinguished",
+            "isOwner",
+            "isSaved",
+            "isSubmitter",
+            "lastEditDate",
+            "parentid",
+            "submissionid",
+            "subverse",
+            "sum",
+            "upCount",
+            "userName",
+            "vote",
+            "fetchCount",
+            "lastFetched",
+        ],
     }
 
     # MariaDB escape sequences
@@ -56,7 +95,9 @@ class VoatSQLParser:
         "Z": "\x1a",
     }
 
-    def stream_rows(self, file_path: str, table_name: str, filter_subverses: Optional[List[str]] = None) -> Iterator[Dict[str, Any]]:
+    def stream_rows(
+        self, file_path: str, table_name: str, filter_subverses: list[str] | None = None
+    ) -> Iterator[dict[str, Any]]:
         """
         Stream parsed rows from a Voat SQL dump file.
 
@@ -75,7 +116,7 @@ class VoatSQLParser:
         insert_pattern = re.compile(rf"INSERT INTO `{table_name}` VALUES", re.IGNORECASE)
 
         # Find subverse column index for quick filtering
-        subverse_idx = columns.index('subverse') if 'subverse' in columns else -1
+        subverse_idx = columns.index("subverse") if "subverse" in columns else -1
 
         # Convert filter to lowercase for case-insensitive comparison
         filter_lower = [s.lower() for s in filter_subverses] if filter_subverses else None
@@ -84,20 +125,22 @@ class VoatSQLParser:
         skipped_count = 0
         error_count = 0
 
-        logger.info(f"Parsing {table_name} from {file_path}" +
-                   (f" (filtering for: {', '.join(filter_subverses)})" if filter_subverses else ""))
+        logger.info(
+            f"Parsing {table_name} from {file_path}"
+            + (f" (filtering for: {', '.join(filter_subverses)})" if filter_subverses else "")
+        )
 
         try:
             # Test if file can be opened (catches corrupted gzip files early)
             try:
-                test_f = gzip.open(file_path, 'rt', encoding='utf-8', errors='replace')
+                test_f = gzip.open(file_path, "rt", encoding="utf-8", errors="replace")
                 test_f.readline()
                 test_f.close()
             except Exception as e:
                 logger.error(f"Cannot read {file_path}: {e} (corrupted file)")
                 return  # Exit generator early
 
-            with gzip.open(file_path, 'rt', encoding='utf-8', errors='replace') as f:
+            with gzip.open(file_path, "rt", encoding="utf-8", errors="replace") as f:
                 buffer = ""
                 in_split_format = False  # Track if we're in split file format (tuples without INSERT)
                 accumulating_tuple = False  # Track if we're accumulating a multi-line tuple
@@ -105,26 +148,26 @@ class VoatSQLParser:
                 for line in f:
                     # Skip comments and empty lines
                     stripped = line.strip()
-                    if not stripped or stripped.startswith('--') or stripped.startswith('/*'):
+                    if not stripped or stripped.startswith("--") or stripped.startswith("/*"):
                         continue
 
                     # Skip CREATE TABLE and other DDL statements
-                    if stripped.upper().startswith(('CREATE ', 'DROP ', 'ALTER ', 'SET ', 'USE ')):
+                    if stripped.upper().startswith(("CREATE ", "DROP ", "ALTER ", "SET ", "USE ")):
                         continue
 
                     # Look for INSERT statement (standard format)
                     if insert_pattern.search(line):
                         # Find VALUES position
-                        values_pos = line.upper().find('VALUES')
+                        values_pos = line.upper().find("VALUES")
                         if values_pos == -1:
                             continue
 
                         # Start parsing from after VALUES
-                        buffer = line[values_pos + 6:]
+                        buffer = line[values_pos + 6 :]
                         in_split_format = False
 
                     # Split file format: lines starting with '(' are tuples (may span multiple lines)
-                    elif stripped.startswith('('):
+                    elif stripped.startswith("("):
                         # New tuple starting
                         if accumulating_tuple:
                             # We were accumulating previous tuple but hit new one
@@ -148,7 +191,7 @@ class VoatSQLParser:
                         # Parse all tuples in this buffer
                         while True:
                             # Find start of tuple
-                            paren_start = buffer.find('(')
+                            paren_start = buffer.find("(")
                             if paren_start == -1:
                                 break
 
@@ -166,7 +209,7 @@ class VoatSQLParser:
                                             if in_split_format:
                                                 in_split_format = False
                                             break
-                                        if not in_split_format and buffer.strip().startswith(';'):
+                                        if not in_split_format and buffer.strip().startswith(";"):
                                             break
                                         if in_split_format:
                                             in_split_format = False
@@ -187,7 +230,7 @@ class VoatSQLParser:
                                     break  # Exit inner while, continue outer for loop to read more lines
 
                                 if values and len(values) == len(columns):
-                                    row_dict = dict(zip(columns, values))
+                                    row_dict = dict(zip(columns, values, strict=False))
 
                                     # Apply filter after full parse (in case quick extract failed)
                                     if filter_lower and subverse_idx >= 0:
@@ -199,7 +242,7 @@ class VoatSQLParser:
                                                 if in_split_format:
                                                     in_split_format = False
                                                 break
-                                            if not in_split_format and buffer.strip().startswith(';'):
+                                            if not in_split_format and buffer.strip().startswith(";"):
                                                 break
                                             if in_split_format:
                                                 in_split_format = False
@@ -233,7 +276,7 @@ class VoatSQLParser:
                                     if in_split_format:
                                         in_split_format = False  # Reset for next tuple
                                     break
-                                if not in_split_format and buffer.strip().startswith(';'):
+                                if not in_split_format and buffer.strip().startswith(";"):
                                     break
                                 if in_split_format:
                                     # In split format, one tuple per multi-line block, reset after parsing
@@ -242,7 +285,7 @@ class VoatSQLParser:
 
                             except Exception as e:
                                 # In split format with incomplete tuple, keep accumulating
-                                if in_split_format and 'find closing' in str(e).lower():
+                                if in_split_format and "find closing" in str(e).lower():
                                     # Tuple incomplete, need more lines
                                     break  # Exit inner while, continue reading lines
 
@@ -256,20 +299,20 @@ class VoatSQLParser:
                                 # Skip past the failed tuple to continue processing
                                 try:
                                     # Try to find end of current tuple first
-                                    next_comma = buffer.find('),', paren_start)
-                                    next_semicolon = buffer.find(');', paren_start)
+                                    next_comma = buffer.find("),", paren_start)
+                                    next_semicolon = buffer.find(");", paren_start)
 
                                     if next_comma != -1 and (next_semicolon == -1 or next_comma < next_semicolon):
                                         # Found comma, skip past it
-                                        buffer = buffer[next_comma + 2:]
+                                        buffer = buffer[next_comma + 2 :]
                                     elif next_semicolon != -1:
                                         # Found semicolon, end of statement
-                                        buffer = buffer[next_semicolon + 2:]
+                                        buffer = buffer[next_semicolon + 2 :]
                                         if not buffer.strip():
                                             break
                                     else:
                                         # Can't find end, try to find next opening paren
-                                        next_paren = buffer.find('(', paren_start + 1)
+                                        next_paren = buffer.find("(", paren_start + 1)
                                         if next_paren == -1:
                                             break
                                         buffer = buffer[next_paren:]
@@ -282,11 +325,13 @@ class VoatSQLParser:
             raise
 
         if filter_subverses:
-            logger.info(f"Parsed {row_count} rows from {table_name} (skipped {skipped_count} filtered), {error_count} errors")
+            logger.info(
+                f"Parsed {row_count} rows from {table_name} (skipped {skipped_count} filtered), {error_count} errors"
+            )
         else:
             logger.info(f"Parsed {row_count} rows from {table_name}, {error_count} errors")
 
-    def _quick_extract_field(self, text: str, start: int, field_idx: int) -> Optional[Any]:
+    def _quick_extract_field(self, text: str, start: int, field_idx: int) -> Any | None:
         """
         Quickly extract a single field from a VALUES tuple without full parsing.
         Used for pre-filtering to skip unwanted rows faster.
@@ -309,10 +354,10 @@ class VoatSQLParser:
             char = text[i]
 
             # Handle string escaping
-            if char == '\\' and in_string and i + 1 < len(text):
+            if char == "\\" and in_string and i + 1 < len(text):
                 i += 2  # Skip escape sequence
                 if field_count == field_idx:
-                    current += text[i-1]
+                    current += text[i - 1]
                 continue
 
             # Handle quotes
@@ -333,16 +378,16 @@ class VoatSQLParser:
 
             # Not in string - track structure
             if not in_string:
-                if char == '(':
+                if char == "(":
                     paren_depth += 1
-                elif char == ')':
+                elif char == ")":
                     if paren_depth == 0:
                         # End of tuple
                         if field_count == field_idx:
                             return self._convert_value(current.strip())
                         break
                     paren_depth -= 1
-                elif char == ',' and paren_depth == 0:
+                elif char == "," and paren_depth == 0:
                     # Field separator
                     if field_count == field_idx:
                         return self._convert_value(current.strip())
@@ -359,7 +404,7 @@ class VoatSQLParser:
 
         return None
 
-    def _parse_values_tuple(self, text: str, start: int) -> Tuple[List[Any], int]:
+    def _parse_values_tuple(self, text: str, start: int) -> tuple[list[Any], int]:
         """
         Parse a single VALUES tuple using state machine.
 
@@ -385,7 +430,7 @@ class VoatSQLParser:
                 state = "IN_STRING"
 
             elif state == "IN_STRING":
-                if char == '\\':
+                if char == "\\":
                     state = "ESCAPE"
                 elif char == "'":
                     # Check for doubled quote (MySQL escape)
@@ -401,12 +446,12 @@ class VoatSQLParser:
                 state = "IN_STRING"
                 was_quoted = True
 
-            elif char == ',':
+            elif char == ",":
                 values.append(self._parse_value(current.strip(), was_quoted))
                 current = ""
                 was_quoted = False
 
-            elif char == ')':
+            elif char == ")":
                 values.append(self._parse_value(current.strip(), was_quoted))
                 return values, i + 1
 
@@ -430,7 +475,7 @@ class VoatSQLParser:
             Converted value (None, int, float, or str)
         """
         # NULL keyword (unquoted) becomes None
-        if value.upper() == 'NULL':
+        if value.upper() == "NULL":
             return None
 
         # Empty unquoted value is None, but empty quoted string is ''

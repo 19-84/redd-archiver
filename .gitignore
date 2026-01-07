@@ -1,0 +1,204 @@
+# ============================================================================
+# Redd-Archiver .gitignore
+# ============================================================================
+
+# ============================================================================
+# Python
+# ============================================================================
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ============================================================================
+# Testing & Coverage
+# ============================================================================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+*.cover
+*.py,cover
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# ============================================================================
+# IDEs & Editors
+# ============================================================================
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Claude Code
+.claude/
+
+# Other editors
+.spyderproject
+.spyproject
+.ropeproject
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# PostgreSQL & Databases
+# ============================================================================
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# PostgreSQL data directory (mounted as Docker volume)
+postgres-data/
+.postgres-data/
+
+# ============================================================================
+# Redd-Archiver: Input Data
+# ============================================================================
+# Compressed Reddit data dumps (too large to commit)
+*.zst
+*.zstd
+
+# Data directory
+data/
+
+# ============================================================================
+# Redd-Archiver: Generated Output
+# ============================================================================
+# Archive output directories
+output/
+archive/
+*-archive-output/
+
+# Generated HTML structure
+r/*/
+user/*/
+index.html
+search.html
+
+# Generated SEO files
+sitemap*.xml
+robots.txt
+
+# Generated static content
+static/fonts/
+static/js/search/
+static/seo/*/
+static/data/*
+
+# ============================================================================
+# Redd-Archiver: Runtime Artifacts
+# ============================================================================
+# Logs
+*.log
+logs/
+
+# Caches
+.jinja_cache/
+
+# Performance profiling
+*.prof
+*.profile
+
+# ============================================================================
+# OS Files
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.tmp
+
+# ============================================================================
+# Docker
+# ============================================================================
+docker-compose.override.yml
+
+# ============================================================================
+# Tor Hidden Service (CRITICAL: Contains private keys!)
+# ============================================================================
+tor-hidden-service/
+tor-public/
+
+# ============================================================================
+# Development (Internal)
+# ============================================================================
+# Personal notes
+TODO.md
+NOTES.md
+*.local.md
+
+# ============================================================================
+# What to Commit
+# ============================================================================
+# ✓ Source code (*.py in core/, utils/, processing/, monitoring/, html_modules/)
+# ✓ Entry points (reddarc.py, search_server.py, version.py)
+# ✓ Templates (templates_jinja2/*)
+# ✓ Static assets (static/css/*, committed static/js/*)
+# ✓ SQL schema (sql/*)
+# ✓ Docker configs (Dockerfile, docker-compose.yml, docker/*)
+# ✓ Documentation (README.md, CONTRIBUTING.md, ARCHITECTURE.md, etc.)
+# ✓ Configuration examples (.env.example)
+# ✓ Tests (tests/*)
+# ✓ GitHub templates (.github/*)
+#
+# ✗ Generated archives (output/, archive/, r/*, user/*)
+# ✗ Input data files (*.zst, data/)
+# ✗ Database files (postgres-data/)
+# ✗ Logs and caches (*.log, .jinja_cache/)
+# ✗ Python bytecode (__pycache__/)
+# ✗ Virtual environments (.venv/)
+# ✗ Secrets (.env)
+
+# MCP Configuration (user-specific paths)
+.mcp.json

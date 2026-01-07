@@ -10,9 +10,10 @@ All platform importers must:
 5. Normalize data to common schema
 """
 
-from abc import ABC, abstractmethod
-from typing import Iterator, Dict, Any, List, Optional
 import logging
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,10 @@ class BaseImporter(ABC):
     def __init__(self):
         """Initialize importer and validate configuration."""
         if self.PLATFORM_ID is None:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} must set PLATFORM_ID class attribute"
-            )
+            raise NotImplementedError(f"{self.__class__.__name__} must set PLATFORM_ID class attribute")
 
     @abstractmethod
-    def detect_files(self, input_dir: str) -> Dict[str, List[str]]:
+    def detect_files(self, input_dir: str) -> dict[str, list[str]]:
         """
         Detect and return paths to platform-specific archive files.
 
@@ -59,11 +58,7 @@ class BaseImporter(ABC):
         pass
 
     @abstractmethod
-    def stream_posts(
-        self,
-        file_path: str,
-        filter_communities: Optional[List[str]] = None
-    ) -> Iterator[Dict[str, Any]]:
+    def stream_posts(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
         Stream posts from archive file with normalization.
 
@@ -82,11 +77,7 @@ class BaseImporter(ABC):
         pass
 
     @abstractmethod
-    def stream_comments(
-        self,
-        file_path: str,
-        filter_communities: Optional[List[str]] = None
-    ) -> Iterator[Dict[str, Any]]:
+    def stream_comments(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
         Stream comments from archive file with normalization.
 
@@ -116,7 +107,7 @@ class BaseImporter(ABC):
         """
         return f"{self.PLATFORM_ID}_{raw_id}"
 
-    def get_platform_metadata(self) -> Dict[str, str]:
+    def get_platform_metadata(self) -> dict[str, str]:
         """
         Get platform-specific metadata.
 
@@ -124,29 +115,16 @@ class BaseImporter(ABC):
             dict: Platform display information
         """
         metadata = {
-            'reddit': {
-                'display_name': 'Reddit',
-                'community_term': 'subreddit',
-                'url_prefix': 'r'
-            },
-            'voat': {
-                'display_name': 'Voat',
-                'community_term': 'subverse',
-                'url_prefix': 'v'
-            },
-            'ruqqus': {
-                'display_name': 'Ruqqus',
-                'community_term': 'guild',
-                'url_prefix': 'g'
-            }
+            "reddit": {"display_name": "Reddit", "community_term": "subreddit", "url_prefix": "r"},
+            "voat": {"display_name": "Voat", "community_term": "subverse", "url_prefix": "v"},
+            "ruqqus": {"display_name": "Ruqqus", "community_term": "guild", "url_prefix": "g"},
         }
-        return metadata.get(self.PLATFORM_ID, {
-            'display_name': self.PLATFORM_ID.title(),
-            'community_term': 'community',
-            'url_prefix': 'c'
-        })
+        return metadata.get(
+            self.PLATFORM_ID,
+            {"display_name": self.PLATFORM_ID.title(), "community_term": "community", "url_prefix": "c"},
+        )
 
-    def validate_required_fields(self, data: Dict[str, Any], required_fields: List[str], record_type: str) -> bool:
+    def validate_required_fields(self, data: dict[str, Any], required_fields: list[str], record_type: str) -> bool:
         """
         Validate that required fields are present in data dict.
 
