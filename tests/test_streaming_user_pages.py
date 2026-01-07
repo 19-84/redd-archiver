@@ -57,7 +57,7 @@ def populated_test_database(test_database):
                     "created_utc": 1640000000 + i + j,
                     "num_comments": 0,
                     "url": f"https://reddit.com/test_{i}_{j}",
-                    "permalink": f"/r/test/comments/test_{i}_{j}/",
+                    "permalink": f"/r/test/comments/test_post_{i}_{j}/",
                     "is_self": True,
                 }
             )
@@ -73,7 +73,7 @@ def populated_test_database(test_database):
                     "created_utc": 1640000100 + i + j,
                     "link_id": f"t3_test_post_{i}_0",
                     "parent_id": f"t3_test_post_{i}_0",
-                    "permalink": f"/r/test/comments/test_{i}_0/_/test_comment_{i}_{j}/",
+                    "permalink": f"/r/test/comments/test_post_{i}_0/_/test_comment_{i}_{j}/",
                     "depth": 0,
                 }
             )

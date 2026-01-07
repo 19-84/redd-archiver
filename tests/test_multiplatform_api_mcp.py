@@ -54,6 +54,7 @@ ALL_COMMUNITIES = REDDIT_COMMUNITIES + VOAT_COMMUNITIES + RUQQUS_COMMUNITIES
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestSystemEndpoints:
     """Test core API system endpoints"""
 
@@ -83,9 +84,9 @@ class TestSystemEndpoints:
         assert any(c in community_names for c in VOAT_COMMUNITIES), "No Voat communities in stats"
         assert any(c in community_names for c in RUQQUS_COMMUNITIES), "No Ruqqus communities in stats"
 
-        # Verify total counts
-        assert data["content"]["total_posts"] >= 28000, "Expected 28K+ posts from all platforms"
-        assert data["content"]["total_users"] >= 42000, "Expected 42K+ users from all platforms"
+        # Verify total counts (adjusted for test fixture scale: ~200 posts, ~50+ users)
+        assert data["content"]["total_posts"] >= 200, "Expected 200+ test posts from all platforms"
+        assert data["content"]["total_users"] >= 50, "Expected 50+ test users from all platforms"
 
     def test_schema_endpoint(self, api_client):
         """Test /api/v1/schema returns API capability discovery"""
@@ -101,6 +102,7 @@ class TestSystemEndpoints:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestPostsEndpoints:
     """Test posts endpoints across all platforms"""
 
@@ -210,6 +212,7 @@ class TestPostsEndpoints:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestUsersEndpoints:
     """Test users endpoints across all platforms"""
 
@@ -258,6 +261,7 @@ class TestUsersEndpoints:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestSearchEndpoints:
     """Test full-text search across all platforms"""
 
@@ -295,6 +299,7 @@ class TestSearchEndpoints:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestCommunityEndpoints:
     """Test subreddit/subverse/guild endpoints"""
 
@@ -402,6 +407,7 @@ class TestPlatformUtilities:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestEndToEndIntegration:
     """End-to-end integration tests per platform"""
 
@@ -476,6 +482,7 @@ class TestEndToEndIntegration:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestMCPServerTools:
     """Test MCP server tools via API (MCP tools call REST API)"""
 
@@ -534,6 +541,7 @@ class TestMCPServerTools:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestEdgeCases:
     """Test edge cases and error handling"""
 
@@ -576,6 +584,7 @@ class TestEdgeCases:
 # ============================================================================
 
 
+@pytest.mark.usefixtures("multiplatform_test_database")
 class TestAPIOptimization:
     """Test MCP-optimized parameters for token reduction"""
 
