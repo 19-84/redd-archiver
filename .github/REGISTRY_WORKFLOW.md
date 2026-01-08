@@ -30,7 +30,8 @@ The following fields are automatically fetched from your `/api/v1/stats` endpoin
 | Team ID | `instance.team_id` | Form field (optional) |
 | Tor URL | `instance.tor_url` | Form field (optional) |
 | Subreddits | `content.subreddits[]` | Always from API |
-| Features | `features.tor`, API availability | Auto-detected |
+| Features | `features.tor`, API availability, user pages | Auto-detected |
+| User Pages | `/api/v1/users` endpoint check | Form checkbox (optional) |
 
 ### Optional Enhancements
 
@@ -38,6 +39,8 @@ The following fields are automatically fetched from your `/api/v1/stats` endpoin
 - IPFS hosting (CID)
 - Team affiliation
 - Preferred contact method (Simplex, Matrix, Telegram, email, etc.)
+- Server region and country (for redundancy tracking)
+- User pages feature checkbox
 
 ### Tor-Only Instances
 
@@ -46,6 +49,8 @@ If your archive is only accessible via Tor (no clearnet URL):
 1. Leave the "Clearnet URL" field blank
 2. Enter your `.onion` URL in the "Tor Hidden Service URL" field
 3. The maintainer will use `torify curl` to validate your API
+
+**Privacy Protection:** Geolocation fields (region/country) are automatically excluded for Tor-only instances to protect operator privacy.
 
 **Note:** Tor-only instances are fully supported. The script will fetch your API via Tor.
 
@@ -277,9 +282,10 @@ teams/
       {"name": "privacy", "url": "/r/privacy/"}
     ],
     "hosting": "Self-hosted (VPS/dedicated server)",
-    "location": "North America"
+    "location": "North America",
+    "country": "United States"
   },
-  "features": ["api", "tor"],
+  "features": ["api", "tor", "user-pages"],
   "contact": {
     "preferred": "@user:matrix.org"
   },
@@ -293,7 +299,9 @@ teams/
 - `contact` is optional
 - `notes` is optional
 - `location` uses regions: North America, South America, Europe, Africa, Asia, Oceania
-- `features` are auto-detected: `api` (always), `tor` (if tor_url present)
+- `country` is optional (more specific than region)
+- `features` are auto-detected: `api` (always), `tor` (if tor_url present), `user-pages` (if users endpoint works)
+- **Tor-only instances**: `location` and `country` are automatically excluded for privacy
 
 ### Team JSON Format
 

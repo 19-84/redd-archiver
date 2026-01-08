@@ -23,7 +23,9 @@ body:
         - Team ID (can be overridden below)
         - Tor URL (if detected by your instance)
         - Subreddits list
-        - Features (API, Tor)
+        - Features (API, Tor, User Pages)
+
+        **Privacy Note:** Geolocation fields (region/country) are ignored for Tor-only instances.
 
   - type: input
     id: clearnet_url
@@ -100,7 +102,7 @@ body:
     id: location
     attributes:
       label: Server Region (Optional)
-      description: Geographic region of your server (for redundancy tracking)
+      description: Geographic region of your server (for redundancy tracking). Ignored for Tor-only instances.
       options:
         - North America
         - South America
@@ -111,6 +113,23 @@ body:
         - Other/Unknown
     validations:
       required: false
+
+  - type: input
+    id: country
+    attributes:
+      label: Country (Optional)
+      description: Specific country if you want to share. Ignored for Tor-only instances.
+      placeholder: "Germany, USA, Japan, etc."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: features
+    attributes:
+      label: Features (Optional)
+      description: Additional features your archive supports. API and Tor are auto-detected.
+      options:
+        - label: User pages enabled (per-user activity pages)
 
   - type: input
     id: ipfs_cid

@@ -69,6 +69,43 @@ def fetch_instance_api(url: str, use_tor: bool = False) -> dict:
             raise Exception(f"Invalid JSON response: {e}") from e
 
 
+def detect_user_pages(url: str, use_tor: bool = False) -> bool:
+    """
+    Detect if user pages are enabled by checking the /api/v1/users endpoint.
+
+    Args:
+        url: Base URL of the instance
+        use_tor: Whether to use torify for .onion URLs
+
+    Returns:
+        True if user pages appear to be enabled, False otherwise
+    """
+    users_url = f"{url.rstrip('/')}/api/v1/users?limit=1"
+
+    try:
+        if use_tor:
+            result = subprocess.run(
+                ["torify", "curl", "-s", "--max-time", "10", users_url],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            data = json.loads(result.stdout)
+        else:
+            if not users_url.startswith(("https://", "http://")):
+                return False
+            ctx = ssl.create_default_context()
+            req = urllib.request.Request(users_url, headers={"User-Agent": "ReddArchiver-Registry/1.0"})  # noqa: S310
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as response:  # noqa: S310
+                data = json.loads(response.read().decode("utf-8"))
+
+        # If we get users data back, user pages are enabled
+        return "data" in data and len(data.get("data", [])) > 0
+    except Exception:
+        # If endpoint fails, assume user pages not enabled
+        return False
+
+
 def get_api_url(clearnet_url: str | None, tor_url: str | None) -> tuple[str, bool]:
     """
     Determine which URL to use for API fetch.
@@ -113,6 +150,7 @@ def parse_issue_body(issue_body: str) -> dict:
         "preferred_contact": r"### Preferred Contact Method.*?\n\s*(.+)",
         "hosting_type": r"### Hosting Type\s*\n\s*(.+)",
         "location": r"### Server Region.*?\n\s*(.+)",
+        "country": r"### Country.*?\n\s*(.+)",
         "ipfs_cid": r"### IPFS CID.*?\n\s*(.+)",
         "additional_info": r"### Additional Information\s*\n\s*(.+?)(?=\n###|\Z)",
     }
@@ -125,16 +163,22 @@ def parse_issue_body(issue_body: str) -> dict:
             if value and value not in ["_No response_", "No response", "None", ""]:
                 data[key] = value
 
+    # Parse user_pages checkbox
+    if re.search(r"\[x\] User pages enabled", issue_body, re.IGNORECASE):
+        data["user_pages"] = True
+
     return data
 
 
-def generate_instance_json(data: dict, api_data: dict) -> dict:
+def generate_instance_json(data: dict, api_data: dict, is_tor_only: bool, user_pages_detected: bool) -> dict:
     """
     Generate registry JSON format from parsed issue data and API data.
 
     Args:
         data: Parsed issue data from form
         api_data: Data fetched from instance's /api/v1/stats
+        is_tor_only: Whether this is a Tor-only instance (no clearnet)
+        user_pages_detected: Whether user pages were detected via API
 
     Returns:
         Registry-compatible JSON structure
@@ -186,14 +230,22 @@ def generate_instance_json(data: dict, api_data: dict) -> dict:
         "hosting": data.get("hosting_type", "unknown"),
     }
 
-    if data.get("location") and data["location"] != "Other/Unknown":
-        static_metadata["location"] = data["location"]
+    # Only include geolocation for non-tor-only instances (privacy protection)
+    if not is_tor_only:
+        if data.get("location") and data["location"] != "Other/Unknown":
+            static_metadata["location"] = data["location"]
+        if data.get("country"):
+            static_metadata["country"] = data["country"]
 
     # Auto-detect features from API
     features = ["api"]  # Always has API if we got here
     api_features = api_data.get("features", {})
     if api_features.get("tor") or tor_url:
         features.append("tor")
+
+    # User pages: form checkbox OR auto-detected from API
+    if data.get("user_pages") or user_pages_detected:
+        features.append("user-pages")
 
     # Build final JSON structure
     instance_json = {
@@ -291,8 +343,14 @@ def main():
         print("✗ At least one URL (clearnet or Tor) is required")
         sys.exit(1)
 
+    # Determine if tor-only
+    is_tor_only = not clearnet_url and bool(tor_url)
+    if is_tor_only:
+        print("🧅 Tor-only instance detected - geolocation will be excluded for privacy")
+
     # Fetch API data
     api_data = {}
+    user_pages_detected = False
     if not args.skip_api:
         try:
             api_url, use_tor = get_api_url(clearnet_url, tor_url)
@@ -301,6 +359,14 @@ def main():
                 print("   (Using Tor - make sure torify is installed)")
             api_data = fetch_instance_api(api_url, use_tor)
             print("✓ API fetch successful")
+
+            # Detect user pages
+            print("🔍 Checking for user pages...")
+            user_pages_detected = detect_user_pages(api_url, use_tor)
+            if user_pages_detected:
+                print("✓ User pages detected")
+            else:
+                print("✗ User pages not detected (or disabled)")
 
             # Show what we got from API
             api_instance = api_data.get("instance", {})
@@ -312,6 +378,7 @@ def main():
             print(f"   Subreddits: {len(api_content.get('subreddits', []))}")
             print(f"   Total posts: {api_content.get('total_posts', 'N/A')}")
             print(f"   Total comments: {api_content.get('total_comments', 'N/A')}")
+            print(f"   Total users: {api_content.get('total_users', 'N/A')}")
 
         except Exception as e:
             print(f"✗ Failed to fetch API: {e}")
@@ -323,7 +390,7 @@ def main():
 
     # Generate JSON
     print("\n📝 Generating registry JSON...")
-    instance_json = generate_instance_json(parsed_data, api_data)
+    instance_json = generate_instance_json(parsed_data, api_data, is_tor_only, user_pages_detected)
 
     # Determine output path
     if args.output:
@@ -356,6 +423,19 @@ def main():
 
     print(f"Features: {instance_json['features']}")
     print("   └─ Source: API (auto-detected)")
+    if "user-pages" in instance_json["features"]:
+        if parsed_data.get("user_pages"):
+            print("   └─ user-pages: Form checkbox")
+        else:
+            print("   └─ user-pages: Auto-detected")
+
+    if is_tor_only:
+        print("Geolocation: EXCLUDED (Tor-only instance)")
+    else:
+        if instance_json["static_metadata"].get("location"):
+            print(f"Location: {instance_json['static_metadata']['location']}")
+        if instance_json["static_metadata"].get("country"):
+            print(f"Country: {instance_json['static_metadata']['country']}")
 
     # Pretty print to console
     print("\n" + "=" * 60)
