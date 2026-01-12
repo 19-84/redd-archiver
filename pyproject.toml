@@ -46,7 +46,7 @@ dependencies = [
     "jinja2==3.1.6",
     "orjson==3.11.5",
     "rcssmin==1.2.2",
-    "Pillow==10.4.0",
+    "Pillow==12.1.0",
     "flask==3.1.2",
     "flask-limiter==3.12",
     "flask-wtf==1.2.2",
