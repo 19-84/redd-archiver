@@ -1,7 +1,7 @@
 # Core dependencies
 psaw==0.1.0
 psutil==7.2.1
-zstandard==0.23.0
+zstandard==0.25.0
 
 # PostgreSQL support (required)
 # psycopg3 with binary wheels and connection pooling
