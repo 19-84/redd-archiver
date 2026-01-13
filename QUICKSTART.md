@@ -53,6 +53,9 @@ Perfect for trying out redd-archiver on your local machine.
 git clone https://github.com/19-84/redd-archiver.git
 cd redd-archiver
 
+# Create required directories
+mkdir -p data output logs tor-public
+
 # Create environment file
 cp .env.example .env
 
@@ -252,6 +255,7 @@ docker compose exec reddarchiver-builder python reddarc.py /data \
 # Clone and configure (same as Local Testing Step 1)
 git clone https://github.com/19-84/redd-archiver.git
 cd redd-archiver
+mkdir -p data output logs tor-public
 cp .env.example .env
 nano .env  # Change POSTGRES_PASSWORD
 
@@ -368,6 +372,7 @@ dig +short archive.YOUR_DOMAIN.com
 # Clone and create .env
 git clone https://github.com/19-84/redd-archiver.git
 cd redd-archiver
+mkdir -p data output logs tor-public
 cp .env.example .env
 nano .env
 ```
