@@ -302,7 +302,7 @@ class ParallelUserPageGenerator:
             print(f"[ERROR] Batch HTML generation failed: {e}")
             with self.metrics_lock:
                 self.generation_metrics["generation_failures"] += len(user_batch)
-            return {username: False for username in user_batch.keys()}
+            return dict.fromkeys(user_batch.keys(), False)
 
         finally:
             with self.metrics_lock:

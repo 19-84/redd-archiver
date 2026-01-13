@@ -24,7 +24,7 @@ def _date_tooltip_cached(timestamp_int: int) -> Markup:
     """Cached date tooltip - internal use only"""
     dt = datetime.utcfromtimestamp(timestamp_int)
     full_date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-    return Markup(f'title="Posted: {full_date}"')
+    return Markup('title="Posted: {}"').format(full_date)
 
 
 @lru_cache(maxsize=2000)
@@ -231,9 +231,9 @@ def score_tooltip(post: dict[str, Any]) -> Markup:
 
         if upvote_ratio:
             ratio_percent = int(float(upvote_ratio) * 100)
-            return Markup(f'title="Score: {score:,} ({ratio_percent}% upvoted)"')
+            return Markup('title="Score: {:,} ({}% upvoted)"').format(score, ratio_percent)
         else:
-            return Markup(f'title="Score: {score:,}"')
+            return Markup('title="Score: {:,}"').format(score)
     except (ValueError, TypeError, KeyError):
         return Markup('title="Score information unavailable"')
 
@@ -258,7 +258,7 @@ def author_tooltip(post: dict[str, Any]) -> Markup:
         if author_created:
             dt = datetime.utcfromtimestamp(int(author_created))
             account_date = dt.strftime("%Y-%m-%d")
-            return Markup(f'title="Redditor since {account_date}"')
+            return Markup('title="Redditor since {}"').format(account_date)
         else:
             return Markup("")
     except (ValueError, TypeError, KeyError):
