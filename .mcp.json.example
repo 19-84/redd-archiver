@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "reddarchiver": {
+      "type": "stdio",
+      "command": "/home/user/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/path/to/redd-archiver/mcp_server",
+        "run",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "REDDARCHIVER_API_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
