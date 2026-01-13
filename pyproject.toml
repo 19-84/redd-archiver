@@ -159,3 +159,9 @@ ignore = [
 "scripts/*" = ["S603", "S607", "S608", "E722", "B904", "S112", "B007"]  # Scripts with subprocess/SQL/exceptions/loops
 "tests/conftest.py" = ["F821", "S105"]  # Test fixtures, test secrets
 "reddarc.py" = ["F821"]  # del statement for cleanup
+
+[dependency-groups]
+dev = [
+    "fastmcp>=2.14.3",
+    "httpx>=0.28.1",
+]

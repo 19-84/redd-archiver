@@ -1,0 +1,93 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main, feature/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-images:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: builder
+            dockerfile: Dockerfile
+            context: .
+          - name: search-server
+            dockerfile: docker/search-server/Dockerfile
+            context: .
+          - name: nginx
+            dockerfile: docker/nginx/Dockerfile
+            context: docker/nginx
+          - name: mcp-server
+            dockerfile: mcp_server/Dockerfile
+            context: mcp_server
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: reddarchiver/${{ matrix.name }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-test:
+    name: Docker Compose Integration Test
+    runs-on: ubuntu-latest
+    needs: build-images
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create required directories
+        run: mkdir -p output/.postgres-data data logs tor-public
+
+      - name: Start core services
+        run: docker compose up -d --build postgres search-server
+        env:
+          POSTGRES_PASSWORD: test_password
+          FLASK_SECRET_KEY: test_secret_key_for_ci_testing_only
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -U reddarchiver; do echo "Waiting for postgres..."; sleep 2; done'
+
+      - name: Wait for search-server
+        run: |
+          timeout 60 bash -c 'until curl -sf http://localhost:5000/health > /dev/null 2>&1; do echo "Waiting for search-server..."; sleep 2; done'
+
+      - name: Test search-server health endpoint
+        run: |
+          response=$(curl -sf http://localhost:5000/health)
+          echo "Health response: $response"
+          echo "$response" | grep -q "healthy" || echo "$response" | grep -q "ok"
+
+      - name: Test API stats endpoint
+        run: |
+          response=$(curl -sf http://localhost:5000/api/v1/stats)
+          echo "Stats response: $response"
+          echo "$response" | grep -q "total_posts"
+
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          echo "=== PostgreSQL logs ==="
+          docker compose logs postgres
+          echo "=== Search Server logs ==="
+          docker compose logs search-server
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
