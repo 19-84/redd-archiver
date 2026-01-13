@@ -58,7 +58,7 @@ class RuqqusImporter(BaseImporter):
 
         if not posts_files and not comments_files:
             raise FileNotFoundError(
-                f"No Ruqqus .7z files found in {input_dir}. " f"Expected files matching: *submission*.7z, *comment*.7z"
+                f"No Ruqqus .7z files found in {input_dir}. Expected files matching: *submission*.7z, *comment*.7z"
             )
 
         logger.info(f"Detected Ruqqus archives: {len(posts_files)} post files, {len(comments_files)} comment files")
@@ -118,9 +118,7 @@ class RuqqusImporter(BaseImporter):
             process.stdout.close()
             process.wait()
 
-        logger.info(
-            f"Ruqqus posts: {line_count} lines processed, " f"{valid_count} valid posts, {filtered_count} filtered"
-        )
+        logger.info(f"Ruqqus posts: {line_count} lines processed, {valid_count} valid posts, {filtered_count} filtered")
 
     def stream_comments(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
@@ -175,8 +173,7 @@ class RuqqusImporter(BaseImporter):
             process.wait()
 
         logger.info(
-            f"Ruqqus comments: {line_count} lines processed, "
-            f"{valid_count} valid comments, {filtered_count} filtered"
+            f"Ruqqus comments: {line_count} lines processed, {valid_count} valid comments, {filtered_count} filtered"
         )
 
     def _normalize_post(self, ruqqus_post: dict[str, Any]) -> dict[str, Any] | None:

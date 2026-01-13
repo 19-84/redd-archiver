@@ -37,7 +37,7 @@ def get_thread_meta(thread: dict) -> dict:
 
     return {
         "id": thread["id"],
-        "path": thread["permalink"].replace(f'r/{thread["subreddit"]}', "").strip("/") + ".html",
+        "path": thread["permalink"].replace(f"r/{thread['subreddit']}", "").strip("/") + ".html",
         "title": thread["title"],
         "score": thread["score"],
         "replies": str(int(float(comments_count))) if comments_count is not None else "0",
@@ -264,7 +264,7 @@ def discover_subreddits(input_dir: str) -> dict[str, dict[str, str]]:
 
     # Try each pattern
     for pattern in patterns:
-        print(f'  Trying pattern: {pattern["name"]}')
+        print(f"  Trying pattern: {pattern['name']}")
         pattern_matches = {}
 
         for file_path in zst_files:
@@ -457,10 +457,10 @@ def copy_static_assets(output_dir: str, minify_css: bool = True) -> None:
         if css_stats["files"] > 0:
             reduction_pct = (css_stats["original_size"] - css_stats["minified_size"]) / css_stats["original_size"] * 100
             print_success(
-                f'Copied static assets to {static_dst} | '
-                f'Minified {css_stats["files"]} CSS files: '
-                f'{css_stats["original_size"]:,} → {css_stats["minified_size"]:,} bytes '
-                f'({reduction_pct:.1f}% reduction)'
+                f"Copied static assets to {static_dst} | "
+                f"Minified {css_stats['files']} CSS files: "
+                f"{css_stats['original_size']:,} → {css_stats['minified_size']:,} bytes "
+                f"({reduction_pct:.1f}% reduction)"
             )
         else:
             print_success(f"Copied static assets to {static_dst}")
@@ -829,7 +829,7 @@ Examples:
     try:
         importer = get_importer(args.platform)
         platform_meta = importer.get_platform_metadata()
-        print_info(f'Platform: {platform_meta["display_name"]} ({platform_meta["community_term"]}s)')
+        print_info(f"Platform: {platform_meta['display_name']} ({platform_meta['community_term']}s)")
     except ValueError as e:
         print_error(str(e))
         return
@@ -838,17 +838,17 @@ Examples:
     filter_communities = None
     if args.guilds:
         filter_communities = [g.strip() for g in args.guilds.split(",")]
-        print_info(f'Filtering Ruqqus guilds: {", ".join(filter_communities)}')
+        print_info(f"Filtering Ruqqus guilds: {', '.join(filter_communities)}")
     elif args.subverses:
         filter_communities = [s.strip() for s in args.subverses.split(",")]
-        print_info(f'Filtering Voat subverses: {", ".join(filter_communities)}')
+        print_info(f"Filtering Voat subverses: {', '.join(filter_communities)}")
     elif args.subreddit:
         filter_communities = [args.subreddit]
         print_info(f"Filtering Reddit subreddit: {args.subreddit}")
 
     # List communities mode
     if args.list_communities:
-        print_info(f'\n📋 Discovering {platform_meta["community_term"]}s in archive...\n')
+        print_info(f"\n📋 Discovering {platform_meta['community_term']}s in archive...\n")
         try:
             files = importer.detect_files(args.input_dir)
 
@@ -863,11 +863,11 @@ Examples:
                     if count >= 10000:  # Limit scan for large archives
                         break
 
-            print_info(f'\n✅ Found {len(communities)} {platform_meta["community_term"]}(s):\n')
+            print_info(f"\n✅ Found {len(communities)} {platform_meta['community_term']}(s):\n")
             for community in sorted(communities):
                 print_info(f"  - {community}")
 
-            print_info(f'\nTo import specific {platform_meta["community_term"]}s, use:')
+            print_info(f"\nTo import specific {platform_meta['community_term']}s, use:")
             if args.platform == "ruqqus":
                 print_info(f'  --guild "{",".join(list(communities)[:3])}"', indent=1)
             elif args.platform == "voat":
@@ -937,7 +937,7 @@ Examples:
                     }
             else:
                 # Use importer for single community
-                print_section(f'Discovering {platform_meta["community_term"]} files')
+                print_section(f"Discovering {platform_meta['community_term']} files")
                 try:
                     files = importer.detect_files(args.input_dir)
                     # Create single entry with filtered community
@@ -1995,7 +1995,7 @@ def process_archive_incremental(
                         f"Memory after optimal GC: {memory_after:.1%} (reclaimed: {memory_reclaimed:.1%})", indent=1
                     )
                     print_info(
-                        f"GC collected: gen0={collected_gen0}, gen1={collected_gen1}, gen2={collected_gen2} (total: {collected_gen0+collected_gen1+collected_gen2})",
+                        f"GC collected: gen0={collected_gen0}, gen1={collected_gen1}, gen2={collected_gen2} (total: {collected_gen0 + collected_gen1 + collected_gen2})",
                         indent=2,
                     )
 
@@ -2203,7 +2203,7 @@ def process_archive_incremental(
 
                         user_time = timing.timings.get("User Pages Parallel Incremental", 0)
                         print_info(
-                            f"⏱️  User pages: {total_users} users in {user_time:.2f}s ({total_users/user_time:.1f} users/sec)"
+                            f"⏱️  User pages: {total_users} users in {user_time:.2f}s ({total_users / user_time:.1f} users/sec)"
                             if user_time > 0
                             else f"⏱️  User pages: {total_users} users completed",
                             indent=2,
@@ -2261,7 +2261,7 @@ def process_archive_incremental(
 
                         user_time = timing.timings.get("User Pages Parallel Full", 0)
                         print_info(
-                            f"⏱️  User pages: {total_users} users in {user_time:.2f}s ({total_users/user_time:.1f} users/sec)"
+                            f"⏱️  User pages: {total_users} users in {user_time:.2f}s ({total_users / user_time:.1f} users/sec)"
                             if user_time > 0
                             else f"⏱️  User pages: {total_users} users completed",
                             indent=2,

@@ -82,7 +82,7 @@ def main():
                     # Progress
                     elapsed = time.time() - file_start
                     rate = file_imported / elapsed if elapsed > 0 else 0
-                    logger.info(f"  Progress: {file_imported:,} comments ({rate:.0f}/sec), " f"{file_errors} errors")
+                    logger.info(f"  Progress: {file_imported:,} comments ({rate:.0f}/sec), {file_errors} errors")
 
                     batch = []
 

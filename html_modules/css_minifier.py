@@ -102,7 +102,7 @@ def minify_css_directory(input_dir, output_dir, verbose=True):
 
             if verbose:
                 print_info(
-                    f"  • {filename}: {original_size:,} → {minified_size:,} bytes " f"({reduction:.1f}% reduction)",
+                    f"  • {filename}: {original_size:,} → {minified_size:,} bytes ({reduction:.1f}% reduction)",
                     indent=1,
                 )
 

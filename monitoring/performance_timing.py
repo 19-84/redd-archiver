@@ -124,7 +124,7 @@ class PerformanceTiming:
             print_warning(f"{'⚠️  UNACCOUNTED TIME':35s} {unaccounted:7.2f}s  {percent:5.1f}%  {bar}")
 
         print_info("=" * 80)
-        print_success(f"⏱️  TOTAL TIME: {total:.2f}s ({total/60:.1f} minutes)")
+        print_success(f"⏱️  TOTAL TIME: {total:.2f}s ({total / 60:.1f} minutes)")
         print_info("=" * 80)
 
         # Show query statistics if available
@@ -135,9 +135,9 @@ class PerformanceTiming:
             print_info("=" * 80)
             print_info(f"Total Queries:  {summary['query_count']:,}")
             print_info(
-                f"Query Time:     {summary['query_time']:.2f}s ({summary['query_time']/total*100:.1f}% of total)"
+                f"Query Time:     {summary['query_time']:.2f}s ({summary['query_time'] / total * 100:.1f}% of total)"
             )
-            print_info(f"Avg Query Time: {summary['avg_query_time']*1000:.2f}ms")
+            print_info(f"Avg Query Time: {summary['avg_query_time'] * 1000:.2f}ms")
 
             if summary.get("query_breakdown"):
                 print_info("")

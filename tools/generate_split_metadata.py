@@ -96,7 +96,7 @@ def main():
 
     print(f"✓ Generated {output_file}")
     print(f"  Total subverses: {len(subverse_list):,}")
-    print(f"  Total size: {total_size_mb:.2f} MB ({total_size_mb/1024:.2f} GB)")
+    print(f"  Total size: {total_size_mb:.2f} MB ({total_size_mb / 1024:.2f} GB)")
     print(f"  Submission files: {len(submission_files):,}")
     print(f"  Comment files: {len(comment_files):,}")
 

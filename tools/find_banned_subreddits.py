@@ -1777,8 +1777,8 @@ Examples:
         if status in status_counts:
             print(f"    - {status}: {status_counts[status]:,}")
     print(f"  Bad lines: {tracker_stats['bad_lines']:,}")
-    print(f"  Processing time: {scan_time:.1f}s ({scan_time/3600:.2f} hours)")
-    print(f"  Average throughput: {tracker_stats['total_posts_scanned']/scan_time:.0f} posts/sec")
+    print(f"  Processing time: {scan_time:.1f}s ({scan_time / 3600:.2f} hours)")
+    print(f"  Average throughput: {tracker_stats['total_posts_scanned'] / scan_time:.0f} posts/sec")
     print()
 
     # Generate output

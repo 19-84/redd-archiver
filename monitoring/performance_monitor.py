@@ -148,8 +148,7 @@ class UserPageMetrics:
         # Check for unrealistic rates
         if self.users_per_second > 1000000:  # > 1 million users/sec is impossible
             print_warning(
-                f"Unrealistic users_per_second detected: {self.users_per_second:.1f}. "
-                f"This may indicate a timing bug."
+                f"Unrealistic users_per_second detected: {self.users_per_second:.1f}. This may indicate a timing bug."
             )
             return False
 

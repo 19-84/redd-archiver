@@ -306,9 +306,9 @@ def prepare_dashboard_card_data(
             if stats.get("earliest_date"):
                 days_to_milestone = (milestone_data[threshold] - stats["earliest_date"]).days
                 milestone_date = milestone_data[threshold].strftime("%b %d, %Y")
-                milestones.append(f"{threshold//1000}K posts: {milestone_date} ({days_to_milestone} days)")
+                milestones.append(f"{threshold // 1000}K posts: {milestone_date} ({days_to_milestone} days)")
         elif total_posts >= threshold:
-            milestones.append(f"{threshold//1000}K posts: achieved")
+            milestones.append(f"{threshold // 1000}K posts: achieved")
         elif total_posts < threshold:
             if threshold == 10000 and total_posts >= 5000:
                 milestones.append(f"10K posts: {10000 - total_posts:,} to go")
@@ -501,9 +501,9 @@ def prepare_subreddit_card_data(sub: dict[str, Any], min_score: int, min_comment
             if stats.get("earliest_date"):
                 days_to_milestone = (milestone_data[threshold] - stats["earliest_date"]).days
                 milestone_date = milestone_data[threshold].strftime("%b %d, %Y")
-                milestones.append(f"{threshold//1000}K posts: {milestone_date} ({days_to_milestone} days)")
+                milestones.append(f"{threshold // 1000}K posts: {milestone_date} ({days_to_milestone} days)")
         elif total_posts >= threshold:
-            milestones.append(f"{threshold//1000}K posts: achieved")
+            milestones.append(f"{threshold // 1000}K posts: achieved")
 
     milestone_text = " | ".join(milestones) if milestones else "Growing community"
     activity_tooltip = f"First post: {first_post_date} | {milestone_text}"

@@ -1273,7 +1273,7 @@ def generate_user_seo_title(
         if len(top_subreddits) >= 2:
             subs_text = f" in {get_community_text(top_subreddits[0])}, {get_community_text(top_subreddits[1])}"
             if len(top_subreddits) > 2:
-                subs_text += f" and {len(top_subreddits)-2} more"
+                subs_text += f" and {len(top_subreddits) - 2} more"
         elif top_subreddits:
             subs_text = f" in {get_community_text(top_subreddits[0])}"
         else:
@@ -1360,12 +1360,12 @@ def generate_pagination_tags(page_num: int, total_pages: int, base_url: str, sor
         if page_num == 2:
             prev_url = f"{base_url}index.html"
         else:
-            prev_url = f"{base_url}index-{page_num-1}.html"
+            prev_url = f"{base_url}index-{page_num - 1}.html"
         tags.append(f'<link rel="prev" href="{prev_url}">')
 
     if page_num < total_pages:
         # Next page
-        next_url = f"{base_url}index-{page_num+1}.html"
+        next_url = f"{base_url}index-{page_num + 1}.html"
         tags.append(f'<link rel="next" href="{next_url}">')
 
     return "\n    ".join(tags) if tags else ""

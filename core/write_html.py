@@ -251,9 +251,9 @@ def write_link_pages_jinja2(
             print_info("=" * 80)
             print_info(f"Total Queries:   {timing.query_count:,}")
             print_info(
-                f"Query Time:      {timing.query_time:.2f}s ({timing.query_time/total_elapsed*100:.1f}% of generation time)"
+                f"Query Time:      {timing.query_time:.2f}s ({timing.query_time / total_elapsed * 100:.1f}% of generation time)"
             )
-            print_info(f"Avg Query Time:  {timing.query_time/timing.query_count*1000:.2f}ms")
+            print_info(f"Avg Query Time:  {timing.query_time / timing.query_count * 1000:.2f}ms")
 
             if timing.query_breakdown:
                 print_info("")
@@ -266,7 +266,7 @@ def write_link_pages_jinja2(
             non_query_time = total_elapsed - timing.query_time
             print_info("")
             print_info(
-                f"Non-Query Time:  {non_query_time:.2f}s ({non_query_time/total_elapsed*100:.1f}% of generation time)"
+                f"Non-Query Time:  {non_query_time:.2f}s ({non_query_time / total_elapsed * 100:.1f}% of generation time)"
             )
             print_info("  (Template rendering + File I/O)")
             print_info("=" * 80)

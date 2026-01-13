@@ -79,7 +79,7 @@ def get_importer(platform: str, **kwargs) -> BaseImporter:
 
         return RuqqusImporter(**kwargs)
     else:
-        raise ValueError(f"Invalid platform: {platform}. " f"Must be one of: reddit, voat, ruqqus")
+        raise ValueError(f"Invalid platform: {platform}. Must be one of: reddit, voat, ruqqus")
 
 
 __all__ = ["BaseImporter", "get_importer", "detect_platform"]

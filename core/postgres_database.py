@@ -947,8 +947,7 @@ class PostgresDatabase:
             total_time = time.time() - start_time
             records_per_second = successful / total_time if total_time > 0 else 0
             print_success(
-                f"Batch insert completed: {successful} posts in {total_time:.2f}s "
-                f"({records_per_second:.0f} posts/s)"
+                f"Batch insert completed: {successful} posts in {total_time:.2f}s ({records_per_second:.0f} posts/s)"
             )
 
             if skipped > 0:
@@ -1687,7 +1686,7 @@ class PostgresDatabase:
                     final_rate = posts_processed / total_elapsed if total_elapsed > 0 else 0
                     print_success(
                         f"Lightweight rebuild complete: {posts_processed} posts processed for r/{subreddit} | "
-                        f"Time: {total_elapsed/60:.1f} min | Rate: {final_rate:.1f} posts/sec"
+                        f"Time: {total_elapsed / 60:.1f} min | Rate: {final_rate:.1f} posts/sec"
                     )
 
         except Exception as e:
@@ -1842,10 +1841,10 @@ class PostgresDatabase:
                     total_elapsed = time.time() - start_time
                     if total_query_time > 0:
                         print_info(
-                            f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)"
+                            f"  Query time: {total_query_time:.2f}s ({total_query_time / total_elapsed * 100:.1f}% of total)"
                         )
                         print_info(
-                            f"  Avg query time: {total_query_time/timing.query_count:.3f}s per batch"
+                            f"  Avg query time: {total_query_time / timing.query_count:.3f}s per batch"
                             if timing.query_count > 0
                             else ""
                         )
@@ -2027,10 +2026,10 @@ class PostgresDatabase:
                     total_elapsed = time.time() - start_time
                     if total_query_time > 0:
                         print_info(
-                            f"  Query time: {total_query_time:.2f}s ({total_query_time/total_elapsed*100:.1f}% of total)"
+                            f"  Query time: {total_query_time:.2f}s ({total_query_time / total_elapsed * 100:.1f}% of total)"
                         )
                         print_info(
-                            f"  Avg query time: {total_query_time/timing.query_count:.3f}s per query"
+                            f"  Avg query time: {total_query_time / timing.query_count:.3f}s per query"
                             if timing.query_count > 0
                             else ""
                         )
@@ -2196,7 +2195,7 @@ class PostgresDatabase:
                             print_info(
                                 f"  Chunk {chunk_num}: {len(posts_list):,} posts, {chunk_comments:,} comments | "
                                 f"Total: {posts_yielded:,}/{total_posts:,} ({pct:.1f}%) | "
-                                f"{overall_rate:.1f} posts/sec | ETA: {eta_sec/60:.0f} min"
+                                f"{overall_rate:.1f} posts/sec | ETA: {eta_sec / 60:.0f} min"
                             )
 
                         # CRITICAL: Clear chunk memory before next iteration
@@ -3764,7 +3763,7 @@ class PostgresDatabase:
                 with conn.cursor() as cur:
                     query = f"""
                         UPDATE subreddit_statistics
-                        SET {', '.join(update_fields)}
+                        SET {", ".join(update_fields)}
                         WHERE LOWER(subreddit) = LOWER(%s)
                     """
                     cur.execute(query, params)

@@ -95,7 +95,7 @@ class APITester:
 
     def section(self, title: str):
         """Print section header"""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"{title}")
         print("=" * 60)
 

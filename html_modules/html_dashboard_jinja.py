@@ -68,7 +68,7 @@ def write_index_jinja2(
                 postgres_db.save_subreddit_statistics(subreddit_name, fresh_stats)
                 # Refresh the stat dict with calculated values
                 stat.update(fresh_stats)
-                print(f'  ✅  Recalculated: {fresh_stats.get("unique_users", 0):,} users')
+                print(f"  ✅  Recalculated: {fresh_stats.get('unique_users', 0):,} users")
             except Exception as e:
                 print(f"  ⚠️  Failed to recalculate stats for r/{subreddit_name}: {e}")
 

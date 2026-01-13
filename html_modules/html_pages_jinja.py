@@ -160,11 +160,11 @@ def write_subreddit_pages_jinja2(
                 )
                 pagination_base_url = f"{base_url}/{url_prefix}/{subreddit}/" if base_url else ""
             else:
-                relative_path = f'{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/' + (
+                relative_path = f"{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/" + (
                     "index.html" if page_num == 1 else f"index-{page_num}.html"
                 )
                 pagination_base_url = (
-                    f'{base_url}/{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/' if base_url else ""
+                    f"{base_url}/{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/" if base_url else ""
                 )
 
             canonical_tag, og_url_tag = generate_canonical_and_og_url(base_url, relative_path)
@@ -215,7 +215,7 @@ def write_subreddit_pages_jinja2(
             if sort == default_sort:
                 filepath = f"{url_prefix}/{subreddit}/{filename}"
             else:
-                filepath = f'{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/{filename}'
+                filepath = f"{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/{filename}"
 
             if not os.path.isfile(filepath):
                 if os.environ.get("ARCHIVE_RESUME_MODE") == "true":
@@ -393,7 +393,7 @@ def write_subreddit_pages_parallel_jinja2(
     total_pages = sum(pages for _, pages in sort_timings.values())
     print_success(
         f"Parallel generation complete: {total_pages} pages in {total_time:.2f}s "
-        f"({total_pages/total_time:.1f} pages/sec)"
+        f"({total_pages / total_time:.1f} pages/sec)"
     )
     print_info(f"Memory: {memory_before_mb:.1f}MB → {memory_after_mb:.1f}MB (delta: {memory_delta_mb:+.1f}MB)")
 
@@ -471,7 +471,7 @@ def _generate_sort_pages_parallel(
             )
         except Exception as e:
             print_error(
-                f"Failed to query posts for {sort} pages {batch_start_page}-{batch_start_page+pages_per_batch-1}: {e}"
+                f"Failed to query posts for {sort} pages {batch_start_page}-{batch_start_page + pages_per_batch - 1}: {e}"
             )
             continue
 
@@ -656,11 +656,11 @@ def _render_single_subreddit_page(
             relative_path = f"{url_prefix}/{subreddit}/" + ("index.html" if page_num == 1 else f"index-{page_num}.html")
             pagination_base_url = f"{base_url}/{url_prefix}/{subreddit}/" if base_url else ""
         else:
-            relative_path = f'{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/' + (
+            relative_path = f"{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/" + (
                 "index.html" if page_num == 1 else f"index-{page_num}.html"
             )
             pagination_base_url = (
-                f'{base_url}/{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/' if base_url else ""
+                f"{base_url}/{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/" if base_url else ""
             )
 
         canonical_tag, og_url_tag = generate_canonical_and_og_url(base_url, relative_path)
@@ -711,7 +711,7 @@ def _render_single_subreddit_page(
         if sort == default_sort:
             filepath = f"{url_prefix}/{subreddit}/{filename}"
         else:
-            filepath = f'{url_prefix}/{subreddit}/index-{sort_indexes[sort]["slug"]}/{filename}'
+            filepath = f"{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/{filename}"
 
         # Skip if file exists or in resume mode
         if os.path.isfile(filepath):

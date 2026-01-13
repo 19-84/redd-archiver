@@ -74,7 +74,7 @@ class TestPostsEndpoint:
         # Insert test post
         clean_database.insert_posts_batch([sample_post_data])
 
-        response = api_client.get(f'/api/v1/posts?subreddit={sample_post_data["subreddit"]}')
+        response = api_client.get(f"/api/v1/posts?subreddit={sample_post_data['subreddit']}")
         assert response.status_code == 200
         data = response.get_json()
 
@@ -127,7 +127,7 @@ class TestSubredditsEndpoint:
         # Insert test post to create subreddit
         clean_database.insert_posts_batch([sample_post_data])
 
-        response = api_client.get(f'/api/v1/subreddits/{sample_post_data["subreddit"]}')
+        response = api_client.get(f"/api/v1/subreddits/{sample_post_data['subreddit']}")
         assert response.status_code == 200
         data = response.get_json()
 

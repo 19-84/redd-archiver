@@ -171,8 +171,8 @@ def build_pagination_response(data: list[dict], page: int, limit: int, total: in
         "meta": {"page": page, "limit": limit, "total": total, "total_pages": total_pages},
         "links": {
             "self": f"{endpoint}{filter_prefix}page={page}&limit={limit}",
-            "next": f"{endpoint}{filter_prefix}page={page+1}&limit={limit}" if page < total_pages else None,
-            "prev": f"{endpoint}{filter_prefix}page={page-1}&limit={limit}" if page > 1 else None,
+            "next": f"{endpoint}{filter_prefix}page={page + 1}&limit={limit}" if page < total_pages else None,
+            "prev": f"{endpoint}{filter_prefix}page={page - 1}&limit={limit}" if page > 1 else None,
             "first": f"{endpoint}{filter_prefix}page=1&limit={limit}",
             "last": f"{endpoint}{filter_prefix}page={total_pages}&limit={limit}",
         },

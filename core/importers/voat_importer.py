@@ -62,11 +62,11 @@ class VoatImporter(BaseImporter):
 
         if not submission_files and not comment_files:
             raise FileNotFoundError(
-                f"No Voat SQL files found in {input_dir}. " f"Expected: submission.sql.gz, comment.sql.gz"
+                f"No Voat SQL files found in {input_dir}. Expected: submission.sql.gz, comment.sql.gz"
             )
 
         logger.info(
-            f"Detected Voat SQL dumps: {len(submission_files)} submission files, " f"{len(comment_files)} comment files"
+            f"Detected Voat SQL dumps: {len(submission_files)} submission files, {len(comment_files)} comment files"
         )
 
         return {

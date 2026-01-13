@@ -826,14 +826,14 @@ def calculate_final_output_sizes(processed_subs: list[dict[str, Any]]) -> int:
                 # Skip files we can't read
                 continue
 
-    print(f'Total output size calculated: {format_file_size(size_data["total_output_size"])}')
-    print(f'  Subreddit HTML: {format_file_size(size_data["html_pages_size"])}')
+    print(f"Total output size calculated: {format_file_size(size_data['total_output_size'])}")
+    print(f"  Subreddit HTML: {format_file_size(size_data['html_pages_size'])}")
     print(
-        f'  Search indexes: {format_file_size(size_data["search_indexes_size"])} ({size_data["search_index_count"]} files)'
+        f"  Search indexes: {format_file_size(size_data['search_indexes_size'])} ({size_data['search_index_count']} files)"
     )
-    print(f'  User pages: {format_file_size(size_data["user_pages_size"])}')
-    print(f'  Static assets: {format_file_size(size_data["static_assets_size"])}')
-    print(f'  Other files: {format_file_size(size_data["sitemaps_size"] + size_data["individual_files_size"])}')
+    print(f"  User pages: {format_file_size(size_data['user_pages_size'])}")
+    print(f"  Static assets: {format_file_size(size_data['static_assets_size'])}")
+    print(f"  Other files: {format_file_size(size_data['sitemaps_size'] + size_data['individual_files_size'])}")
 
     # Update individual subreddit output sizes (no additional directory walks needed!)
     global_files_size = (

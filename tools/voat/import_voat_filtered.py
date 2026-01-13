@@ -44,12 +44,12 @@ def main():
     data_dir = "/data/voat"
     detected = importer.detect_files(data_dir)
 
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info(f"Voat Filtered Import - {len(FILTER_SUBVERSES)} subverses")
-    logger.info(f"{'='*60}")
+    logger.info(f"{'=' * 60}")
     for subverse in FILTER_SUBVERSES:
         logger.info(f"  - v/{subverse}")
-    logger.info(f"{'='*60}\n")
+    logger.info(f"{'=' * 60}\n")
 
     # Import posts
     logger.info("=== Importing Posts ===")

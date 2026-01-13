@@ -128,7 +128,7 @@ class BatchedDatabaseLoader:
                                 )  # 2 queries (posts+comments) vs len(batch)*2 queries
                                 if improvement_factor >= 5:
                                     print(
-                                        f"[PERF] Bulk loading: {len(batch_user_data)} users in 2 queries vs {len(batch)*2} queries ({improvement_factor:.1f}x faster)"
+                                        f"[PERF] Bulk loading: {len(batch_user_data)} users in 2 queries vs {len(batch) * 2} queries ({improvement_factor:.1f}x faster)"
                                     )
 
                         except Exception as e:

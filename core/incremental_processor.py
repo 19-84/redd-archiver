@@ -167,7 +167,7 @@ class IncrementalProcessor:
                 new_gb = new_memory / (1024**3)
 
                 print(
-                    f"Post-cleanup memory: {new_percent:.1%} ({new_gb:.2f}GB), collected: {collected_1+collected_2+collected_3} objects"
+                    f"Post-cleanup memory: {new_percent:.1%} ({new_gb:.2f}GB), collected: {collected_1 + collected_2 + collected_3} objects"
                 )
 
                 if new_percent > self.emergency_threshold:

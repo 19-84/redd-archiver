@@ -65,7 +65,7 @@ class RedditImporter(BaseImporter):
                 f"Expected files with 'submission', 'post', or 'comment' in filename"
             )
 
-        logger.info(f"Detected Reddit archives: {len(posts_files)} post files, " f"{len(comments_files)} comment files")
+        logger.info(f"Detected Reddit archives: {len(posts_files)} post files, {len(comments_files)} comment files")
 
         return {"posts": sorted(posts_files), "comments": sorted(comments_files)}
 
@@ -113,9 +113,7 @@ class RedditImporter(BaseImporter):
                 logger.warning(f"Failed to parse JSON line {line_count}: {e}")
                 continue
 
-        logger.info(
-            f"Reddit posts: {line_count} lines processed, " f"{valid_count} valid posts, {filtered_count} filtered"
-        )
+        logger.info(f"Reddit posts: {line_count} lines processed, {valid_count} valid posts, {filtered_count} filtered")
 
     def stream_comments(self, file_path: str, filter_communities: list[str] | None = None) -> Iterator[dict[str, Any]]:
         """
@@ -160,8 +158,7 @@ class RedditImporter(BaseImporter):
                 continue
 
         logger.info(
-            f"Reddit comments: {line_count} lines processed, "
-            f"{valid_count} valid comments, {filtered_count} filtered"
+            f"Reddit comments: {line_count} lines processed, {valid_count} valid comments, {filtered_count} filtered"
         )
 
     def _normalize_post(self, reddit_post: dict[str, Any]) -> dict[str, Any] | None:

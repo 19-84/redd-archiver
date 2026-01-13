@@ -322,7 +322,7 @@ def main():
     if console:
         console.print(
             Panel.fit(
-                "[bold cyan]Platform Metrics Calculator[/bold cyan]\n" f"JSON Library: {JSON_LIB}",
+                f"[bold cyan]Platform Metrics Calculator[/bold cyan]\nJSON Library: {JSON_LIB}",
                 border_style="cyan",
                 box=box.ROUNDED,
             )
