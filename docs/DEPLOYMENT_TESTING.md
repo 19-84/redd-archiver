@@ -64,7 +64,7 @@ ls -la docker-compose.yml QUICKSTART.md .env.example
 
 ```bash
 # Step 1: Clone and Configure (2 minutes)
-mkdir -p data output logs tor-public
+mkdir -p data output/.postgres-data logs tor-public
 cp .env.example .env
 
 # Edit .env - change POSTGRES_PASSWORD
@@ -143,7 +143,7 @@ cd redd-archiver
 
 ```bash
 # Configure
-mkdir -p data output logs tor-public
+mkdir -p data output/.postgres-data logs tor-public
 cp .env.example .env
 sed -i 's/your_secure_password_here/test_password_456/g' .env
 
@@ -281,7 +281,7 @@ cd redd-archiver
 ### Configure
 
 ```bash
-mkdir -p data output logs tor-public
+mkdir -p data output/.postgres-data logs tor-public
 cp .env.example .env
 
 # Edit .env with production values

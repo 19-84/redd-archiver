@@ -245,7 +245,7 @@ git clone https://github.com/19-84/redd-archiver.git
 cd redd-archiver
 
 # Create required directories
-mkdir -p data output logs tor-public
+mkdir -p data output/.postgres-data logs tor-public
 
 # Copy environment template and configure
 cp .env.example .env
