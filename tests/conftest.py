@@ -1,14 +1,46 @@
 #!/usr/bin/env python
 """
 ABOUTME: Shared pytest fixtures for Redd-Archiver test suite
-ABOUTME: Provides database connections, test data, and Flask app fixtures
+ABOUTME: Provides database connections, test data, Flask app fixtures, and pytest markers
 """
 
 import os
+import tempfile
 
 import pytest
 
 from core.postgres_database import PostgresDatabase, get_postgres_connection_string
+
+# =============================================================================
+# PYTEST MARKERS CONFIGURATION
+# =============================================================================
+
+
+def pytest_configure(config):
+    """Register custom pytest markers."""
+    config.addinivalue_line("markers", "unit: marks tests as unit tests (no external dependencies)")
+    config.addinivalue_line("markers", "db: marks tests as requiring PostgreSQL database")
+    config.addinivalue_line("markers", "slow: marks tests as slow (>5 seconds runtime)")
+    config.addinivalue_line("markers", "integration: marks tests as full integration tests")
+
+
+# =============================================================================
+# TEMPORARY DIRECTORY FIXTURES
+# =============================================================================
+
+
+@pytest.fixture
+def temp_output_dir():
+    """Temporary directory for HTML output tests."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
+
+
+@pytest.fixture
+def temp_data_dir():
+    """Temporary directory for test data files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
 
 
 @pytest.fixture(scope="session")
