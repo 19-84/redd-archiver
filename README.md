@@ -244,6 +244,9 @@ Redd-Archiver uses modern, performance-focused dependencies:
 git clone https://github.com/19-84/redd-archiver.git
 cd redd-archiver
 
+# Create required directories
+mkdir -p data output logs tor-public
+
 # Copy environment template and configure
 cp .env.example .env
 # Edit .env with your settings (change default passwords!)
