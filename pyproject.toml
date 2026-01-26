@@ -52,7 +52,6 @@ dependencies = [
     "flask-wtf==1.2.2",
     "flask-cors==6.0.2",
     "sqlparse>=0.5.5",
-    "playwright>=1.57.0",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +60,9 @@ dev = [
     "pytest-cov==7.0.0",
     "ruff==0.14.13",
     "pre-commit==4.5.1",
+]
+screenshots = [
+    "playwright>=1.57.0",
 ]
 
 [project.urls]

@@ -122,6 +122,27 @@ python tools/calculate_platform_metrics.py --all
 
 Aggregates totals from all three scanners into `platform_metrics.json`.
 
+### Screenshot Capture Tool
+
+```bash
+# Install optional screenshot dependencies
+uv sync --extra screenshots
+
+# Install Playwright browsers
+uv run playwright install chromium
+
+# Capture screenshots of generated archive
+uv run python tools/capture_screenshots.py
+```
+
+**Features**:
+- Automated browser-based screenshot capture
+- Desktop and mobile viewports
+- Captures dashboard, posts, comments, user pages, and search
+- Requires running archive at http://localhost
+
+**Note**: This tool is optional and only needed for documentation purposes. Regular archive generation does not require Playwright.
+
 ## 📖 Examples
 
 ### Example 1: Archive Top 10 Reddit Subreddits by Priority
