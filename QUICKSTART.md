@@ -653,6 +653,113 @@ See [MCP Server Documentation](mcp_server/README.md) for complete setup and tool
 
 ---
 
+## Advanced Options
+
+
+
+For users who need more control over the archive generation process.
+
+
+
+### Content Filtering
+
+
+
+```bash
+
+--min-score N             # Minimum post score threshold
+
+--min-comments N          # Minimum comment count threshold
+
+--hide-deleted-comments   # Hide [deleted]/[removed] comments
+
+```
+
+
+
+### Processing Control
+
+
+
+```bash
+
+--no-user-pages          # Skip user page generation (saves memory)
+
+--dry-run                # Preview discovered files without processing
+
+--force-rebuild          # Ignore resume state and rebuild from scratch
+
+--force-parallel-users   # Override auto-detection for parallel processing
+
+```
+
+
+
+### Logging
+
+
+
+```bash
+
+--log-file <path>        # Custom log file location
+
+--log-level DEBUG        # Set verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+```
+
+
+
+### Performance Tuning
+
+
+
+For advanced users optimizing large archives:
+
+
+
+```bash
+
+--debug-memory-limit 8.0      # Override memory limit in GB
+
+--debug-max-connections 8     # Override DB connection pool size
+
+--debug-max-workers 4         # Override parallel workers
+
+```
+
+
+
+### Environment Variables
+
+
+
+```bash
+
+# Required
+
+DATABASE_URL=postgresql://user:pass@host:5432/reddarchiver
+
+
+
+# Optional (auto-detected if not set)
+
+REDDARCHIVER_MAX_DB_CONNECTIONS=8
+
+REDDARCHIVER_MAX_PARALLEL_WORKERS=4
+
+REDDARCHIVER_USER_BATCH_SIZE=2000
+
+```
+
+
+
+**See also**: [FAQ](docs/FAQ.md) for common questions about these options.
+
+
+
+---
+
+
 ## Next Steps
 
 - **Detailed Configuration**: See `docker/README.md` for advanced options
