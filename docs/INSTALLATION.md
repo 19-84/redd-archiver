@@ -464,6 +464,8 @@ psql -U redd-archiver -d redd-archiver -f sql/migrations/003_add_total_activity_
 ## See Also
 
 - [QUICKSTART.md](../QUICKSTART.md) - Fast deployment guide (2-15 minutes)
+- [PERFORMANCE.md](PERFORMANCE.md) - Performance tuning and optimization
+- [SEARCH.md](SEARCH.md) - Search server setup
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common installation issues
 - [FAQ](FAQ.md) - Quick answers to installation questions
 - [Docker README](../docker/README.md) - Complete Docker reference

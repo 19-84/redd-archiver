@@ -34,8 +34,6 @@ sudo lsof -i :5432 # Should be empty
 > **📌 Important Note**: Redd-Archiver supports two modes:
 > - **Offline Browsing**: Generated HTML files work without a server (browse via sorted index pages, no search)
 > - **Server Deployment** (below): Required for full-text search functionality (PostgreSQL FTS)
->
-> See [Deployment Options](README.md#deployment-options) for complete comparison.
 
 | Mode | Time | Prerequisites | Use Case | Search |
 |------|------|---------------|----------|--------|
