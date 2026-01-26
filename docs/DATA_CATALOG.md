@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Scanner Tools](SCANNER_TOOLS.md)
+
+---
+
 # Redd-Archiver Data Catalog
 
 This document tracks all known data sources for archival platforms, both implemented and proposed by the community.
@@ -22,7 +26,7 @@ Redd-Archiver currently supports the following platforms with full import/export
 
 **Importer**: [`core/importers/reddit_importer.py`](../core/importers/reddit_importer.py)
 
-**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#-usage)
+**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#usage)
 
 ### Voat (Complete Archive)
 
@@ -41,7 +45,7 @@ Redd-Archiver currently supports the following platforms with full import/export
 
 **Importer**: [`core/importers/voat_importer.py`](../core/importers/voat_importer.py) + [`voat_sql_parser.py`](../core/importers/voat_sql_parser.py)
 
-**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#-usage)
+**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#usage)
 
 ### Ruqqus (Complete Archive)
 
@@ -59,7 +63,7 @@ Redd-Archiver currently supports the following platforms with full import/export
 
 **Importer**: [`core/importers/ruqqus_importer.py`](../core/importers/ruqqus_importer.py)
 
-**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#-usage)
+**Usage**: See [QUICKSTART.md](../QUICKSTART.md) and [README.md Usage Section](../README.md#usage)
 
 ---
 

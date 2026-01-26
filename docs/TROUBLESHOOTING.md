@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [FAQ](FAQ.md)
+
+---
+
 # Troubleshooting Guide
 
 This guide covers common issues and solutions for Redd-Archiver.
@@ -514,6 +518,16 @@ SELECT
 FROM pg_indexes
 WHERE schemaname = 'public';
 ```
+
+---
+
+## See Also
+
+- [FAQ](FAQ.md) - Quick answers before deep troubleshooting
+- [QUICKSTART.md](../QUICKSTART.md) - Correct setup procedure
+- [Docker README](../docker/README.md) - Docker-specific troubleshooting
+- [Architecture](../ARCHITECTURE.md) - Understanding system internals
+- [GitHub Issues](https://github.com/19-84/redd-archiver/issues) - Report bugs
 
 ---
 

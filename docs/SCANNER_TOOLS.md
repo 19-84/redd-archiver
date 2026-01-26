@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [FAQ](FAQ.md)
+
+---
+
 # Scanner Tools Documentation
 
 Community scanners help you identify high-priority communities for targeted archiving across Reddit, Voat, and Ruqqus platforms. This guide explains how to use the scanner tools, interpret results, and apply priority scores to your archiving strategy.

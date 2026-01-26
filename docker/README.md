@@ -1,4 +1,14 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Quickstart](../QUICKSTART.md) | [FAQ](../docs/FAQ.md)
+
+---
+
 # Redd-Archiver Docker Deployment Guide
+
+> **TL;DR:** Production-ready Docker Compose setup with PostgreSQL 18. Includes search server, nginx reverse proxy, optional Tor/HTTPS. Unix sockets for 15-30% better performance. Health checks, monitoring, automated backups.
+>
+> **First time?** Go to [QUICKSTART.md](../QUICKSTART.md) for copy-paste deployment (5 min). This document is comprehensive reference.
+
+---
 
 **Complete guide for running Redd-Archiver with PostgreSQL 18 using Docker Compose**
 
@@ -16,11 +26,11 @@
 - Browse via sorted index pages (by score, comments, date)
 - Pagination and full comment threads
 - No search functionality
-- See [Deployment Options](../README.md#-deployment-options) for comparison
+- See [Deployment Options](../README.md#deployment-options) for comparison
 
 ### Single Instance Scale
 
-Redd-Archiver has been tested with archives up to **hundreds of gigabytes per instance**. For very large archive collections (multiple terabytes), consider horizontal scaling with multiple topic-based instances. See [Scaling for Very Large Archives](../README.md#-scaling-for-very-large-archives) for multi-instance deployment strategies.
+Redd-Archiver has been tested with archives up to **hundreds of gigabytes per instance**. For very large archive collections (multiple terabytes), consider horizontal scaling with multiple topic-based instances. See [Scaling for Very Large Archives](../README.md#scaling-for-very-large-archives) for multi-instance deployment strategies.
 
 ---
 
@@ -1523,6 +1533,16 @@ git push -u origin main
 - Docker version and platform (Linux/macOS/Windows)
 - Archive size (number of posts/comments)
 - Relevant logs from `docker-compose logs`
+
+---
+
+## See Also
+
+- [QUICKSTART.md](../QUICKSTART.md) - Fast deployment instructions
+- [Tor Deployment](../docs/TOR_DEPLOYMENT.md) - Hidden service setup
+- [Troubleshooting](../docs/TROUBLESHOOTING.md) - Common Docker issues
+- [Architecture](../ARCHITECTURE.md) - System architecture overview
+- [FAQ](../docs/FAQ.md) - Quick answers to common questions
 
 ---
 

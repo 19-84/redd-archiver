@@ -34,6 +34,31 @@ Get running in 2-15 minutes with our step-by-step guide covering:
 
 ---
 
+## Documentation
+
+**→ First time here?** [QUICKSTART.md](QUICKSTART.md) - Deploy in 2-15 minutes
+
+**→ Quick answers?** [FAQ](docs/FAQ.md) - Common questions answered in 30 seconds
+
+**→ Need help?** [Troubleshooting](docs/TROUBLESHOOTING.md) - Fix common issues
+
+**→ Using the API?** [API Reference](docs/API.md) - 30+ REST endpoints
+
+**→ How it works?** [Architecture](ARCHITECTURE.md) - Technical deep-dive
+
+**→ Deployment guides:**
+- [Tor Hidden Service](docs/TOR_DEPLOYMENT.md) - .onion setup (2 min, no domain needed)
+- [HTTPS Production](QUICKSTART.md#production-https-15-minutes) - Let's Encrypt SSL (15 min)
+- [Static Hosting](docs/STATIC_DEPLOYMENT.md) - GitHub/Codeberg Pages (browse-only)
+- [Docker Reference](docker/README.md) - Complete Docker guide
+
+**→ Advanced:**
+- [MCP Server](mcp_server/README.md) - AI integration (Claude Desktop/Code)
+- [Scanner Tools](docs/SCANNER_TOOLS.md) - Data discovery utilities
+- [Registry Setup](docs/REGISTRY_SETUP.md) - Instance leaderboard
+
+---
+
 ## 🎯 Key Features
 
 ### 🌐 Multi-Platform Support
@@ -804,7 +829,7 @@ docker compose -f docker-compose.yml up -d
 - User behavior studies
 - Content moderation research
 
-## 📚 Documentation
+## 📚 Additional Resources
 
 ### Deployment Guides
 - **[Docker Deployment Guide](docker/README.md)** - Complete Docker setup including PostgreSQL, nginx, HTTPS, and Tor

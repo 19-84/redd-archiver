@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [FAQ](../docs/FAQ.md) | [Tools](README.md)
+
+---
+
 # Voat SQL Splitter Tool
 
 ## Overview
@@ -328,6 +332,17 @@ python tools/scan_voat_subverses.py --from-split /data/voat_split/split_metadata
 - **Before:** 5-6 hours (scan entire dump)
 - **After:** 2-5 minutes (import single file)
 - **Speedup:** ~1000x
+
+---
+
+## See Also
+
+- [FAQ - Q8: Voat Pre-Split Files](../docs/FAQ.md#q8-how-do-i-use-voat-data-the-full-dump-takes-30-minutes-per-subverse) - Quick usage guide
+- [Tools README](README.md) - Data catalog and scanner tools
+- [SCANNER_TOOLS.md](../docs/SCANNER_TOOLS.md) - Complete scanner documentation
+- [QUICKSTART.md](../QUICKSTART.md) - Archive generation guide
+
+---
 
 ## Contributing
 
