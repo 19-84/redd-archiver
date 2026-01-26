@@ -58,7 +58,7 @@ dependencies = [
 dev = [
     "pytest==9.0.2",
     "pytest-cov==7.0.0",
-    "ruff==0.14.13",
+    "ruff==0.14.14",
     "pre-commit==4.5.1",
 ]
 screenshots = [
