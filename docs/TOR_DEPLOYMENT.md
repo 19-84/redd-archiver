@@ -1,4 +1,14 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Quickstart](../QUICKSTART.md) | [FAQ](FAQ.md)
+
+---
+
 # Tor Hidden Service Deployment Guide for Redd-Archiver
+
+> **TL;DR:** Deploy to Tor in 2 minutes. No domain name, no port forwarding, no networking config. Perfect for homelabs and sharing banned subreddit archives privately. Works behind CGNAT.
+>
+> **Quick setup:** See [QUICKSTART - Tor Homelab](../QUICKSTART.md#tor-homelab-deployment-2-minutes) for 2-minute deployment. This guide provides deep-dive details.
+
+---
 
 Complete guide for deploying redd-archiver as a Tor hidden service (.onion) for maximum privacy, anonymity, and censorship resistance.
 
@@ -989,6 +999,16 @@ Include in bug reports:
 
 **Security Issues**:
 For security vulnerabilities, see SECURITY.md
+
+---
+
+## See Also
+
+- [QUICKSTART - Tor Homelab](../QUICKSTART.md#tor-homelab-deployment-2-minutes) - Quick 2-minute setup
+- [Static Deployment](STATIC_DEPLOYMENT.md) - Alternative: GitHub Pages hosting
+- [Docker Reference](../docker/README.md) - Complete Docker guide
+- [Troubleshooting](TROUBLESHOOTING.md) - Common Tor issues and fixes
+- [FAQ - Setup](FAQ.md#setup--deployment) - Quick deployment answers
 
 ---
 

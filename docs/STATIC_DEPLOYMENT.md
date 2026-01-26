@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Quickstart](../QUICKSTART.md) | [FAQ](FAQ.md)
+
+---
+
 # Static Hosting Deployment Guide
 
 Complete guide for deploying redd-archiver to GitHub Pages or Codeberg Pages for zero-cost static hosting.
@@ -7,7 +11,7 @@ Complete guide for deploying redd-archiver to GitHub Pages or Codeberg Pages for
 > - **Docker Deployment**: Full search functionality
 > - **Offline Browsing**: No server needed
 >
-> See [Deployment Options](../README.md#-deployment-options) for complete comparison.
+> See [Deployment Options](../README.md#deployment-options) for complete comparison.
 
 ---
 
@@ -837,12 +841,14 @@ See [docker/README.md](../docker/README.md) for Docker deployment guide.
 
 ---
 
-## Additional Resources
+## See Also
 
-- [GitHub Pages Documentation](https://docs.github.com/en/pages)
-- [Codeberg Pages Documentation](https://docs.codeberg.org/codeberg-pages/)
-- [Redd-Archiver Docker Guide](../docker/README.md)
-- [Tor Deployment Guide](TOR_DEPLOYMENT.md)
+- [Tor Deployment](TOR_DEPLOYMENT.md) - Alternative: Hidden service hosting
+- [Docker Reference](../docker/README.md) - Full server deployment with search
+- [QUICKSTART.md](../QUICKSTART.md) - All deployment modes comparison
+- [FAQ - Deployment](FAQ.md#setup--deployment) - Quick answers
+- [GitHub Pages Documentation](https://docs.github.com/en/pages) - External resource
+- [Codeberg Pages Documentation](https://docs.codeberg.org/codeberg-pages/) - External resource
 
 ---
 

@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [FAQ](FAQ.md)
+
+---
+
 # Redd Archiver REST API Documentation
 
 **Version**: 1.0
@@ -2607,6 +2611,16 @@ uv run python server.py --api-url http://localhost:5000
 ```
 
 See [MCP Server Documentation](../mcp_server/README.md) for complete setup guide.
+
+---
+
+## See Also
+
+- [MCP Server](../mcp_server/README.md) - Use API from Claude Desktop/Code
+- [Architecture - REST API](../ARCHITECTURE.md#rest-api-v1) - API design details
+- [Search Operators](../utils/search_operators.py) - Query parsing implementation
+- [FAQ](FAQ.md) - Common API usage questions
+- [QUICKSTART.md](../QUICKSTART.md) - Deploy search server
 
 ---
 

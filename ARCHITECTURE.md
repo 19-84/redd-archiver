@@ -1,4 +1,14 @@
+[Home](README.md) | [Docs](README.md#documentation) | [Quickstart](QUICKSTART.md) | [FAQ](docs/FAQ.md)
+
+---
+
 # Redd-Archiver Architecture
+
+> **TL;DR:** Streaming architecture with PostgreSQL backend. Constant memory usage regardless of dataset size. Database handles all queries/aggregations, generates static HTML for offline browsing + optional Flask search server. Multi-platform support (Reddit/Voat/Ruqqus). 18 specialized modules.
+>
+> **New here?** Start with [QUICKSTART.md](QUICKSTART.md) for practical deployment, then return here for technical details.
+
+---
 
 This document describes the technical architecture of Redd-Archiver v1.0.0, a PostgreSQL-backed archive generator that transforms compressed data dumps into browsable HTML archives with optional server-side search.
 
@@ -1172,6 +1182,16 @@ def process_with_checkpoint():
 - **psycopg3 Documentation**: https://www.psycopg.org/psycopg3/
 - **Jinja2 Documentation**: https://jinja.palletsprojects.com/
 - **Flask Documentation**: https://flask.palletsprojects.com/
+
+---
+
+## See Also
+
+- [QUICKSTART.md](QUICKSTART.md) - Practical deployment examples
+- [FAQ](docs/FAQ.md) - Common questions about performance and usage
+- [API Documentation](docs/API.md) - REST API architecture details
+- [Database Schema](sql/schema.sql) - PostgreSQL table definitions
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Performance and memory issues
 
 ---
 

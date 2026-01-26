@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [FAQ](FAQ.md)
+
+---
+
 # Registry Setup Guide
 
 This guide explains how to set up a registry to track multiple Redd Archiver instances.

@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [API Docs](../docs/API.md) | [FAQ](../docs/FAQ.md)
+
+---
+
 # Redd-Archiver MCP Server
 
 MCP (Model Context Protocol) server that exposes the Redd-Archiver REST API as AI-accessible tools. Uses [FastMCP](https://gofastmcp.com) to auto-generate 30+ tools from the API's OpenAPI specification.
@@ -269,6 +273,15 @@ curl http://localhost:5000/api/v1/openapi.json | jq
 2. Check Claude Desktop logs for MCP connection errors.
 
 3. Ensure the path in `claude_desktop_config.json` is absolute.
+
+## See Also
+
+- [API Documentation](../docs/API.md) - All available endpoints
+- [QUICKSTART.md](../QUICKSTART.md) - Deploy search server first
+- [FAQ](../docs/FAQ.md) - Common setup questions
+- [Architecture](../ARCHITECTURE.md) - MCP integration architecture
+
+---
 
 ## Additional Documentation
 

@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation)
+
+---
+
 # Redd-Archiver Screenshots
 
 Visual documentation of the generated archive interface.

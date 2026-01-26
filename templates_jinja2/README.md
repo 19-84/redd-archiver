@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Architecture](../ARCHITECTURE.md)
+
+---
+
 # Jinja2 Templates for Redd-Archiver
 
 This directory contains the new Jinja2-based template system for generating HTML archives.

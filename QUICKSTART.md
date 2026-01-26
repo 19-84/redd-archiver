@@ -1,3 +1,7 @@
+[Home](README.md) | [Docs](README.md#documentation) | [FAQ](docs/FAQ.md) | [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+---
+
 # Redd-Archiver Quick Start Guide
 
 ⏱️ **Get running in 2-15 minutes depending on deployment mode**
@@ -31,7 +35,7 @@ sudo lsof -i :5432 # Should be empty
 > - **Offline Browsing**: Generated HTML files work without a server (browse via sorted index pages, no search)
 > - **Server Deployment** (below): Required for full-text search functionality (PostgreSQL FTS)
 >
-> See [Deployment Options](README.md#-deployment-options) for complete comparison.
+> See [Deployment Options](README.md#deployment-options) for complete comparison.
 
 | Mode | Time | Prerequisites | Use Case | Search |
 |------|------|---------------|----------|--------|

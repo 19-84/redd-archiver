@@ -1,3 +1,7 @@
+[Home](../README.md) | [Docs](../README.md#documentation) | [Scanner Tools Docs](../docs/SCANNER_TOOLS.md) | [FAQ](../docs/FAQ.md)
+
+---
+
 # Data Catalog & Scanner Tools
 
 This directory contains **pre-generated community catalogs** and **scanner tools** for all three supported platforms. Use these resources to identify high-priority communities for targeted archiving.

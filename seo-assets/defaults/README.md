@@ -1,3 +1,7 @@
+[Home](../../README.md) | [Docs](../../README.md#documentation)
+
+---
+
 # Default SEO Assets
 
 This directory contains default SEO assets that will be used when custom assets are not specified in the TOML configuration.
