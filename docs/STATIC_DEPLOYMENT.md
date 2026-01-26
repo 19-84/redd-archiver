@@ -11,7 +11,7 @@ Complete guide for deploying redd-archiver to GitHub Pages or Codeberg Pages for
 > - **Docker Deployment**: Full search functionality
 > - **Offline Browsing**: No server needed
 >
-> See [Deployment Options](../README.md#deployment-options) for complete comparison.
+> See [QUICKSTART.md - Choose Your Deployment](../QUICKSTART.md#choose-your-deployment) for complete comparison of all deployment modes.
 
 ---
 
