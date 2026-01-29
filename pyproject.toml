@@ -52,6 +52,7 @@ dependencies = [
     "flask-wtf==1.2.2",
     "flask-cors==6.0.2",
     "sqlparse>=0.5.5",
+    "python-multipart>=0.0.22",
 ]
 
 [project.optional-dependencies]
