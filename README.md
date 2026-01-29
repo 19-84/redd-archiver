@@ -7,6 +7,8 @@
 [![Multi-Platform](https://img.shields.io/badge/platforms-Reddit%20%7C%20Voat%20%7C%20Ruqqus-orange.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-29%20tools-purple.svg)]()
 
+> **⭐ If you find this project useful, please star the repo!** It helps others discover the tool and motivates continued development.
+
 Transform compressed data dumps into browsable HTML archives with flexible deployment options. Redd-Archiver supports offline browsing via sorted index pages OR full-text search with Docker deployment. Features mobile-first design, multi-platform support, and enterprise-grade performance with PostgreSQL full-text indexing.
 
 **Supported Platforms**:
@@ -458,6 +460,12 @@ bc1q8wpdldnfqt3n9jh2n9qqmhg9awx20hxtz6qdl7
 </p>
 
 **Thank you for supporting internet archival efforts!** Every contribution helps maintain and improve this project.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=19-84/redd-archiver&type=Date)](https://star-history.com/#19-84/redd-archiver&Date)
 
 ---
 
