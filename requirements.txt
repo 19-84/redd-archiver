@@ -1,6 +1,6 @@
 # Core dependencies
 psaw==0.1.0
-psutil==7.2.1
+psutil==7.2.2
 zstandard==0.25.0
 
 # PostgreSQL support (required)
