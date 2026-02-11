@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frontend Decisions — Metadata Enrichment</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #475569;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --pink: #ec4899;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h1 small { font-size: 0.9rem; color: var(--text-muted); font-weight: normal; }
+  h2 {
+    font-size: 1.3rem;
+    margin: 3rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  h2 .num {
+    background: var(--accent);
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  h3 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--accent); }
+  p, li { color: var(--text-muted); font-size: 0.9rem; }
+  p { margin-bottom: 0.75rem; }
+  ul { padding-left: 1.5rem; margin-bottom: 1rem; }
+
+  .decision-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin: 1rem 0;
+  }
+  @media (max-width: 900px) {
+    .decision-grid { grid-template-columns: 1fr; }
+  }
+  .decision-grid.triple {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  @media (max-width: 1100px) {
+    .decision-grid.triple { grid-template-columns: 1fr; }
+  }
+
+  .option-box {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    position: relative;
+  }
+  .option-box.current {
+    border-color: var(--text-muted);
+  }
+  .option-box.recommended {
+    border-color: var(--green);
+  }
+  .option-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .option-label .tag {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .tag-current { background: var(--surface2); color: var(--text-muted); }
+  .tag-a { background: #1e3a5f; color: var(--accent); }
+  .tag-b { background: #3b1f5e; color: var(--accent2); }
+  .tag-c { background: #3b1f1f; color: var(--pink); }
+  .tag-rec { background: #14532d; color: var(--green); }
+
+  /* Wireframe elements */
+  .wire {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  /* ===== DECISION 1: Navigation ===== */
+  .nav-wire {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    background: var(--surface2);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .nav-wire .brand {
+    padding: 6px 10px;
+    background: var(--accent);
+    color: white;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .nav-wire .nav-item {
+    padding: 6px 8px;
+    color: var(--text-muted);
+    border-left: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .nav-wire .nav-item.active {
+    color: var(--text);
+    background: rgba(59,130,246,0.15);
+  }
+  .nav-wire .nav-item.new-item {
+    color: var(--green);
+    background: rgba(34,197,94,0.1);
+  }
+  .nav-wire .nav-dropdown {
+    position: relative;
+    padding: 6px 8px;
+    color: var(--green);
+    background: rgba(34,197,94,0.1);
+    border-left: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .nav-wire .dropdown-items {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 0;
+    min-width: 100px;
+    z-index: 10;
+    font-size: 0.7rem;
+  }
+  .nav-wire .dropdown-items div {
+    padding: 3px 10px;
+    color: var(--green);
+  }
+
+  /* ===== DECISION 2: Dashboard card ===== */
+  .card-wire {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.72rem;
+  }
+  .card-wire .card-header {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card-wire .card-header .sub-name {
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .card-wire .card-header .badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .badge-active { background: #14532d; color: var(--green); }
+  .badge-nsfw { background: #7f1d1d; color: var(--red); }
+  .card-wire .card-body {
+    padding: 8px 10px;
+  }
+  .card-wire .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    color: var(--text-muted);
+  }
+  .card-wire .stat-row .val {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .card-wire .desc-line {
+    padding: 4px 0 6px;
+    color: var(--text-muted);
+    font-style: italic;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+    font-size: 0.68rem;
+  }
+  .card-wire .new-row {
+    color: var(--green);
+  }
+  .card-wire .new-row .val {
+    color: var(--green);
+  }
+  .card-wire .meta-section {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== DECISION 3: Subreddit page ===== */
+  .page-wire {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.72rem;
+  }
+  .page-wire .pw-nav {
+    display: flex;
+    gap: 0;
+    background: var(--surface2);
+    font-size: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .page-wire .pw-nav span {
+    padding: 5px 8px;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border);
+  }
+  .page-wire .pw-nav span.active {
+    background: rgba(59,130,246,0.15);
+    color: var(--text);
+  }
+  .page-wire .pw-nav span.new-item {
+    color: var(--green);
+    background: rgba(34,197,94,0.08);
+  }
+  .page-wire .pw-content {
+    padding: 8px 10px;
+  }
+  .page-wire .about-box {
+    background: var(--surface);
+    border: 1px dashed var(--green);
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 0.68rem;
+  }
+  .about-box .about-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .about-box .about-text {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .page-wire .post-stub {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .page-wire .post-stub:last-child { border-bottom: none; }
+  .post-stub .post-score {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--amber);
+    font-weight: 700;
+    font-size: 0.65rem;
+    min-width: 35px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .post-stub .post-title {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .post-stub .post-meta {
+    color: var(--text-muted);
+    font-size: 0.62rem;
+  }
+  .post-stub .thumb {
+    width: 48px;
+    height: 36px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.55rem;
+    flex-shrink: 0;
+  }
+  .post-stub .flair-tag {
+    display: inline-block;
+    background: #3b1f5e;
+    color: var(--accent2);
+    font-size: 0.58rem;
+    padding: 0 4px;
+    border-radius: 2px;
+    margin-left: 4px;
+  }
+
+  /* ===== DECISION 4: User page ===== */
+  .user-header-wire {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.72rem;
+    margin-bottom: 6px;
+  }
+  .user-header-wire .username {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .user-header-wire .user-stats {
+    display: flex;
+    gap: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-size: 0.68rem;
+  }
+  .user-header-wire .bio-block {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--green);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .user-header-wire .bio-block .bio-label {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--green);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .user-header-wire .karma-row {
+    display: flex;
+    gap: 12px;
+    color: var(--green);
+    font-size: 0.68rem;
+    margin-top: 4px;
+  }
+  .user-header-wire .avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .user-header-wire .user-top {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* ===== Annotations ===== */
+  .annotation {
+    background: rgba(34,197,94,0.08);
+    border-left: 3px solid var(--green);
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .annotation strong { color: var(--green); }
+
+  .tradeoff {
+    display: flex;
+    gap: 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+  }
+  .tradeoff .pro, .tradeoff .con {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 4px;
+  }
+  .tradeoff .pro { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); }
+  .tradeoff .con { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); }
+  .tradeoff .pro::before { content: "+ "; color: var(--green); font-weight: 700; }
+  .tradeoff .con::before { content: "- "; color: var(--red); font-weight: 700; }
+
+  .separator {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0;
+  }
+
+  .legend {
+    display: flex;
+    gap: 1.5rem;
+    margin: 1rem 0;
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+  }
+
+  .arrow-label {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 0.5rem 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Frontend Decisions: Metadata Enrichment <small>Features 6 &amp; 7</small></h1>
+<p>Wireframes for the 6 unresolved design decisions. Green elements are new/changed. Open this file in a browser.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--surface2)"></div> Existing</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(34,197,94,0.2); border-color:var(--green)"></div> New / Changed</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div> Recommended</div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 1: Navigation Bar -->
+<!-- ============================================================ -->
+
+<h2><span class="num">1</span> Navigation Bar — How to add about / rules / wiki links?</h2>
+<p>Current nav has 6 items in subreddit context. Metadata adds up to 3 more. How should they fit?</p>
+
+<h3>Current</h3>
+<div class="option-box current">
+  <div class="option-label"><span class="tag tag-current">Today</span> 6 items</div>
+  <div class="nav-wire">
+    <div class="brand">v/technology</div>
+    <div class="nav-item active">score</div>
+    <div class="nav-item">comments</div>
+    <div class="nav-item">date</div>
+    <div class="nav-item">search</div>
+    <div class="nav-item">home</div>
+    <div class="nav-item">theme ◐</div>
+  </div>
+</div>
+
+<div class="decision-grid triple" style="margin-top:1rem">
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Flat — add all inline</div>
+    <div class="nav-wire">
+      <div class="brand">v/technology</div>
+      <div class="nav-item active">score</div>
+      <div class="nav-item">comments</div>
+      <div class="nav-item">date</div>
+      <div class="nav-item new-item">about</div>
+      <div class="nav-item new-item">rules</div>
+      <div class="nav-item new-item">wiki</div>
+      <div class="nav-item">search</div>
+      <div class="nav-item">home</div>
+      <div class="nav-item">◐</div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">Simple, discoverable</div>
+      <div class="con">9 items, crowded on mobile</div>
+    </div>
+  </div>
+
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-b">Option B</span> Dropdown submenu <span class="tag tag-rec">Rec.</span></div>
+    <div class="nav-wire">
+      <div class="brand">v/technology</div>
+      <div class="nav-item active">score</div>
+      <div class="nav-item">comments</div>
+      <div class="nav-item">date</div>
+      <div class="nav-dropdown">info ▾
+        <div class="dropdown-items">
+          <div>about</div>
+          <div>rules</div>
+          <div>wiki</div>
+        </div>
+      </div>
+      <div class="nav-item">search</div>
+      <div class="nav-item">home</div>
+      <div class="nav-item">◐</div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">Clean, scales to 0-3 sub-items</div>
+      <div class="con">One extra click, dropdown needs CSS</div>
+    </div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-c">Option C</span> About page only in nav</div>
+    <div class="nav-wire">
+      <div class="brand">v/technology</div>
+      <div class="nav-item active">score</div>
+      <div class="nav-item">comments</div>
+      <div class="nav-item">date</div>
+      <div class="nav-item new-item">about</div>
+      <div class="nav-item">search</div>
+      <div class="nav-item">home</div>
+      <div class="nav-item">◐</div>
+    </div>
+    <div class="annotation">Rules + wiki linked <strong>from within</strong> the about page, not in main nav</div>
+    <div class="tradeoff">
+      <div class="pro">Minimal change (7 items), about is the hub</div>
+      <div class="con">Rules/wiki 2 clicks away</div>
+    </div>
+  </div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 2: Dashboard Card -->
+<!-- ============================================================ -->
+
+<h2><span class="num">2</span> Dashboard Card — How much metadata to show?</h2>
+<p>Current cards show 6 stat sections. Metadata adds description, subscribers, creation date, NSFW/quarantine.</p>
+
+<div class="decision-grid triple">
+  <div class="option-box current">
+    <div class="option-label"><span class="tag tag-current">Today</span></div>
+    <div class="card-wire">
+      <div class="card-header">
+        <span class="sub-name">v/technology</span>
+        <span class="badge badge-active">ACTIVE</span>
+      </div>
+      <div class="card-body">
+        <div class="stat-row"><span>Posts</span><span class="val">12,847</span></div>
+        <div class="stat-row"><span>Comments</span><span class="val">98,432</span></div>
+        <div class="stat-row"><span>Users</span><span class="val">3,201</span></div>
+        <div class="stat-row"><span>Score (median)</span><span class="val">24</span></div>
+        <div class="stat-row"><span>Timespan</span><span class="val">6y 142d</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Subtitle + light enrichment <span class="tag tag-rec">Rec.</span></div>
+    <div class="card-wire">
+      <div class="card-header">
+        <span class="sub-name">v/technology</span>
+        <span class="badge badge-active">ACTIVE</span>
+      </div>
+      <div class="card-body">
+        <div class="desc-line">"Technology news and discussion"</div>
+        <div class="stat-row"><span>Posts</span><span class="val">12,847</span></div>
+        <div class="stat-row"><span>Comments</span><span class="val">98,432</span></div>
+        <div class="stat-row"><span>Users</span><span class="val">3,201</span></div>
+        <div class="stat-row"><span>Score (median)</span><span class="val">24</span></div>
+        <div class="stat-row"><span>Timespan</span><span class="val">6y 142d</span></div>
+        <div class="meta-section">
+          <div class="stat-row new-row"><span>Subscribers</span><span class="val">18,420</span></div>
+          <div class="stat-row new-row"><span>Created</span><span class="val">Jun 2014</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation"><strong>Minimal change.</strong> Description as italic subtitle. Subscribers + created date in a new "metadata" section at the bottom.</div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-b">Option B</span> Tooltip-only (hover for metadata)</div>
+    <div class="card-wire">
+      <div class="card-header">
+        <span class="sub-name" style="text-decoration: underline dotted; cursor:help">v/technology</span>
+        <span class="badge badge-active">ACTIVE</span>
+      </div>
+      <div class="card-body">
+        <div class="stat-row"><span>Posts</span><span class="val">12,847</span></div>
+        <div class="stat-row"><span>Comments</span><span class="val">98,432</span></div>
+        <div class="stat-row"><span>Users</span><span class="val">3,201</span></div>
+        <div class="stat-row"><span>Score (median)</span><span class="val">24</span></div>
+        <div class="stat-row"><span>Timespan</span><span class="val">6y 142d</span></div>
+      </div>
+    </div>
+    <div class="annotation">Hover on subreddit name shows: <strong>"Technology news and discussion" · 18,420 subscribers · Created Jun 2014 · Founded by @atko</strong></div>
+    <div class="tradeoff">
+      <div class="pro">Zero layout change, metadata accessible</div>
+      <div class="con">Hidden, not discoverable, no mobile hover</div>
+    </div>
+  </div>
+</div>
+
+<div class="annotation" style="margin-top:1rem"><strong>NSFW / Quarantine badges:</strong> In all options, these appear next to the ACTIVE badge in the card header:<br>
+<span style="color:var(--red)">v/nsfw_example</span> &nbsp;
+<span class="badge badge-active" style="display:inline-block; font-size:0.65rem; padding:1px 5px; border-radius:3px">ACTIVE</span>
+<span class="badge badge-nsfw" style="display:inline-block; font-size:0.65rem; padding:1px 5px; border-radius:3px">NSFW</span>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 3: Subreddit Index Page -->
+<!-- ============================================================ -->
+
+<h2><span class="num">3</span> Subreddit Index — Inline "About" section or standalone page only?</h2>
+
+<div class="decision-grid">
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Standalone about page only <span class="tag tag-rec">Rec.</span></div>
+    <div class="page-wire">
+      <div class="pw-nav">
+        <span class="active">score</span>
+        <span>comments</span>
+        <span>date</span>
+        <span class="new-item">about</span>
+        <span>search</span>
+      </div>
+      <div class="pw-content">
+        <div class="post-stub">
+          <div class="post-score">342</div>
+          <div><div class="post-title">First post title here</div><div class="post-meta">by johndoe · 24 comments · 2019-03-14</div></div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">218</div>
+          <div><div class="post-title">Second post title here</div><div class="post-meta">by janedoe · 18 comments · 2019-03-12</div></div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">156</div>
+          <div><div class="post-title">Third post title here</div><div class="post-meta">by user42 · 9 comments · 2019-03-10</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">Clean index, no template complexity, about page is self-contained</div>
+      <div class="con">Requires click to see community context</div>
+    </div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-b">Option B</span> Inline collapsible on page 1</div>
+    <div class="page-wire">
+      <div class="pw-nav">
+        <span class="active">score</span>
+        <span>comments</span>
+        <span>date</span>
+        <span class="new-item">about</span>
+        <span>search</span>
+      </div>
+      <div class="pw-content">
+        <div class="about-box">
+          <div class="about-header">
+            <span>About v/technology</span>
+            <span style="font-size:0.6rem; font-weight:normal; cursor:pointer">▼ collapse</span>
+          </div>
+          <div class="about-text">"Technology news and discussion" · 18,420 subscribers · Created Jun 2014</div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">342</div>
+          <div><div class="post-title">First post title here</div><div class="post-meta">by johndoe · 24 comments · 2019-03-14</div></div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">218</div>
+          <div><div class="post-title">Second post title here</div><div class="post-meta">by janedoe · 18 comments · 2019-03-12</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Shown only on page 1. Collapsible via <code>&lt;details&gt;</code> (CSS-only). Links to full about page for sidebar/rules/wiki.</div>
+    <div class="tradeoff">
+      <div class="pro">Immediate context, no extra click</div>
+      <div class="con">Template complexity, page 1 vs page N logic, collapsible state</div>
+    </div>
+  </div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 4: User Page Bio -->
+<!-- ============================================================ -->
+
+<h2><span class="num">4</span> User Page — Bio and metadata placement</h2>
+<p>Currently shows username + activity counts. Voat adds: bio, registration date, karma, bot flag, avatar.</p>
+
+<div class="decision-grid triple">
+  <div class="option-box current">
+    <div class="option-label"><span class="tag tag-current">Today</span></div>
+    <div class="user-header-wire">
+      <div class="username">u/DerpyPigSauce</div>
+      <div class="user-stats">
+        <span>42 posts</span>
+        <span>318 comments</span>
+        <span>Active in 5 subverses</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Enriched header <span class="tag tag-rec">Rec.</span></div>
+    <div class="user-header-wire">
+      <div class="user-top">
+        <div class="avatar">img</div>
+        <div>
+          <div class="username">u/DerpyPigSauce</div>
+          <div class="user-stats">
+            <span>42 posts</span>
+            <span>318 comments</span>
+            <span>Active in 5 subverses</span>
+          </div>
+        </div>
+      </div>
+      <div class="bio-block">
+        <div class="bio-label">Bio</div>
+        Just a guy who likes technology and privacy.
+      </div>
+      <div class="karma-row">
+        <span>Member since Mar 2015</span>
+        <span>·</span>
+        <span>Post karma: 1,247</span>
+        <span>·</span>
+        <span>Comment karma: 4,891</span>
+      </div>
+    </div>
+    <div class="annotation"><strong>All metadata in the existing header block.</strong> Bio below stats. Karma + registration as a row. Avatar optional (dead CDN for Voat). Conditional — only renders when <code>user_metadata</code> exists.</div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-b">Option B</span> Sidebar layout</div>
+    <div style="display:flex; gap:8px">
+      <div class="user-header-wire" style="flex:2">
+        <div class="username">u/DerpyPigSauce</div>
+        <div class="user-stats">
+          <span>42 posts</span>
+          <span>318 comments</span>
+        </div>
+        <div style="margin-top:6px; color:var(--text-muted); font-size:0.68rem">[post and comment list here]</div>
+      </div>
+      <div class="user-header-wire" style="flex:1; border-color:var(--green)">
+        <div class="bio-block" style="border:none; margin:0; padding:0">
+          <div class="bio-label">Profile</div>
+          <div style="font-size:0.68rem; margin-top:4px">
+            <div>Member since Mar 2015</div>
+            <div>Post karma: 1,247</div>
+            <div>Comment karma: 4,891</div>
+            <div style="margin-top:4px; font-style:italic">"Just a guy who likes technology and privacy."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">Clean separation of metadata vs activity</div>
+      <div class="con">Layout change, responsive complexity, sidebar wasted on short bios</div>
+    </div>
+  </div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 5: Post Thumbnails -->
+<!-- ============================================================ -->
+
+<h2><span class="num">5</span> Post Thumbnails (F7 Phase 4) — How to display on post cards?</h2>
+<p>14GB of Voat post thumbnails. Currently all post cards are text-only.</p>
+
+<div class="decision-grid triple">
+  <div class="option-box current">
+    <div class="option-label"><span class="tag tag-current">Today</span> Text-only card</div>
+    <div class="page-wire">
+      <div class="pw-content" style="padding:6px 10px">
+        <div class="post-stub">
+          <div class="post-score">342</div>
+          <div>
+            <div class="post-title">SpaceX Starship completes orbital flight</div>
+            <div class="post-meta">by spacefan · 24 comments · 2020-01-14 · spacex.com</div>
+          </div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">218</div>
+          <div>
+            <div class="post-title">New privacy-focused browser released</div>
+            <div class="post-meta">by privacyguy · 18 comments · 2020-01-12 · eff.org</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Small left thumbnail <span class="tag tag-rec">Rec.</span></div>
+    <div class="page-wire">
+      <div class="pw-content" style="padding:6px 10px">
+        <div class="post-stub">
+          <div class="thumb">thumb</div>
+          <div class="post-score">342</div>
+          <div>
+            <div class="post-title">SpaceX Starship completes orbital flight</div>
+            <div class="post-meta">by spacefan · 24 comments · 2020-01-14 · spacex.com</div>
+          </div>
+        </div>
+        <div class="post-stub">
+          <div class="thumb">thumb</div>
+          <div class="post-score">218</div>
+          <div>
+            <div class="post-title">New privacy-focused browser released</div>
+            <div class="post-meta">by privacyguy · 18 comments · 2020-01-12 · eff.org</div>
+          </div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">156</div>
+          <div>
+            <div class="post-title">Self post without thumbnail</div>
+            <div class="post-meta">by user42 · 9 comments · 2020-01-10</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation"><strong>Conditional:</strong> thumbnail shown when available, card layout shifts gracefully. Self-posts have no thumbnail. Matches old-Reddit layout.</div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-b">Option B</span> Thumbnail as link icon only</div>
+    <div class="page-wire">
+      <div class="pw-content" style="padding:6px 10px">
+        <div class="post-stub">
+          <div class="post-score">342</div>
+          <div>
+            <div class="post-title">SpaceX Starship completes orbital flight <span style="color:var(--green); font-size:0.6rem">🖼</span></div>
+            <div class="post-meta">by spacefan · 24 comments · 2020-01-14 · spacex.com</div>
+          </div>
+        </div>
+        <div class="post-stub">
+          <div class="post-score">218</div>
+          <div>
+            <div class="post-title">New privacy-focused browser released <span style="color:var(--green); font-size:0.6rem">🖼</span></div>
+            <div class="post-meta">by privacyguy · 18 comments · 2020-01-12 · eff.org</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Icon indicates thumbnail available, shown on click/hover or on post detail page only. <strong>Zero layout change to cards.</strong></div>
+    <div class="tradeoff">
+      <div class="pro">No card layout change, minimal CSS</div>
+      <div class="con">Thumbnails not visible at a glance</div>
+    </div>
+  </div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- DECISION 6: CSS Strategy -->
+<!-- ============================================================ -->
+
+<h2><span class="num">6</span> CSS Strategy — Coordination with F4 (Visual Themes)</h2>
+<p>New components need styling. F4 Phase 1 extracts design tokens from the CSS. The order matters.</p>
+
+<div class="decision-grid triple">
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-a">Option A</span> Metadata CSS first, then F4 token extraction</div>
+    <div style="font-size:0.75rem; color:var(--text-muted); padding: 0.5rem 0">
+      <div style="display:flex; align-items:center; gap:8px; margin:6px 0">
+        <div style="background:var(--accent); color:white; padding:3px 8px; border-radius:3px; white-space:nowrap">F6/F7 CSS</div>
+        <div style="color:var(--text-muted)">→</div>
+        <div style="background:var(--green); color:white; padding:3px 8px; border-radius:3px; white-space:nowrap">F4 Phase 1</div>
+      </div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">Write CSS normally now, F4 extracts everything (including new components) into tokens in one pass</div>
+      <div class="con">New CSS uses hardcoded colors, gets refactored later</div>
+    </div>
+  </div>
+
+  <div class="option-box recommended">
+    <div class="option-label"><span class="tag tag-b">Option B</span> F4 tokens first, metadata CSS uses vars <span class="tag tag-rec">Rec.</span></div>
+    <div style="font-size:0.75rem; color:var(--text-muted); padding: 0.5rem 0">
+      <div style="display:flex; align-items:center; gap:8px; margin:6px 0">
+        <div style="background:var(--green); color:white; padding:3px 8px; border-radius:3px; white-space:nowrap">F4 Phase 1</div>
+        <div style="color:var(--text-muted)">→</div>
+        <div style="background:var(--accent); color:white; padding:3px 8px; border-radius:3px; white-space:nowrap">F6/F7 CSS</div>
+      </div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">New components use var(--token) from the start, no double-work</div>
+      <div class="con">F4P1 must land first (it's currently "parallel track")</div>
+    </div>
+  </div>
+
+  <div class="option-box">
+    <div class="option-label"><span class="tag tag-c">Option C</span> Write new CSS with vars anyway (partial tokens)</div>
+    <div style="font-size:0.75rem; color:var(--text-muted); padding: 0.5rem 0">
+      <div style="display:flex; align-items:center; gap:8px; margin:6px 0">
+        <div style="background:var(--accent); color:white; padding:3px 8px; border-radius:3px; white-space:nowrap">F6/F7 CSS (use existing ~52 vars + define new ones)</div>
+      </div>
+      <div style="margin-top:4px">New components reference existing <code>var(--...)</code> where available (~52 already exist), define new vars for gaps. F4P1 later unifies everything.</div>
+    </div>
+    <div class="tradeoff">
+      <div class="pro">No ordering dependency, partially future-proof</div>
+      <div class="con">Inconsistent — some vars, some hardcoded; F4 still needs to clean up</div>
+    </div>
+  </div>
+</div>
+
+<hr class="separator">
+
+<!-- ============================================================ -->
+<!-- SUMMARY -->
+<!-- ============================================================ -->
+
+<h2 style="border-color:var(--amber)"><span class="num" style="background:var(--amber)">?</span> Decision Summary</h2>
+
+<div style="font-size:0.85rem;">
+<table style="width:100%; border-collapse:collapse; margin:1rem 0">
+  <thead>
+    <tr style="border-bottom:2px solid var(--border); text-align:left">
+      <th style="padding:6px 10px; color:var(--text)">#</th>
+      <th style="padding:6px 10px; color:var(--text)">Decision</th>
+      <th style="padding:6px 10px; color:var(--text)">Options</th>
+      <th style="padding:6px 10px; color:var(--text)">Rec.</th>
+      <th style="padding:6px 10px; color:var(--text)">Impact</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">1</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Navigation bar</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Flat / Dropdown / About-as-hub</td>
+      <td style="padding:6px 10px; color:var(--green)">B (dropdown)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">navigation.html + CSS</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">2</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Dashboard cards</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Subtitle+stats / Tooltip-only</td>
+      <td style="padding:6px 10px; color:var(--green)">A (subtitle)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">dashboard_card.html + helpers.py</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">3</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Subreddit index</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Standalone about / Inline collapsible</td>
+      <td style="padding:6px 10px; color:var(--green)">A (standalone)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">New template only</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">4</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">User page bio</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Enriched header / Sidebar</td>
+      <td style="padding:6px 10px; color:var(--green)">A (enriched header)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">user.html header block</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">5</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Post thumbnails</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Left thumb / Icon-only</td>
+      <td style="padding:6px 10px; color:var(--green)">A (left thumb)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">post_card.html + CSS</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px; color:var(--accent)">6</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">CSS strategy</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">CSS first / Tokens first / Partial vars</td>
+      <td style="padding:6px 10px; color:var(--green)">B (tokens first)</td>
+      <td style="padding:6px 10px; color:var(--text-muted)">Execution order change</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+</body>
+</html>
