@@ -3,9 +3,43 @@
 **Status:** Planned
 **Last updated:** 2026-02-11
 
-**Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system that supports multiple themes, system preference detection, and operator customization — all without JavaScript (except for optional persistence).
+**Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system where each theme provides both dark and light palettes, supports system preference detection, and allows operator customization — all without JavaScript (except for optional persistence in static mode).
 
-**Problem:** The current dark/light toggle works via a CSS checkbox hack with 478 duplicated selector overrides. Adding a third theme (e.g., sepia, high-contrast) would require duplicating all 478 selectors again. The toggle doesn't respect OS-level color scheme preferences. Archive operators have no way to customize colors or branding.
+**Problem:** The current dark/light toggle works via a CSS checkbox hack with 478 duplicated selector overrides. Adding new visual styles (e.g., sepia, high-contrast) would require duplicating all 478 selectors again. The toggle doesn't respect OS-level color scheme preferences. Archive operators have no way to customize colors or branding.
+
+---
+
+## Architecture
+
+### Two independent axes
+
+The theme system separates two concerns:
+
+| Axis | Controlled by | Scope |
+|---|---|---|
+| **Theme** (palette personality) | Operator via `--theme` CLI flag at export time | Instance-level: all visitors see the same theme |
+| **Mode** (luminance direction) | End user via dark/light toggle + system preference | Per-visitor: each user picks their preferred mode |
+
+A **theme** is a named palette that defines both a dark and a light set of design tokens. The operator chooses the theme; the user chooses the mode.
+
+### Theme palette matrix
+
+Each theme provides values for both modes:
+
+| Theme | Dark Background | Dark Text | Dark Accent | Light Background | Light Text | Light Accent | Use Case |
+|---|---|---|---|---|---|---|---|
+| Default | `#0f172a` | `#e2e8f0` | `#3b82f6` | `#ffffff` | `#1e293b` | `#2563eb` | General purpose |
+| Sepia | `#2c2416` | `#e8dcc8` | `#c49b3a` | `#f5f0e8` | `#3d3425` | `#8b6914` | Extended reading sessions |
+| High Contrast | `#000000` | `#ffffff` | `#ffff00` | `#ffffff` | `#000000` | `#0000cc` | Accessibility / low vision |
+
+### Token delivery by serving mode
+
+The main CSS file (`redd-archiver-universal.css`) uses only `var()` references for all theme-able values — no hardcoded colors. Token values are delivered differently depending on the serving mode:
+
+| Mode | Token delivery | How it works |
+|---|---|---|
+| **Static** | Baked into the CSS file at export time | The export pipeline reads the `--theme` flag and writes the selected theme's dark/light token values directly into `:root` and `@media (prefers-color-scheme: light)` blocks at the top of the CSS file |
+| **Dynamic** | Injected via `<style>` block in `base.html` | Flask reads the active theme from config (`REDDARCHIVER_THEME` env var) and renders a `<style>` block with the theme's token values into the template. The main CSS file remains static and fully cacheable |
 
 ---
 
@@ -67,10 +101,10 @@ Replace all hardcoded colors in `redd-archiver-universal.css` with CSS custom pr
 
 ## Phase 2: System Preference Support
 
-Add `@media (prefers-color-scheme: light)` using the token system. Users see their OS preference on first load.
+Replace the checkbox toggle with a `@media (prefers-color-scheme)` approach. Users see their OS preference on first load, with a manual override toggle.
 
 ```css
-/* Dark theme is the default (tokens in :root) */
+/* Dark mode is the default (tokens in :root) */
 :root {
   --bg-card: #1e293b;
   /* ... */
@@ -95,66 +129,155 @@ Add `@media (prefers-color-scheme: light)` using the token system. Users see the
 
 ---
 
-## Phase 3: Additional Themes
+## Phase 3: Theme-Agnostic CSS + Theme Definitions
 
-Add sepia and high-contrast themes. Replace the checkbox toggle with a `<select>` element + CSS `:has()` selector (CSS-only, no JavaScript). Four themes total.
+Decouple the CSS from any specific theme. The main stylesheet uses only `var()` references. Theme palettes are defined as standalone data (Python dicts) that the export pipeline and Flask both consume.
 
-**Theme palette:**
+### Theme definition format
 
-| Theme | Background | Text | Accent | Use Case |
-|---|---|---|---|---|
-| Dark (default) | `#0f172a` | `#e2e8f0` | `#3b82f6` | Default, reduced eye strain |
-| Light | `#ffffff` | `#1e293b` | `#2563eb` | Bright environments |
-| Sepia | `#f5f0e8` | `#3d3425` | `#8b6914` | Extended reading sessions |
-| High Contrast | `#000000` | `#ffffff` | `#ffff00` | Accessibility / low vision |
+Each theme is a Python dictionary with dark and light token sets:
 
-**CSS-only theme selector using `:has()`:**
-```css
-/* Theme selection via hidden <select> in <body> */
-body:has(#theme-select option[value="light"]:checked) {
-  --bg-card: #ffffff;
-  /* ... light tokens ... */
-}
-
-body:has(#theme-select option[value="sepia"]:checked) {
-  --bg-card: #f5f0e8;
-  /* ... sepia tokens ... */
-}
-
-body:has(#theme-select option[value="high-contrast"]:checked) {
-  --bg-card: #000000;
-  /* ... high-contrast tokens ... */
+```python
+THEMES = {
+    "default": {
+        "dark": {
+            "bg-primary": "#0f172a",
+            "text-primary": "#e2e8f0",
+            "accent": "#3b82f6",
+            # ... 80-120 tokens ...
+        },
+        "light": {
+            "bg-primary": "#ffffff",
+            "text-primary": "#1e293b",
+            "accent": "#2563eb",
+            # ...
+        },
+    },
+    "sepia": {
+        "dark": {
+            "bg-primary": "#2c2416",
+            "text-primary": "#e8dcc8",
+            "accent": "#c49b3a",
+            # ...
+        },
+        "light": {
+            "bg-primary": "#f5f0e8",
+            "text-primary": "#3d3425",
+            "accent": "#8b6914",
+            # ...
+        },
+    },
+    "high-contrast": {
+        "dark": {
+            "bg-primary": "#000000",
+            "text-primary": "#ffffff",
+            "accent": "#ffff00",
+            # ...
+        },
+        "light": {
+            "bg-primary": "#ffffff",
+            "text-primary": "#000000",
+            "accent": "#0000cc",
+            # ...
+        },
+    },
 }
 ```
 
-**Template change:** The checkbox input and label are replaced with a `<select>` dropdown in the navigation bar. This is the only template change required.
+### Static export: tokens baked into CSS
 
-**Browser support:** CSS `:has()` is supported in Chrome 105+, Firefox 121+, Safari 15.4+. For older browsers, the default dark theme applies (graceful degradation).
+The export pipeline reads `--theme` and generates the `:root` and `@media` blocks with that theme's values:
+
+```css
+/* Generated by export pipeline for --theme sepia */
+:root {
+  --bg-primary: #2c2416;
+  --text-primary: #e8dcc8;
+  --accent: #c49b3a;
+  /* ... sepia dark tokens ... */
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-primary: #f5f0e8;
+    --text-primary: #3d3425;
+    --accent: #8b6914;
+    /* ... sepia light tokens ... */
+  }
+}
+
+/* Manual dark/light toggle override */
+#dark-theme-toggle:checked ~ body {
+  /* ... sepia light tokens (same values as @media block) ... */
+}
+```
+
+### Dynamic mode: tokens injected via template
+
+Flask reads `REDDARCHIVER_THEME` from config and renders a `<style>` block in `base.html`:
+
+```html
+<!-- Rendered by Flask from theme config -->
+<style>
+  :root {
+    --bg-primary: {{ theme.dark['bg-primary'] }};
+    --text-primary: {{ theme.dark['text-primary'] }};
+    --accent: {{ theme.dark['accent'] }};
+    {# ... all dark tokens ... #}
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg-primary: {{ theme.light['bg-primary'] }};
+      --text-primary: {{ theme.light['text-primary'] }};
+      --accent: {{ theme.light['accent'] }};
+      {# ... all light tokens ... #}
+    }
+  }
+</style>
+
+<!-- Main CSS is theme-agnostic — fully cacheable -->
+<link rel="stylesheet" href="/static/css/redd-archiver-universal.css">
+```
+
+The main CSS file contains zero hardcoded colors and is identical regardless of theme. Only the inline `<style>` block changes per theme.
+
+**Outcome:** The CSS is fully theme-agnostic. Theme selection is an operator/instance decision. Users control only dark/light mode. Adding a new theme requires only a new Python dict entry — no CSS changes.
 
 ---
 
-## Phase 4: Persistence + Custom Branding
+## Phase 4: Custom Branding
 
-### Persistence
-
-- **Dynamic mode:** Cookie-based persistence. Flask reads the theme cookie and adds a `data-theme` attribute to `<body>`, which CSS uses for theme selection. No JavaScript needed.
-- **Static mode:** Optional tiny `<script>` tag (reads `localStorage`, applies `data-theme` before first paint). Gated behind `--enable-theme-persistence` CLI flag to preserve the zero-JavaScript design for operators who want it.
-
-### Custom branding (CLI flags)
+### CLI flags
 
 ```bash
 reddarc.py --output /var/www/html/ \
-  --theme sepia \                    # Default theme for this archive
-  --accent-color "#8b6914" \         # Override accent color
+  --theme sepia \                    # Select theme palette (default, sepia, high-contrast)
+  --accent-color "#8b6914" \         # Override accent color for both modes
   --custom-css /path/to/overrides.css  # Additional CSS appended after main stylesheet
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--theme` | `dark` | Default theme (`dark`, `light`, `sepia`, `high-contrast`) |
-| `--accent-color` | (per theme) | Override primary accent color (hex value) |
+| `--theme` | `default` | Theme palette (`default`, `sepia`, `high-contrast`) |
+| `--accent-color` | (per theme) | Override primary accent color (hex value), applied to both dark and light modes |
 | `--custom-css` | None | Path to additional CSS file, appended after main stylesheet |
-| `--enable-theme-persistence` | `false` | Add localStorage script for static mode theme memory |
+
+### Dynamic mode configuration
+
+```bash
+# Environment variables for Flask
+REDDARCHIVER_THEME=sepia
+REDDARCHIVER_ACCENT_COLOR=#8b6914
+```
+
+### Persistence
+
+- **Dynamic mode:** Cookie-based persistence for mode preference (dark/light). Flask reads the mode cookie and pre-selects the toggle state server-side. No JavaScript needed.
+- **Static mode:** Optional tiny `<script>` tag (reads `localStorage`, applies mode preference before first paint). Gated behind `--enable-theme-persistence` CLI flag to preserve the zero-JavaScript design for operators who want it. Only persists mode (dark/light), not theme — theme is baked in at export time.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--enable-theme-persistence` | `false` | Add localStorage script for static mode dark/light preference memory |
 
 ---
 
@@ -162,33 +285,40 @@ reddarc.py --output /var/www/html/ \
 
 ### Unit tests
 - Design token extraction: verify all hardcoded colors replaced with `var()` references
-- Token override completeness: every token defined in `:root` has an override in each theme block
+- Token override completeness: every token defined in `:root` has a corresponding value in both dark and light palettes for every theme
+- Theme definition validation: every theme has both `dark` and `light` keys with identical token sets
 - CSS validity: parsed output has no syntax errors
 - CLI flag validation: `--theme` rejects invalid values, `--accent-color` validates hex format
 
 ### Integration tests
-- Theme toggle: switching themes applies correct token values (visual regression via screenshot comparison)
+- Dark/light toggle: switching mode applies correct token values (visual regression via screenshot comparison)
 - System preference: `prefers-color-scheme: light` applies light tokens when toggle is in default state
 - Manual override: toggle overrides system preference
-- `:has()` selector: theme `<select>` applies correct theme in supported browsers
-- Graceful degradation: unsupported browsers render the default dark theme
+- Theme injection (static): export with `--theme sepia` → verify `:root` contains sepia dark tokens, `@media` block contains sepia light tokens
+- Theme injection (dynamic): Flask with `REDDARCHIVER_THEME=sepia` → verify inline `<style>` contains sepia tokens
+- Theme-agnostic CSS: main stylesheet contains zero hardcoded color values (only `var()` references)
+- `--accent-color` override: verify accent token is replaced in both dark and light palettes
 
 ### End-to-end tests
-- Full pipeline: export with `--theme sepia` → verify CSS contains sepia as default theme
+- Full pipeline: export with `--theme sepia` → verify rendered pages use sepia colors
+- Default theme: export without `--theme` → verify default palette applied
 - Custom CSS: `--custom-css` file is appended correctly and overrides are applied
-- Persistence (dynamic): set theme via UI → reload page → verify theme persists via cookie
+- Persistence (dynamic): set mode via toggle → reload page → verify mode persists via cookie
 - Persistence (static): `--enable-theme-persistence` → verify `<script>` tag present and functional
 - Zero visual regression: Phase 1 output is pixel-identical to pre-refactor output
+- Dynamic/static parity: same theme produces visually identical results in both serving modes
 
 ---
 
 ## Migration
 
-Phase 1 is a CSS-only refactor with zero visual change. Existing archives can adopt the new CSS by re-running `--export-from-database`. No database or template migration needed until Phase 3 (theme selector replaces toggle in templates).
+Phase 1 is a CSS-only refactor with zero visual change. Existing archives can adopt the new CSS by re-running `--export-from-database`. No database or template migration needed.
+
+Phase 3 changes how token values are delivered (baked into CSS or injected via template) but the visual output is identical. Operators using `--export-from-database` get the default theme automatically. Operators wanting a different theme re-export with `--theme <name>`.
 
 ---
 
 ## Cross-References
 
-- See [02-dynamic-serving-mode.md > Phase 2](02-dynamic-serving-mode.md#phase-2-template-adaptation-prerequisite-for-page-routes) — template adaptation concerns overlap with Phase 3 template changes (theme selector)
-- See [README.md > Serving Modes](README.md#serving-modes) — persistence behavior differs between static and dynamic modes
+- See [02-dynamic-serving-mode.md > Phase 2](02-dynamic-serving-mode.md#phase-2-template-adaptation-prerequisite-for-page-routes) — template adaptation concerns overlap with Phase 3 (inline `<style>` injection in dynamic mode)
+- See [README.md > Serving Modes](README.md#serving-modes) — token delivery differs between static and dynamic modes

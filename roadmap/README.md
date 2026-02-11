@@ -204,7 +204,7 @@ These phases are valuable but not urgent. Ship when demand justifies the effort:
 | Phase | What | Why deferred |
 |---|---|---|
 | F5 Phase 2 | pg_trgm CJK fallback | Only needed if significant CJK archive demand emerges |
-| F4 Phases 2–4 | System preference, additional themes, persistence | Phase 1 (tokens) is the prerequisite; further phases add polish |
+| F4 Phases 2–4 | System preference, theme-agnostic CSS, custom branding | Phase 1 (tokens) is the prerequisite; further phases add polish |
 | F6 Phases 2–3 | Wiki import, image archival | Wiki blocked on path format verification; images blocked on CDN persistence research |
 | F7 Phases 2–5 | User profiles, moderators, flair, thumbnails, historical data | Phase 1 (subverse metadata) is the prerequisite; thumbnails need storage decisions |
 | F2 Phase 5 | Performance optimization | Only needed after dynamic mode is live and under real load |
@@ -350,7 +350,7 @@ Each feature is designed to be additive — no breaking changes to existing arch
 
 **Feature 3 (incremental updates):** The `update_history` table is new and created automatically on first use (guarded by `CREATE TABLE IF NOT EXISTS`). Existing `processing_metadata` entries are unaffected. The first incremental update simply imports new data alongside existing records — the upsert logic handles deduplication transparently. No manual migration steps required. Works in all three serving modes.
 
-**Feature 4 (visual themes):** Phase 1 is a CSS-only refactor with zero visual change. Existing archives can adopt the new CSS by re-running `--export-from-database`. No database or template migration needed until Phase 3 (theme selector replaces toggle in templates).
+**Feature 4 (visual themes):** Phase 1 is a CSS-only refactor with zero visual change. Existing archives can adopt the new CSS by re-running `--export-from-database`. No database or template migration needed. Phase 3 decouples the CSS from any specific theme — operators select a theme via `--theme` at export time (static) or `REDDARCHIVER_THEME` env var (dynamic). Each theme provides both dark and light palettes; users control only the dark/light mode.
 
 **Schema version tracking:** Each new table or index adds a version entry to the existing `schema_version` table (currently at version 3). The application checks schema version at startup and applies any missing migrations automatically.
 
