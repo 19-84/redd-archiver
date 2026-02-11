@@ -4,16 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Redd-Archiver v1.0.0 is a PostgreSQL-backed archive generator that transforms compressed data dumps from multiple link aggregator platforms (**Reddit**, **Voat**, **Ruqqus**) into browsable static HTML websites with optional server-side full-text search and MCP/AI integration.
+Redd-Archiver is a PostgreSQL-backed archive generator that transforms compressed data dumps from multiple link aggregator platforms (**Reddit**, **Voat**, **Ruqqus**) into browsable static HTML websites with optional server-side full-text search and MCP/AI integration.
 
 **Key Characteristics:**
 - **Multi-Platform Support**: Reddit (.zst), Voat (SQL), Ruqqus (.7z)
 - Streaming architecture with constant memory usage regardless of dataset size
 - PostgreSQL-only backend (DATABASE_URL required)
 - Hybrid output: Static HTML for offline browsing + optional Flask search server
-- **REST API v1**: 30+ endpoints with MCP/AI optimization
-- **MCP Server**: 29 tools for Claude Desktop/Claude Code integration
+- **REST API v1** with MCP/AI optimization (see `docs/API.md`)
+- **MCP Server** for Claude Desktop/Claude Code integration (see `mcp_server/README.md`)
 - Zero JavaScript design for maximum compatibility
+
+## Deviations from Global Standards
+
+This project intentionally deviates from the global `~/.claude/docs/` conventions in these areas. Do not "fix" these to match global standards without explicit permission.
+
+| Area | Global Standard | This Project | Rationale |
+|------|----------------|--------------|-----------|
+| Line length | 88 | 120 | HTML string literals, SQL queries, and template paths cause excessive wrapping at 88 |
+| Type checker | pyright (standard) | Not yet configured | Legacy codebase; planned addition (see `roadmap/08-pyright-type-checking.md`) |
+| Logging | structlog | stdlib `logging` | Predates structlog adoption; migration low priority |
+| Project layout | `src/` | Flat (packages at root) | Historical; changing breaks all Docker COPY paths and imports |
+| Source control | jj preferred | git only | jj not configured for this repo |
+| Pre-commit | Expected | Not yet activated | `pre-commit` in dev deps but no `.pre-commit-config.yaml`; CI gates enforce quality. Planned (see `roadmap/10-pre-commit-hooks.md`) |
+| Ruff rules | includes SIM, RUF | Missing SIM, RUF | Being added incrementally (see `roadmap/09-ruff-sim-ruf-rules.md`) |
+| Docker Python | Consistent | 3.12 (builder) vs 3.14 (search-server) | Known mismatch; fix planned (see `roadmap/11-docker-python-version-alignment.md`) |
 
 ## Build & Run Commands
 
@@ -23,14 +38,14 @@ Redd-Archiver v1.0.0 is a PostgreSQL-backed archive generator that transforms co
 # Start all services (postgres, builder, search-server, nginx)
 sudo docker compose up -d --build
 
-# Run archive generator (Reddit basic)
+# Run archive generator (Reddit)
 sudo docker compose exec reddarchiver-builder python reddarc.py /data \
   --output /output/ \
   --subreddit privacy \
   --comments-file /data/Privacy_comments.zst \
   --submissions-file /data/Privacy_submissions.zst
 
-# Voat (using pre-split files - 2-5 minutes)
+# Voat (pre-split files)
 sudo docker compose exec reddarchiver-builder python reddarc.py /data/voat_split/submissions/ \
   --subverse privacy \
   --comments-file /data/voat_split/comments/privacy_comments.sql.gz \
@@ -38,7 +53,7 @@ sudo docker compose exec reddarchiver-builder python reddarc.py /data/voat_split
   --platform voat \
   --output /output/
 
-# Ruqqus (.7z files - p7zip included in Docker)
+# Ruqqus (.7z files)
 sudo docker compose exec reddarchiver-builder python reddarc.py /data/ruqqus/ \
   --guild technology \
   --comments-file /data/ruqqus/comments.fx.2021-10-30.txt.sort.2021-11-08.7z \
@@ -46,166 +61,64 @@ sudo docker compose exec reddarchiver-builder python reddarc.py /data/ruqqus/ \
   --platform ruqqus \
   --output /output/
 
-# Full example with all flags
-sudo docker compose exec reddarchiver-builder python reddarc.py /data \
-  --output /output/ \
-  --subreddit privacy \
-  --comments-file /data/Privacy_comments.zst \
-  --submissions-file /data/Privacy_submissions.zst \
-  --base-url https://your-domain.com \
-  --site-name "Privacy Archive" \
-  --site-description "Archived posts and comments from r/Privacy" \
-  --project-url https://github.com/your-org/your-archive \
-  --contact "admin@example.com" \
-  --team-id "archive-team-1" \
-  --donation-address "https://ko-fi.com/yourproject" \
-  --favicon /data/favicon.ico \
-  --og-image /data/og-image.png \
-  --min-score 5 \
-  --min-comments 2 \
-  --hide-deleted-comments \
-  --log-file /logs/archive.log \
-  --log-level INFO
-
-# View logs
+# View logs / health
 sudo docker compose logs -f search-server
-
-# Check service health
-sudo docker compose ps
-curl http://localhost/health      # nginx
-curl http://localhost:5000/health # search-server
+curl http://localhost/health       # nginx
+curl http://localhost:5000/health  # search-server
 ```
 
 ### Deployment Modes
 
 ```bash
-# Development (HTTP only)
-docker compose up -d
-
-# Production (HTTPS with Let's Encrypt)
-docker compose --profile production up -d
-
-# Tor Hidden Service
-docker compose --profile tor up -d
-
-# Dual-mode (HTTPS + Tor)
-docker compose --profile production --profile tor up -d
+docker compose up -d                                       # Development (HTTP)
+docker compose --profile production up -d                  # HTTPS (Let's Encrypt)
+docker compose --profile tor up -d                         # Tor Hidden Service
+docker compose --profile production --profile tor up -d    # HTTPS + Tor
 ```
 
-### Local Development (without Docker)
+### Local Development
 
 ```bash
-# Install dependencies
-uv sync
-
-# Set required environment variable
 export DATABASE_URL="postgresql://user:pass@localhost:5432/reddarchiver"
-
-# Run archive generator
 uv run python reddarc.py /path/to/data --output archive/
-
-# Run search server
 uv run python search_server.py
 ```
 
-### Testing
+### Makefile Shortcuts
 
 ```bash
-# Run all tests (requires PostgreSQL)
-uv run pytest tests/ -v
-
-# Run specific test file
-uv run pytest tests/test_postgres_resume.py -v
-
-# Run with coverage
-uv run pytest tests/ --cov=. --cov-report=html
+make setup          # uv sync + install pre-commit hooks
+make test           # pytest
+make test-cov       # pytest with coverage report
+make lint           # ruff check
+make format         # ruff format
+make docker-up      # Start Docker services
+make docker-logs    # Tail Docker logs
+make clean          # Remove caches and temp files
 ```
 
-## CLI Reference
+## CLI Quick Reference
 
-### Required Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `input_dir` | Directory containing .zst files |
-
-### Processing Modes (mutually exclusive)
-
-| Flag | Description |
-|------|-------------|
-| (default) | Combined import + export |
-| `--import-only` | Stream .zst to PostgreSQL only (no HTML generation) |
-| `--export-from-database` | Generate HTML from existing database only (no import) |
-
-### Output Configuration
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--output/-o DIR` | `redd-archive-output` | Output directory for generated HTML |
-
-### SEO & Instance Metadata
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--base-url URL` | None | Base URL for canonical links and sitemaps |
-| `--site-name NAME` | `Redd Archive` | Site name for meta tags |
-| `--site-description TEXT` | None | Site description for API and SEO |
-| `--project-url URL` | GitHub repo | Project repository URL for footer links |
-| `--contact METHOD` | None | Contact method (email, URL, Matrix, GitHub) shown in API |
-| `--team-id ID` | None | Team identifier for registry leaderboard grouping |
-| `--donation-address ADDR` | None | Donation method (URL, crypto, payment link) shown in API/footer |
-| `--favicon PATH` | None | Path to favicon file (copied to output) |
-| `--og-image PATH` | None | Path to Open Graph image (copied to output) |
-
-### Content Filtering
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--min-score N` | `0` | Minimum post score threshold |
-| `--min-comments N` | `0` | Minimum comment count threshold |
-| `--hide-deleted-comments` | `false` | Hide deleted and removed comments in output |
-| `--no-user-pages` | `false` | Skip user page generation (reduces memory) |
-
-### Multi-Platform Community Modes
-
-| Flag | Platform | Description |
-|------|----------|-------------|
-| `--subreddit/-s NAME` | Reddit | Process specific subreddit(s) (comma-separated) |
-| `--subverse NAME` | Voat | Process specific subverse(s) (comma-separated) |
-| `--guild NAME` | Ruqqus | Process specific guild(s) (comma-separated) |
-| `--platform TYPE` | All | Force platform detection (auto\|reddit\|voat\|ruqqus) |
-| `--comments-file PATH` | **All** | Path to comments file (.zst/.sql.gz/.7z) - **now works with all platforms** |
-| `--submissions-file PATH` | **All** | Path to submissions file (.zst/.sql.gz/.7z) - **now works with all platforms** |
-
-### Processing Control
-
-| Flag | Description |
-|------|-------------|
-| `--dry-run` | Show discovered files without processing |
+| Argument / Flag | Description |
+|----------------|-------------|
+| `input_dir` | (Required) Directory containing data files |
+| `--output/-o DIR` | Output directory (default: `redd-archive-output`) |
+| `--import-only` | Stream to PostgreSQL only (no HTML) |
+| `--export-from-database` | Generate HTML from existing DB only (no import) |
+| `--subreddit/-s NAME` | Reddit subreddit(s), comma-separated |
+| `--subverse NAME` | Voat subverse(s), comma-separated |
+| `--guild NAME` | Ruqqus guild(s), comma-separated |
+| `--platform TYPE` | Force platform: `auto\|reddit\|voat\|ruqqus` |
+| `--comments-file PATH` | Path to comments file (.zst/.sql.gz/.7z) |
+| `--submissions-file PATH` | Path to submissions file (.zst/.sql.gz/.7z) |
+| `--min-score N` | Minimum post score threshold |
+| `--min-comments N` | Minimum comment count threshold |
+| `--hide-deleted-comments` | Hide deleted/removed comments |
 | `--resume` | Resume interrupted processing (auto-detected) |
-| `--force-rebuild` | Force full rebuild, ignoring existing progress |
-| `--force-parallel-users` | Force parallel user processing (override auto-detection) |
+| `--dry-run` | Show discovered files without processing |
+| `--base-url URL` | Base URL for canonical links and sitemaps |
 
-### Debug & Performance Tuning
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--debug-memory-limit GB` | auto-detect | Override memory limit |
-| `--debug-max-connections N` | auto-detect | Override DB connection pool (1-20) |
-| `--debug-max-workers N` | auto-detect | Override parallel workers (1-16) |
-
-### Logging
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--log-file PATH` | `output_dir/.archive-error.log` | Path to log file |
-| `--log-level LEVEL` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
-
-### Version
-
-| Flag | Description |
-|------|-------------|
-| `--version` | Show version string and exit |
+Run `reddarc --help` for the full flag reference including SEO metadata, debug tuning, and logging options.
 
 ## Architecture
 
@@ -213,77 +126,47 @@ uv run pytest tests/ --cov=. --cov-report=html
 
 ```
 redd-archiver/
-├── reddarc.py                 # Main CLI entry point (2,355 lines)
-├── search_server.py           # Flask search UI server (532 lines)
+├── reddarc.py                 # Main CLI entry point
+├── search_server.py           # Flask search UI + API server
+├── version.py                 # Version metadata
 │
-├── core/                      # Core processing modules
-│   ├── postgres_database.py   # PostgreSQL backend (3,491 lines)
-│   ├── postgres_search.py     # Full-text search (653 lines)
-│   ├── write_html.py          # HTML generation coordinator (979 lines)
-│   ├── watchful.py            # .zst streaming utilities (336 lines)
-│   ├── incremental_processor.py # State/memory management (588 lines)
+├── core/                      # Core processing (DB, search, streaming)
+│   ├── postgres_database.py   # PostgreSQL backend (all DB operations)
+│   ├── postgres_search.py     # Full-text search queries
+│   ├── write_html.py          # HTML generation coordinator
+│   ├── watchful.py            # .zst streaming utilities
+│   ├── incremental_processor.py # State/memory management
 │   └── importers/             # Multi-platform importers
-│       ├── base_importer.py       # Abstract base class
-│       ├── reddit_importer.py     # .zst JSON Lines parser
-│       ├── voat_importer.py       # SQL dump coordinator
-│       ├── voat_sql_parser.py     # SQL INSERT parser
-│       └── ruqqus_importer.py     # .7z JSON Lines parser
+│       ├── base_importer.py   # Abstract base class
+│       ├── reddit_importer.py # .zst JSON Lines parser
+│       ├── voat_importer.py   # SQL dump coordinator
+│       ├── voat_sql_parser.py # SQL INSERT parser
+│       └── ruqqus_importer.py # .7z JSON Lines parser
 │
-├── api/                       # REST API v1
-│   ├── __init__.py            # Blueprint registration
-│   └── routes.py              # API endpoints (4,372 lines)
+├── api/                       # REST API v1 (Flask blueprint)
+│   └── routes.py              # All API endpoints
 │
-├── mcp_server/                # MCP Server for AI integration
-│   ├── server.py              # FastMCP server (29 tools)
-│   ├── README.md              # MCP documentation
-│   └── tests/                 # Test suite
+├── html_modules/              # HTML generation (Jinja2, SEO, CSS, dashboards)
+├── processing/                # Parallel processing, batch engine, statistics
+├── monitoring/                # Performance monitoring, auto-tuning, system optimization
+├── utils/                     # Validation, regex, search operators, error handling, console output
 │
-├── html_modules/              # HTML generation (17 modules)
-│   ├── html_pages_jinja.py    # Jinja2 page rendering (985 lines)
-│   ├── html_seo.py            # SEO/sitemaps (1,353 lines)
-│   ├── html_dashboard_jinja.py # Dashboard generation
-│   ├── jinja_env.py           # Jinja2 environment setup
-│   ├── jinja_filters.py       # Custom filters with LRU caching
-│   └── css_minifier.py        # CSS optimization with rcssmin
+├── mcp_server/                # MCP Server (separate uv project with own pyproject.toml/uv.lock)
+├── templates_jinja2/          # Jinja2 templates (base, pages, components, macros)
+├── static/                    # CSS, fonts, favicons, webmanifest
+├── sql/                       # Database schema, indexes, migrations
 │
-├── processing/                # Parallel processing
-│   ├── parallel_user_processing.py  # Multi-threaded user pages
-│   ├── batch_processing_utils.py    # Auto-tuning batch engine
-│   └── incremental_statistics.py    # Statistics caching
+├── tools/                     # Scanner scripts + data catalogs (see tools/README.md)
+├── roadmap/                   # v2 feature specifications (see roadmap/README.md)
+├── tests/                     # Test suite (conftest.py + ~22 test files)
+├── docs/                      # Documentation (13 guides)
+├── docker/                    # Deployment (nginx, tor, search-server, scripts)
 │
-├── utils/                     # Shared utilities
-│   ├── console_output.py      # Professional console formatting
-│   ├── input_validation.py    # Input sanitization (612 lines)
-│   ├── search_operators.py    # Google-style query parsing
-│   └── error_handling.py      # Safe error responses
-│
-├── templates_jinja2/          # Jinja2 templates (16 files)
-│   ├── base/base.html         # Master layout
-│   ├── pages/                 # Page templates
-│   ├── components/            # Reusable UI components
-│   └── macros/                # Template macros
-│
-├── sql/                       # Database schema
-│   ├── schema.sql             # PostgreSQL schema
-│   └── indexes.sql            # Performance indexes
-│
-├── docker/                    # Deployment infrastructure
-│   ├── nginx/                 # Reverse proxy configs
-│   ├── tor/                   # Tor hidden service
-│   ├── search-server/         # Search server Dockerfile
-│   ├── leaderboard/           # Registry leaderboard
-│   └── scripts/               # Setup scripts (certbot, etc.)
-│
-├── tests/                     # Test suite
-│   ├── test_postgres_resume.py
-│   ├── test_postgres_user_pages.py
-│   └── test_streaming_user_pages.py
-│
-└── docs/                      # Documentation
-    ├── API.md                 # REST API reference
-    ├── TOR_DEPLOYMENT.md      # Tor setup guide
-    ├── STATIC_DEPLOYMENT.md   # Static hosting guide
-    └── REGISTRY_SETUP.md      # Registry configuration
+├── Dockerfile                 # Builder image (Python 3.12-alpine)
+├── docker-compose.yml         # Service orchestration
+├── pyproject.toml             # Project config (deps, ruff, pytest, coverage)
+├── Makefile                   # Dev command shortcuts
+└── requirements.txt           # Used by Dockerfiles
 ```
 
 ### Data Flow
@@ -355,6 +238,13 @@ if memory_percent > 0.70:   # Warning: gc.collect()
 if memory_percent > 0.60:   # Info: log usage
 ```
 
+### Per-File Ruff Ignores (Technical Debt)
+
+`pyproject.toml` contains extensive per-file-ignores for ~30 files, suppressing ruff violations that predate the linting setup. When modifying these files:
+- Do NOT add new ignores without understanding why existing ones are needed
+- Do NOT remove ignores without verifying the underlying code is fixed
+- New code in these files should still follow ruff rules
+
 ## Environment Variables
 
 ### Required
@@ -387,72 +277,35 @@ REDDARCHIVER_USER_BATCH_SIZE=2000
 REDDARCHIVER_MEMORY_LIMIT=15.0
 ```
 
-## REST API Endpoints
+## CI/CD
 
-Base URL: `/api/v1` - **30+ endpoints** with MCP/AI optimization
+Four GitHub Actions workflows in `.github/workflows/`:
 
-### System Endpoints (5)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check with database status |
-| `/stats` | GET | Archive statistics + instance metadata |
-| `/schema` | GET | API capability discovery (MCP-optimized) |
-| `/openapi.json` | GET | OpenAPI 3.0.3 specification |
+| Workflow | File | Triggers | What it does |
+|----------|------|----------|-------------|
+| Lint | `lint.yml` | push, PR | `ruff check` + `ruff format --check` |
+| Tests | `test.yml` | push, PR | pytest with postgres:18-alpine service, `--cov-fail-under=25` |
+| Docker | `docker.yml` | push, PR | Builds all 4 images (builder, search-server, nginx, mcp-server), runs compose integration test |
+| Security | `security.yml` | push, PR, weekly | CodeQL analysis + Trivy filesystem scan |
 
-### Posts Endpoints (13)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/posts` | GET | Paginated posts with filtering, sorting, field selection, truncation, export |
-| `/posts/{id}` | GET | Single post with full details |
-| `/posts/{id}/comments` | GET | Post comments (paginated) |
-| `/posts/{id}/context` | GET | Post + top comments in one call (MCP-optimized) |
-| `/posts/{id}/comments/tree` | GET | Hierarchical comment tree structure |
-| `/posts/{id}/related` | GET | Similar posts via FTS similarity |
-| `/posts/random` | GET | Random post sampling (with optional seed) |
-| `/posts/aggregate` | GET | Aggregate by author/subreddit/time |
-| `/posts/batch` | POST | Batch lookup by IDs |
+Dependabot is configured for pip dependency updates.
 
-### Comments Endpoints (7)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/comments` | GET | Paginated comments with filtering, truncation, export |
-| `/comments/{id}` | GET | Single comment with full text |
-| `/comments/random` | GET | Random comment sampling |
-| `/comments/aggregate` | GET | Aggregate by author/subreddit/time |
-| `/comments/batch` | POST | Batch lookup by IDs |
+## REST API
 
-### Users Endpoints (8)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/users` | GET | Paginated users with sorting, field selection, export |
-| `/users/{username}` | GET | User profile with activity breakdown |
-| `/users/{username}/summary` | GET | Quick user overview (MCP-optimized) |
-| `/users/{username}/posts` | GET | User's posts (paginated) |
-| `/users/{username}/comments` | GET | User's comments (paginated) |
-| `/users/aggregate` | GET | Aggregate user statistics |
-| `/users/batch` | POST | Batch lookup by usernames |
+Base URL: `/api/v1`. Rate limit: 100 req/min per IP. CORS enabled.
 
-### Subreddits Endpoints (4)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/subreddits` | GET | Subreddit list with statistics and export |
-| `/subreddits/{name}` | GET | Subreddit detailed statistics |
-| `/subreddits/{name}/summary` | GET | Quick subreddit overview (MCP-optimized) |
+| Category | Endpoints | Highlights |
+|----------|-----------|------------|
+| System | 4 | health, stats, schema discovery, OpenAPI spec |
+| Posts | 9 | CRUD, context (MCP-optimized), comment tree, related, random, aggregate, batch |
+| Comments | 5 | CRUD, random, aggregate, batch |
+| Users | 7 | profile, summary (MCP-optimized), posts, comments, aggregate, batch |
+| Subreddits | 3 | list with stats, detail, summary (MCP-optimized) |
+| Search | 2 | full-text search with operators, query explainer |
 
-### Search Endpoints (3)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/search` | GET | Full-text search with Google-style operators |
-| `/search/explain` | GET | Query parsing debugger |
+**Common parameters**: `?fields=` (field selection), `?max_body_length=` (truncation), `?include_body=false`, `?format=csv|ndjson`, `?limit=&page=` (pagination, 10-100 per page)
 
-**Common Parameters (most list endpoints)**:
-- `?fields=id,title,score` - Select specific fields (token optimization)
-- `?max_body_length=500` - Truncate long text
-- `?include_body=false` - Exclude body fields
-- `?format=csv|ndjson` - Export format (default: json)
-- `?limit=25&page=1` - Pagination (10-100 per page)
-
-Rate limit: 100 requests/minute per IP. CORS enabled for all origins.
+Full endpoint reference: `docs/API.md`
 
 ## Search Operators
 
@@ -472,7 +325,7 @@ sort:score | sort:date   # Sort order
 ## Key Files for Common Tasks
 
 ### Adding a new CLI flag
-- `reddarc.py:562-645` - ArgumentParser setup
+- `reddarc.py` - ArgumentParser setup (search for `add_argument`)
 
 ### Modifying database queries
 - `core/postgres_database.py` - All database operations
@@ -486,11 +339,22 @@ sort:score | sort:date   # Sort order
 - `templates_jinja2/macros/` - Reusable components
 
 ### Adding SEO features
-- `html_modules/html_seo.py` - SEO generation (1,353 lines)
+- `html_modules/html_seo.py` - SEO/sitemap generation
 
 ### Modifying search behavior
 - `core/postgres_search.py` - PostgreSQL FTS queries
 - `utils/search_operators.py` - Query parsing
+
+### Adding a new platform importer
+- `core/importers/base_importer.py` - Abstract base class to implement
+- `core/importers/` - Existing implementations as reference
+
+### Performance monitoring
+- `monitoring/` - Auto-tuning, performance phases, timing, system optimization
+
+### Scanner tools and data catalogs
+- `tools/README.md` - Complete tool documentation
+- `tools/` - Platform scanners, data catalogs, Voat utilities
 
 ## Performance Characteristics
 
@@ -499,38 +363,53 @@ sort:score | sort:date   # Sort order
 | Post insertion | 15,000+ records/second (COPY protocol) |
 | Keyset pagination | O(1) regardless of offset |
 | User page generation | 2,000 users/batch with batch loading |
-| Parallel subreddit pages | 86% improvement (3×5 worker pattern) |
+| Parallel subreddit pages | 86% improvement (3x5 worker pattern) |
 | Jinja2 compilation | 10-100x faster with bytecode caching |
 
-## Testing Approach
+## Testing
 
-Tests require a running PostgreSQL instance:
+Tests require a running PostgreSQL instance. CI uses `postgres:18-alpine`.
 
 ```bash
-# Set test database URL
-export DATABASE_URL="postgresql://test:test@localhost:5432/reddarchiver_test"
-
-# Run specific test categories
-uv run pytest tests/test_postgres_resume.py -v      # Resume functionality
-uv run pytest tests/test_streaming_user_pages.py -v # Streaming tests
+DATABASE_URL="postgresql://reddarchiver:test_password@localhost:5432/reddarchiver"
 ```
+
+Coverage threshold: **25%** (enforced in CI via `--cov-fail-under=25`).
+
+The `mcp_server/` has its own test suite under `mcp_server/tests/`.
 
 ## Documentation
 
-- `QUICKSTART.md` - Step-by-step deployment guide (2-15 minutes)
-- `ARCHITECTURE.md` - Detailed technical architecture
-- `docs/API.md` - REST API reference (30+ endpoints)
-- `mcp_server/README.md` - MCP Server setup and tool reference
-- `docs/TOR_DEPLOYMENT.md` - Tor hidden service setup
+### Getting Started
+- `QUICKSTART.md` - Step-by-step deployment guide
+- `docs/INSTALLATION.md` - Detailed installation
+- `docs/FAQ.md` - Frequently asked questions
+- `docs/TROUBLESHOOTING.md` - Common issues
+
+### Architecture & Design
+- `ARCHITECTURE.md` - Technical architecture
+- `roadmap/README.md` - v2 feature roadmap
+
+### Features
+- `docs/API.md` - REST API reference
+- `docs/SEARCH.md` - Search documentation
+- `docs/DATA_CATALOG.md` - Data catalog guide
+- `docs/SCANNER_TOOLS.md` - Scanner tool reference
+- `mcp_server/README.md` - MCP Server setup and tools
+
+### Operations
+- `docs/PERFORMANCE.md` - Performance tuning
+- `docs/SCALING.md` - Scaling guide
 - `docs/STATIC_DEPLOYMENT.md` - GitHub/Codeberg Pages deployment
+- `docs/TOR_DEPLOYMENT.md` - Tor hidden service setup
+- `docs/DEPLOYMENT_TESTING.md` - Testing deployments
 - `docs/REGISTRY_SETUP.md` - Instance registry configuration
 
 ## MCP Server (AI Integration)
 
-The MCP server provides 29 tools for AI assistants to query the archive:
+The MCP server is a **separate uv project** under `mcp_server/` with its own `pyproject.toml` and `uv.lock`.
 
 ```bash
-# Start MCP server
 cd mcp_server/
 uv run python server.py --api-url http://localhost:5000
 ```
