@@ -178,11 +178,13 @@ def render_comment_tree(
 
     # Sort top-level comments by score
     top_level_comments.sort(
-        key=lambda c: int(c["score"])
-        if isinstance(c["score"], str) and c["score"] != ""
-        else c["score"]
-        if isinstance(c["score"], int)
-        else 0,
+        key=lambda c: (
+            int(c["score"])
+            if isinstance(c["score"], str) and c["score"] != ""
+            else c["score"]
+            if isinstance(c["score"], int)
+            else 0
+        ),
         reverse=True,
     )
 
@@ -231,11 +233,13 @@ def render_single_comment(
         child_comments = children_map[comment_id]
         # Sort children by score
         child_comments.sort(
-            key=lambda c: int(c["score"])
-            if isinstance(c["score"], str) and c["score"] != ""
-            else c["score"]
-            if isinstance(c["score"], int)
-            else 0,
+            key=lambda c: (
+                int(c["score"])
+                if isinstance(c["score"], str) and c["score"] != ""
+                else c["score"]
+                if isinstance(c["score"], int)
+                else 0
+            ),
             reverse=True,
         )
         for child in child_comments:
