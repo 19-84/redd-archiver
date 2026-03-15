@@ -12,13 +12,13 @@
 Transform compressed data dumps into browsable HTML archives with flexible deployment options. Redd-Archiver supports offline browsing via sorted index pages OR full-text search with Docker deployment. Features mobile-first design, multi-platform support, and enterprise-grade performance with PostgreSQL full-text indexing.
 
 **Supported Platforms**:
-| Platform | Format | Status | Available Posts |
-|----------|--------|--------|----------------|
-| **Reddit** | .zst JSON Lines (Pushshift) | ✅ Full support | 2.38B posts (40,029 subreddits, through Dec 31 2024) |
-| **Voat** | SQL dumps | ✅ Full support | 3.81M posts, 24.1M comments (22,637 subverses, complete archive) |
-| **Ruqqus** | .7z JSON Lines | ✅ Full support | 500K posts (6,217 guilds, complete archive) |
+| Platform | Format | Status | Available Posts | Data |
+|----------|--------|--------|----------------|------|
+| **Reddit** | .zst JSON Lines (Pushshift) | ✅ Full support | 2.38B posts (40,029 subreddits, through Dec 31 2025) | [Download](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) |
+| **Voat** | SQL dumps | ✅ Full support | 3.81M posts, 24.1M comments (22,637 subverses, complete archive) | [Download](https://archive.org/details/voat-archive-2021) |
+| **Ruqqus** | .7z JSON Lines | ✅ Full support | 500K posts (6,217 guilds, complete archive) | [Download](https://archive.org/details/ruqqus-archive-2021) |
 
-*Tracked content: **2.384 billion posts across 68,883 communities** (Reddit full Pushshift dataset through Dec 31 2024, Voat/Ruqqus complete archives)*
+*Tracked content: **2.384 billion posts across 68,883 communities** (Reddit full Pushshift dataset through Dec 31 2025, Voat/Ruqqus complete archives)*
 
 **Version 1.0** features multi-platform archiving, REST API with 30+ endpoints, MCP server for AI integration, and PostgreSQL-backed architecture for large-scale processing.
 
@@ -212,7 +212,7 @@ docker compose up -d
 ```
 
 ### Multi-Platform Support
-- **Reddit**: `.zst` files from [Pushshift](https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4) (3.28TB, 2.38B posts)
+- **Reddit**: `.zst` files from [Pushshift](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) (3.28TB, 2.38B posts)
 - **Voat**: SQL dumps from [Archive.org](https://archive.org/details/voat-archive-2021) (15GB, 3.8M posts) - Use [pre-split files](tools/README_VOAT_SPLITTER.md) for 1000x speedup
 - **Ruqqus**: `.7z` files from [Archive.org](https://archive.org/details/ruqqus-archive-2021) (752MB, 500K posts)
 
@@ -310,7 +310,7 @@ Internet content disappears every day. Communities get banned, platforms shut do
 
 | Platform | Size | Posts | Download |
 |----------|------|-------|----------|
-| **Reddit** | 3.28TB | 2.38B posts | [Academic Torrents](https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4) · [Magnet Link](magnet:?xt=urn:btih:1614740ac8c94505e4ecb9d88be8bed7b6afddd4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce) |
+| **Reddit** | 3.28TB | 2.38B posts | [Academic Torrents](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) · [Magnet Link](magnet:?xt=urn:btih:3e3f64dee22dc304cdd2546254ca1f8e8ae542b4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce) |
 | **Voat** | ~15GB | 3.8M posts | [Archive.org](https://archive.org/details/voat-archive-2021) † |
 | **Ruqqus** | ~752MB | 500K posts | [Archive.org](https://archive.org/details/ruqqus-archive-2021) ‡ |
 

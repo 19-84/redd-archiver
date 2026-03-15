@@ -347,7 +347,7 @@ Pushshift Archive (3.28TB total)
 ```
 
 **Download specific subreddits:**
-1. Open [Academic Torrents magnet link](magnet:?xt=urn:btih:1614740ac8c94505e4ecb9d88be8bed7b6afddd4)
+1. Open [Academic Torrents magnet link](magnet:?xt=urn:btih:3e3f64dee22dc304cdd2546254ca1f8e8ae542b4)
 2. In your torrent client, **deselect all files**
 3. Search for your subreddit (e.g., "Privacy")
 4. Select only: `Privacy_comments.zst` and `Privacy_submissions.zst`

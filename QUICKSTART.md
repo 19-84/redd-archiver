@@ -116,15 +116,15 @@ Redd-Archiver processes data dumps from multiple platforms:
 
 | Platform | Format | Data Sources |
 |----------|--------|--------------|
-| **Reddit** | .zst JSON Lines | [Pushshift Complete Dataset](https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4) (magnet link below) |
+| **Reddit** | .zst JSON Lines | [Pushshift Complete Dataset](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) (magnet link below) |
 | **Voat** | SQL dumps | [Voat Archive 2021](https://archive.org/details/voat-archive-2021) (22,637 subverses, 3.8M posts, 24M comments) |
 | **Ruqqus** | .7z JSON Lines | [Ruqqus Archive 2021](https://archive.org/details/ruqqus-archive-2021) (6,217 guilds, complete archive) |
 
 **Reddit Magnet Link**:
 ```
-magnet:?xt=urn:btih:1614740ac8c94505e4ecb9d88be8bed7b6afddd4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce
+magnet:?xt=urn:btih:3e3f64dee22dc304cdd2546254ca1f8e8ae542b4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce
 ```
-Size: 3.28 TB compressed (2005-06 through 2024-12) | Content: 2.38B posts, 40K subreddits
+Size: 3.28 TB compressed (2005-06 through 2025-12) | Content: 2.38B posts, 40K subreddits
 
 Place downloaded files in the `./data/` directory before running Step 4.
 
