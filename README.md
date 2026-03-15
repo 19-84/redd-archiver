@@ -6,6 +6,8 @@
 [![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)]()
 [![Multi-Platform](https://img.shields.io/badge/platforms-Reddit%20%7C%20Voat%20%7C%20Ruqqus-orange.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-29%20tools-purple.svg)]()
+[![Codeberg Mirror](https://img.shields.io/badge/mirror-Codeberg-2185D0.svg?logo=codeberg)](https://codeberg.org/19-84/redd-archiver)
+[![GitGud Mirror](https://img.shields.io/badge/mirror-GitGud-FC6D26.svg?logo=gitlab)](https://gitgud.io/1984/redd-archiver)
 
 > **⭐ If you find this project useful, please star the repo!** It helps others discover the tool and motivates continued development.
 
