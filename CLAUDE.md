@@ -287,6 +287,7 @@ Four GitHub Actions workflows in `.github/workflows/`:
 | Tests | `test.yml` | push, PR | pytest with postgres:18-alpine service, `--cov-fail-under=25` |
 | Docker | `docker.yml` | push, PR | Builds all 4 images (builder, search-server, nginx, mcp-server), runs compose integration test |
 | Security | `security.yml` | push, PR, weekly | CodeQL analysis + Trivy filesystem scan |
+| Mirror | `mirror.yml` | push (main), manual | Push branches + tags to Forgejo and GitLab |
 
 Dependabot is configured for pip dependency updates.
 
