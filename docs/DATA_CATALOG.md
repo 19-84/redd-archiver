@@ -14,15 +14,15 @@ Redd-Archiver currently supports the following platforms with full import/export
 
 **Status**: ✅ Fully Implemented
 
-**Data Source**: [Pushshift Complete Dataset](https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4)
+**Data Source**: [Pushshift Complete Dataset](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4)
 
 **Details**:
 - **Size**: 3.28TB (compressed)
 - **Posts**: 2.38 billion posts
 - **Communities**: 40,029 subreddits
-- **Date Range**: Through December 31, 2024
+- **Date Range**: Through December 31, 2025
 - **Format**: .zst compressed JSON Lines
-- **Download**: [Academic Torrents](https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4) · [Magnet Link](magnet:?xt=urn:btih:1614740ac8c94505e4ecb9d88be8bed7b6afddd4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce)
+- **Download**: [Academic Torrents](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) · [Magnet Link](magnet:?xt=urn:btih:3e3f64dee22dc304cdd2546254ca1f8e8ae542b4&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce)
 
 **Importer**: [`core/importers/reddit_importer.py`](../core/importers/reddit_importer.py)
 
