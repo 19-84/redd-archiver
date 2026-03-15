@@ -1,0 +1,47 @@
+name: Mirror
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mirror-forgejo:
+    name: Mirror to Forgejo
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == '19-84/redd-archiver' }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push to Forgejo
+        env:
+          FORGEJO_URL: ${{ secrets.FORGEJO_MIRROR_URL }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_MIRROR_TOKEN }}
+        run: |
+          git push --force --prune \
+            "https://token:${FORGEJO_TOKEN}@${FORGEJO_URL#https://}" \
+            'refs/heads/*:refs/heads/*' \
+            'refs/tags/*:refs/tags/*'
+
+  mirror-gitlab:
+    name: Mirror to GitLab
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == '19-84/redd-archiver' }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push to GitLab
+        env:
+          GITLAB_URL: ${{ secrets.GITLAB_MIRROR_URL }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
+        run: |
+          git push --force --prune \
+            "https://token:${GITLAB_TOKEN}@${GITLAB_URL#https://}" \
+            'refs/heads/*:refs/heads/*' \
+            'refs/tags/*:refs/tags/*'
