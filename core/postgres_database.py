@@ -3728,6 +3728,196 @@ class PostgresDatabase:
             print_error(f"Failed to get all statistics: {e}")
             return []
 
+    # =========================================================================
+    # SUBREDDIT METADATA ENRICHMENT (Feature 6)
+    # =========================================================================
+
+    def create_enrichment_tables(self) -> bool:
+        """Idempotently create the Feature 6 enrichment tables (+ indexes).
+
+        Runs migrations 005/006 (all ``CREATE TABLE/INDEX IF NOT EXISTS``). Safe to
+        call on a fresh or existing database. Needed because ``setup_schema()`` only
+        runs ``schema.sql`` on brand-new databases and migrations are not
+        auto-applied.
+        """
+        try:
+            migrations_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sql", "migrations"
+            )
+            if not os.path.isdir(migrations_dir):
+                print_warning(f"Migrations dir not found: {migrations_dir}")
+                return False
+            files = sorted(
+                f for f in os.listdir(migrations_dir) if f.startswith(("005_", "006_")) and f.endswith(".sql")
+            )
+            for fname in files:
+                with open(os.path.join(migrations_dir, fname)) as f:
+                    sql_text = f.read()
+                with self.pool.get_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(sql_text)
+                    conn.commit()
+            if files:
+                print_success("Enrichment tables ready (subreddit_metadata, subreddit_rules)")
+                return True
+            print_warning("No enrichment migration files found; tables may be missing")
+            return False
+        except Exception as e:
+            print_error(f"Failed to create enrichment tables: {e}")
+            return False
+
+    def get_tracked_subreddits(self) -> set[str]:
+        """Return the set of lowercased subreddit names present in this archive.
+
+        Used to filter the enrichment dumps (tens of millions of records) down to
+        the handful actually archived.
+        """
+        tracked: set[str] = set()
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT DISTINCT LOWER(subreddit) AS s FROM processing_metadata "
+                        "UNION SELECT DISTINCT LOWER(subreddit) AS s FROM posts"
+                    )
+                    for row in cur:
+                        if row["s"]:
+                            tracked.add(row["s"])
+        except Exception as e:
+            print_error(f"Failed to load tracked subreddits: {e}")
+        return tracked
+
+    def save_subreddit_metadata(self, subreddit: str, platform: str, metadata: dict[str, Any]) -> bool:
+        """Upsert one subreddit_metadata row keyed on (subreddit, platform)."""
+        columns = [
+            "display_name",
+            "title",
+            "description",
+            "description_html",
+            "public_description",
+            "public_description_html",
+            "subreddit_type",
+            "lang",
+            "subscribers",
+            "active_users",
+            "created_utc",
+            "over_18",
+            "quarantine",
+            "quarantine_message",
+            "quarantine_message_html",
+            "submission_type",
+            "suggested_comment_sort",
+            "icon_img",
+            "community_icon",
+            "banner_img",
+            "key_color",
+            "primary_color",
+            "banner_background_color",
+            "link_flair_enabled",
+            "submit_text",
+            "submit_text_html",
+            "retrieved_on",
+            "raw_json",
+        ]
+        values: list[Any] = []
+        for c in columns:
+            v = metadata.get(c)
+            if c == "raw_json" and v is not None and not isinstance(v, Jsonb):
+                v = Jsonb(v)
+            values.append(v)
+        col_sql = ", ".join(columns)
+        placeholders = ", ".join(["%s"] * len(columns))
+        update_sql = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+        query = (
+            f"INSERT INTO subreddit_metadata (subreddit, platform, {col_sql}, updated_at) "
+            f"VALUES (%s, %s, {placeholders}, NOW()) "
+            f"ON CONFLICT (subreddit, platform) DO UPDATE SET {update_sql}, updated_at = NOW()"
+        )
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, [subreddit, platform, *values])
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to save metadata for r/{subreddit}: {e}")
+            return False
+
+    def get_subreddit_metadata(self, subreddit: str, platform: str = "reddit") -> dict[str, Any] | None:
+        """Fetch one subreddit's metadata, or None if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                        (subreddit, platform),
+                    )
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        except Exception:
+            # Table may not exist yet (enrichment never run) — treat as no metadata.
+            return None
+
+    def get_all_subreddit_metadata(self) -> dict[str, dict[str, Any]]:
+        """Return {lowercased_subreddit: metadata_row} for all enriched subreddits."""
+        result: dict[str, dict[str, Any]] = {}
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT * FROM subreddit_metadata")
+                    for row in cur:
+                        result[row["subreddit"].lower()] = dict(row)
+        except Exception:
+            return {}
+        return result
+
+    def save_subreddit_rules(self, subreddit: str, platform: str, rules: list[dict[str, Any]]) -> bool:
+        """Replace a subreddit's rules (DELETE + INSERT in one transaction)."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                        (subreddit, platform),
+                    )
+                    for rule in rules:
+                        cur.execute(
+                            "INSERT INTO subreddit_rules (subreddit, platform, priority, short_name, "
+                            "description, description_html, kind, violation_reason, rule_created_utc, "
+                            "retrieved_on) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            (
+                                subreddit,
+                                platform,
+                                rule.get("priority", 0),
+                                rule.get("short_name"),
+                                rule.get("description"),
+                                rule.get("description_html"),
+                                rule.get("kind"),
+                                rule.get("violation_reason"),
+                                rule.get("rule_created_utc"),
+                                rule.get("retrieved_on"),
+                            ),
+                        )
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to save rules for r/{subreddit}: {e}")
+            return False
+
+    def get_subreddit_rules(self, subreddit: str, platform: str = "reddit") -> list[dict[str, Any]]:
+        """Fetch a subreddit's rules ordered by priority; [] if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM subreddit_rules "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s ORDER BY priority ASC",
+                        (subreddit, platform),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception:
+            return []
+
     def update_statistics_file_sizes(self, subreddit: str, raw_data_size: int = None, output_size: int = None) -> bool:
         """Update file sizes after HTML generation completes.
 

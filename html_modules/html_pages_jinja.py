@@ -71,6 +71,9 @@ def write_subreddit_pages_jinja2(
     url_prefix = get_url_prefix(platform)
     print_info(f"Generating subreddit pages for {url_prefix}/{subreddit} using Jinja2")
 
+    # Whether an About page exists for this subreddit (Feature 6) — gates the nav link
+    has_about = reddit_db.get_subreddit_metadata(subreddit) is not None
+
     # Calculate score ranges for badge coloring (sample-based)
     try:
         sample_posts = list(
@@ -190,6 +193,8 @@ def write_subreddit_pages_jinja2(
                 "url_idx_cmnt": subreddit_nav_base + "index-" + sort_indexes["num_comments"]["slug"] + "/index.html",
                 "url_idx_date": subreddit_nav_base + "index-" + sort_indexes["created_utc"]["slug"] + "/index.html",
                 "url_search": site_nav_base + "search",
+                "has_about": has_about,
+                "url_idx_about": subreddit_nav_base + "about/index.html",
                 "url_idx_score_css": "active" if sort == "score" else "",
                 "url_idx_cmnt_css": "active" if sort == "num_comments" else "",
                 "url_idx_date_css": "active" if sort == "created_utc" else "",
@@ -231,6 +236,75 @@ def write_subreddit_pages_jinja2(
 
                 gc.collect()
 
+    return True
+
+
+def write_subreddit_about_jinja2(
+    subreddit: str,
+    seo_config: dict[str, Any] | None,
+    reddit_db: Any,
+) -> bool:
+    """Generate the per-subreddit About page from imported metadata (Feature 6).
+
+    Renders ``{prefix}/{sub}/about/index.html`` showing the community description,
+    content policy, and rules. Returns False (a no-op) when no metadata has been
+    imported for the subreddit, so callers can skip it cheaply.
+    """
+    from html_modules.html_seo import generate_canonical_and_og_url, generate_seo_assets, get_fallback_description
+    from utils.console_output import print_info
+
+    metadata = reddit_db.get_subreddit_metadata(subreddit)
+    if not metadata:
+        return False
+
+    platform = metadata.get("platform", "reddit")
+    url_prefix = get_url_prefix(platform)
+    rules = reddit_db.get_subreddit_rules(subreddit, platform)
+
+    # About page is one directory deeper than the default index (.../{sub}/about/).
+    site_nav_base = "../../../"
+    subreddit_nav_base = "../"
+    asset_prefix = "../../../"
+
+    seo_data = seo_config.get(subreddit, {}) if seo_config else {}
+    base_url = seo_data.get("base_url", seo_config.get("base_url", "") if seo_config else "")
+    favicon_tags, og_image_tag = generate_seo_assets(seo_config, subreddit, asset_prefix)
+    canonical_tag, og_url_tag = generate_canonical_and_og_url(base_url, f"{url_prefix}/{subreddit}/about/")
+
+    public_desc = (metadata.get("public_description") or "").strip()
+    meta_description = (
+        public_desc[:160] if public_desc else get_fallback_description("subreddit", {"subreddit": subreddit})
+    )
+    seo_title = f"{url_prefix}/{subreddit} - About"
+    project_url = (seo_config or {}).get("project_url", "https://github.com/19-84/redd-archiver")
+
+    context = {
+        "subreddit": subreddit,
+        "platform": platform,
+        "url_prefix": url_prefix,
+        "metadata": metadata,
+        "rules": rules,
+        "include_path": asset_prefix,
+        "url_subs": site_nav_base + "index.html",
+        "url_idx_score": subreddit_nav_base + "index.html",
+        "url_idx_cmnt": subreddit_nav_base + "index-" + sort_indexes["num_comments"]["slug"] + "/index.html",
+        "url_idx_date": subreddit_nav_base + "index-" + sort_indexes["created_utc"]["slug"] + "/index.html",
+        "url_search": site_nav_base + "search",
+        "url_project": project_url,
+        "seo_title": seo_title,
+        "meta_description": meta_description,
+        "keywords": f"{subreddit}, about, rules, {platform}, archive",
+        "og_title": seo_title,
+        "canonical_tag": canonical_tag,
+        "og_url_tag": og_url_tag,
+        "site_name": seo_data.get("site_name", f"{url_prefix}/{subreddit} Archive"),
+        "favicon_tags": favicon_tags,
+        "og_image_tag": og_image_tag,
+    }
+
+    filepath = f"{url_prefix}/{subreddit}/about/index.html"
+    render_template_to_file("pages/subreddit_about.html", filepath, **context)
+    print_info(f"Generated about page for {url_prefix}/{subreddit}")
     return True
 
 
@@ -328,6 +402,10 @@ def write_subreddit_pages_parallel_jinja2(
     url_prefix = get_url_prefix(platform)
     print_info(f"Generating subreddit pages for {url_prefix}/{subreddit} using parallel Jinja2")
 
+    # Whether an About page exists (Feature 6) — gates the nav link. Computed once
+    # here and threaded down to avoid a per-page query.
+    has_about = reddit_db.get_subreddit_metadata(subreddit) is not None
+
     # Calculate score ranges for badge coloring (sample-based)
     try:
         sample_posts = list(
@@ -369,6 +447,7 @@ def write_subreddit_pages_parallel_jinja2(
                 min_comments,
                 subreddit_score_ranges,
                 platform,
+                has_about,
             )
             sort_futures[future] = sort
 
@@ -412,6 +491,7 @@ def _generate_sort_pages_parallel(
     min_comments: int,
     subreddit_score_ranges: dict[str, float],
     platform: str | None = "reddit",
+    has_about: bool = False,
 ) -> tuple[float, int]:
     """
     Generate all pages for a single sort order with internal parallelization.
@@ -526,6 +606,7 @@ def _generate_sort_pages_parallel(
                     subreddit_nav_base,
                     site_nav_base,
                     platform,
+                    has_about,
                 )
                 page_futures[future] = page_num
 
@@ -578,6 +659,7 @@ def _render_single_subreddit_page(
     subreddit_nav_base: str,
     site_nav_base: str,
     platform: str | None = "reddit",
+    has_about: bool = False,
 ) -> bool:
     """
     Render a single subreddit index page (thread-safe for parallel execution).
@@ -686,6 +768,8 @@ def _render_single_subreddit_page(
             "url_idx_cmnt": subreddit_nav_base + "index-" + sort_indexes["num_comments"]["slug"] + "/index.html",
             "url_idx_date": subreddit_nav_base + "index-" + sort_indexes["created_utc"]["slug"] + "/index.html",
             "url_search": site_nav_base + "search",
+            "has_about": has_about,
+            "url_idx_about": subreddit_nav_base + "about/index.html",
             "url_idx_score_css": "active" if sort == "score" else "",
             "url_idx_cmnt_css": "active" if sort == "num_comments" else "",
             "url_idx_date_css": "active" if sort == "created_utc" else "",

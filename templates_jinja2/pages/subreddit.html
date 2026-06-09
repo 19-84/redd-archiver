@@ -45,6 +45,11 @@
         <li class="nav-item {{ url_idx_date_css }}">
           <a class="nav-link" href="{{ url_idx_date }}">date</a>
         </li>
+        {% if has_about %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_about }}">about</a>
+        </li>
+        {% endif %}
         <li class="nav-item {{ url_search_css }}">
           <a class="nav-link" href="{{ url_search }}">search</a>
         </li>

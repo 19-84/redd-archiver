@@ -136,6 +136,80 @@ CREATE TABLE IF NOT EXISTS subreddit_statistics (
     PRIMARY KEY (subreddit, platform)
 );
 
+-- Subreddit metadata (Feature 6): description, rules, appearance, policy imported
+-- from the Arctic Shift subreddit dumps. Peer of subreddit_statistics (no FK);
+-- both keyed on (subreddit, platform). description_html is rendered + sanitized
+-- once at import time.
+CREATE TABLE IF NOT EXISTS subreddit_metadata (
+    subreddit TEXT NOT NULL,
+    platform TEXT DEFAULT 'reddit' NOT NULL,
+
+    -- Identity
+    display_name TEXT,
+    title TEXT,
+    description TEXT,                     -- Sidebar markdown (raw)
+    description_html TEXT,               -- Rendered + sanitized sidebar HTML
+    public_description TEXT,             -- Short tagline (raw)
+    public_description_html TEXT,        -- Rendered + sanitized tagline HTML
+    subreddit_type TEXT,                 -- public, private, restricted, archived
+    lang TEXT,                           -- Language code (e.g. "en", "ja")
+
+    -- Counts (Reddit-sourced, not computed)
+    subscribers INTEGER,
+    active_users INTEGER,
+    created_utc BIGINT,
+
+    -- Content policy
+    over_18 BOOLEAN DEFAULT FALSE,
+    quarantine BOOLEAN DEFAULT FALSE,
+    quarantine_message TEXT,
+    quarantine_message_html TEXT,
+    submission_type TEXT,                -- any, link, self
+    suggested_comment_sort TEXT,
+
+    -- Appearance (URLs; image archival is a later phase)
+    icon_img TEXT,
+    community_icon TEXT,
+    banner_img TEXT,
+    key_color TEXT,
+    primary_color TEXT,
+    banner_background_color TEXT,
+
+    -- Flair config
+    link_flair_enabled BOOLEAN DEFAULT FALSE,
+
+    -- Submission prompts
+    submit_text TEXT,
+    submit_text_html TEXT,
+
+    -- Source tracking
+    retrieved_on TIMESTAMPTZ,
+    raw_json JSONB,                      -- Full original record for un-promoted fields
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (subreddit, platform)
+);
+
+-- Subreddit rules (Feature 6): one row per rule. Bulk-replaced per subreddit on
+-- (re-)import (DELETE + INSERT), so no UNIQUE on priority.
+CREATE TABLE IF NOT EXISTS subreddit_rules (
+    id SERIAL PRIMARY KEY,
+    subreddit TEXT NOT NULL,
+    platform TEXT DEFAULT 'reddit' NOT NULL,
+
+    priority INTEGER NOT NULL,           -- Display order
+    short_name TEXT,                     -- Rule title
+    description TEXT,                    -- Full rule explanation (markdown)
+    description_html TEXT,               -- Rendered + sanitized HTML
+    kind TEXT,                           -- "all", "link", "comment"
+    violation_reason TEXT,
+    rule_created_utc BIGINT,
+
+    retrieved_on TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Schema version control
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
@@ -158,6 +232,20 @@ ON CONFLICT (version) DO NOTHING;
 INSERT INTO schema_version (version, description, migration_sql)
 VALUES (3, 'Added total_activity computed column for streaming user page generation',
         'ALTER TABLE users ADD COLUMN IF NOT EXISTS total_activity INTEGER GENERATED ALWAYS AS (post_count + comment_count) STORED;')
+ON CONFLICT (version) DO NOTHING;
+
+-- Platform support (columns already present in this schema; see migration 004)
+INSERT INTO schema_version (version, description)
+VALUES (4, 'Added platform column for multi-platform archive support')
+ON CONFLICT (version) DO NOTHING;
+
+-- Feature 6: subreddit metadata enrichment
+INSERT INTO schema_version (version, description)
+VALUES (5, 'Added subreddit_metadata table for description/rules/appearance enrichment')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES (6, 'Added subreddit_rules table for per-subreddit rule lists')
 ON CONFLICT (version) DO NOTHING;
 
 -- =============================================================================
