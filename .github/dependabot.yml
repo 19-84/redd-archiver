@@ -1,7 +1,9 @@
 version: 2
 updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
+  # Root Python project (uv) — updates pyproject.toml AND uv.lock together.
+  # The "uv" ecosystem keeps the lockfile in sync; the older "pip" ecosystem
+  # bumped pyproject only and left uv.lock drifted.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -10,8 +12,60 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
-  # Docker dependencies
+  # MCP server Python project (uv) — separate pyproject.toml + uv.lock.
+  # The mcp-server image installs from this lockfile (uv sync --frozen),
+  # so it was previously unmonitored despite shipping vulnerable deps.
+  - package-ecosystem: "uv"
+    directory: "/mcp_server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "mcp-server"
+    groups:
+      mcp-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Flask search-server pins (plain pip requirements.txt). Not covered by the
+  # root uv ecosystem; this is the manifest the search-server image installs.
+  - package-ecosystem: "pip"
+    directory: "/docker/search-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "search-server"
+    groups:
+      search-server-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+
   - package-ecosystem: "docker"
     directory: "/docker/search-server"
     schedule:
@@ -21,6 +75,27 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/nginx"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/mcp_server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+      - "mcp-server"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -32,3 +107,8 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
