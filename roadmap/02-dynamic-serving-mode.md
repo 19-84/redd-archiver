@@ -1,7 +1,7 @@
 # Feature 2: Dynamic Serving Mode
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Expand the Flask search server into a full application server that serves all page types from PostgreSQL, enabling the dynamic serving mode described in [README.md > Serving Modes](README.md#serving-modes).
 
@@ -14,13 +14,13 @@
 Expand the existing Flask search server into a full application server that renders all page types on-the-fly from PostgreSQL using the existing Jinja2 templates.
 
 **What already exists (confirmed via code analysis):**
-- Flask server (`search_server.py`, 532 lines) with 4 routes: `/`, `/search`, `/health`, error handlers
-- REST API (`api/routes.py`, 4,372 lines) with 30+ endpoints — comprehensive data retrieval for posts, comments, users, subreddits
+- Flask server (`search_server.py`, ~570 lines) with 3 routes (`/`, `/search`, `/health`) plus 404/500/429/400 error handlers
+- REST API (`api/routes.py`, ~5,200 lines) with 30+ endpoints — comprehensive data retrieval for posts, comments, users, subreddits
 - Jinja2 environment (`html_modules/jinja_env.py`) with bytecode caching, template streaming, pre-compilation
 - 11 cached Jinja2 filters (`html_modules/jinja_filters.py`) with LRU caching (10K items) — `reddit_date`, `format_number`, `truncate_smart`, `score_class`, etc.
 - 19 HTML templates covering all page types (dashboard, subreddit, post, user, search, components, macros)
-- PostgreSQL query layer (`core/postgres_database.py`, 3,491 lines) with connection pooling, keyset pagination, batch loading
-- Input validation module (`utils/input_validation.py`, 612 lines)
+- PostgreSQL query layer (`core/postgres_database.py`, ~3,800 lines) with connection pooling, keyset pagination, batch loading
+- Input validation module (`utils/input_validation.py`, ~620 lines)
 - Rate limiting infrastructure (Flask-Limiter)
 - CSRF protection, XSS protection (Jinja2 autoescape)
 

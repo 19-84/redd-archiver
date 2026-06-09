@@ -1,7 +1,7 @@
 # Redd-Archiver Project Roadmap
 
 **Status:** Draft — under active refinement
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 ---
 
@@ -175,11 +175,11 @@ The ordering below prioritizes small, high-value wins early (fixing existing bug
 
 **F5 Phase 1 (simple regconfig) + F5 truncation fix + F2 Phase 1 (Jinja filter import)**
 
-Three small, independent changes that fix existing correctness issues:
+Three small, independent changes that fix existing FTS and rendering gaps:
 
-- **F5 Phase 1:** Replace `'english'` with `'simple'` regconfig in 6 locations. Fixes FTS for all non-English content (Cyrillic, Arabic, Latin-script languages). A 6-line change with immediate value.
-- **F5 truncation fix:** Use `textwrap.shorten()` instead of byte-slicing for CJK-safe preview truncation in Jinja filters. Prevents broken multi-byte characters in post previews.
-- **F2 Phase 1:** Add the missing `from jinja2 import ... import` to `jinja_env.py`. Trivial prerequisite that unblocks template work in later steps. ~10 lines.
+- **F5 Phase 1:** Replace `'english'` with `'simple'` regconfig across its ~20 occurrences in `core/postgres_search.py`, `api/routes.py`, and `sql/indexes.sql`. Fixes FTS for all non-English content (Cyrillic, Arabic, Latin-script languages). Immediate value.
+- **F5 truncation fix (cosmetic):** `truncate_smart()` in `html_modules/jinja_filters.py` does `text[:length].rsplit(" ", 1)[0]`. This is code-point-safe — it never corrupts multi-byte characters — but for space-less scripts (CJK) the word-boundary step is a no-op, so the truncation has no graceful break point. Add script-aware truncation. Lower priority than the regconfig fix (no correctness impact).
+- **F2 Phase 1:** Import the cached filters from `html_modules/jinja_filters.py` into `search_server.py` and register them — it currently registers only `highlight` and `number_format` and never imports the shared filter module. Prerequisite that unblocks dynamic-mode template rendering.
 
 ### Step 2: Static Index & Search Improvements (F1, all phases)
 
@@ -191,7 +191,7 @@ Replace 478 hardcoded color overrides in `redd-archiver-universal.css` with CSS 
 
 ### Step 4: Metadata Enrichment Phase 1 (F6 Phase 1 + F7 Phase 1)
 
-Import subreddit descriptions and rules from Arctic Shift dumps (F6), and subverse metadata from Voat SQL dumps (F7). Enriches archives with contextual information that was previously missing. F6 requires `markdown` + `bleach` dependencies for safe rendering; F7 only needs `bleach` (Voat sidebar HTML is pre-rendered). F7 Phase 1 can ship alongside F6 Phase 1 — they share the `subreddit_metadata` table and about page template. Phase 2 (wiki import) is deferred until the wiki dump path format is verified empirically.
+Import subreddit descriptions and rules from Arctic Shift dumps (F6), and subverse metadata from Voat SQL dumps (F7). Enriches archives with contextual information that was previously missing. F6 requires `markdown` + `bleach` dependencies for safe rendering; F7 only needs `bleach` (Voat sidebar HTML is pre-rendered). F7 Phase 1 can ship alongside F6 Phase 1 — they share a new `subreddit_metadata` table and a new about-page template (`templates_jinja2/pages/subreddit_about.html`), both introduced by this work (neither exists today). Phase 2 (wiki import) is deferred until the wiki dump path format is verified empirically.
 
 ### Step 5: Dynamic Serving Mode Phases 2–4 (F2 core)
 
@@ -245,7 +245,7 @@ The dynamic server handles incoming requests for static-style paths by issuing 3
 - Bookmarks and links from a previous static/hybrid deployment continue to work
 - Search engine rankings transfer gracefully via 301 permanent redirects
 - Switching from static/hybrid to dynamic hosting is seamless for end users
-- The `url_for_page()` Jinja2 helper generates the correct URL format based on which mode the templates are being rendered in (file paths for static/hybrid export, clean URLs for dynamic serving)
+- A `url_for_page()` Jinja2 helper (to be added as part of this feature — it does not exist yet) will generate the correct URL format based on which mode the templates are being rendered in (file paths for static/hybrid export, clean URLs for dynamic serving)
 
 ---
 
@@ -253,7 +253,7 @@ The dynamic server handles incoming requests for static-style paths by issuing 3
 
 ### Docker configuration per mode
 
-The current `docker-compose.yml` defines four services: `postgres`, `reddarchiver-builder` (one-shot CLI), `search-server` (Flask), and `nginx` (reverse proxy + static files).
+The current `docker-compose.yml` defines these base services: `postgres`, `reddarchiver-builder` (one-shot CLI), `search-server` (Flask), `nginx` (reverse proxy + static files), and `mcp-server` (AI integration). The `certbot` and `tor` services are gated behind the `production` and `tor` profiles.
 
 **Services needed per mode:**
 
@@ -356,7 +356,7 @@ Each feature is designed to be additive — no breaking changes to existing arch
 
 **Feature 4 (visual themes):** Phase 1 is a CSS-only refactor with zero visual change. Existing archives can adopt the new CSS by re-running `--export-from-database`. No database or template migration needed. Phase 3 decouples the CSS from any specific theme — operators select a theme via `--theme` at export time (static) or `REDDARCHIVER_THEME` env var (dynamic). Each theme provides both dark and light palettes; users control only the dark/light mode.
 
-**Schema version tracking:** Each new table or index adds a version entry to the existing `schema_version` table (currently at version 3). The application checks schema version at startup and applies any missing migrations automatically.
+**Schema version tracking:** Each new table or index adds a version entry to the `schema_version` table (currently at version 4, set by `sql/migrations/004_add_platform_support.sql`). Migrations live as ordered SQL files under `sql/migrations/`. Note: the current code records the schema version but does **not** yet auto-apply pending migrations at startup — `get_schema_version()` exists in `core/postgres_database.py` but has no callers, and DB setup only runs `schema.sql` + `indexes.sql`. The incremental-update work (F3) should add the missing migration runner.
 
 ### Switching between serving modes
 
