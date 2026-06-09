@@ -26,7 +26,8 @@ psycopg[binary,pool]==3.3.2
 psutil==7.2.1
 
 # Fast JSON parsing (required by postgres_database.py)
-orjson==3.11.5
+# SECURITY: >=3.11.6 fixes a high-severity advisory (was pinned at 3.11.5)
+orjson==3.11.8
 
 # Template rendering (SECURITY: defense in depth)
 Jinja2==3.1.6
