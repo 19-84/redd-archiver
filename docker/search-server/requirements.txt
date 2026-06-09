@@ -1,14 +1,14 @@
 # Flask Search Server Dependencies
-# Synced with pyproject.toml on 2026-01-07
+# Synced with pyproject.toml on 2026-06-09
 
 # Web framework (pulls werkzeug>=3.1 which fixes CVEs)
-Flask==3.1.2
+Flask==3.1.3
 
 # Production WSGI server (SECURITY: fixes HTTP request smuggling CVE)
 gunicorn==23.0.0
 
 # Rate limiting
-Flask-Limiter==3.12
+Flask-Limiter==4.1.1
 
 # CORS support (SECURITY: fixes private network header CVE)
 Flask-CORS==6.0.2
@@ -20,10 +20,10 @@ Flask-WTF==1.2.2
 MarkupSafe==3.0.3
 
 # PostgreSQL adapter with binary wheels
-psycopg[binary,pool]==3.3.2
+psycopg[binary,pool]==3.3.3
 
 # System monitoring (required by console_output.py)
-psutil==7.2.1
+psutil==7.2.2
 
 # Fast JSON parsing (required by postgres_database.py)
 # SECURITY: >=3.11.6 fixes a high-severity advisory (was pinned at 3.11.5)
