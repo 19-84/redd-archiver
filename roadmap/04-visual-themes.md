@@ -1,7 +1,7 @@
 # Feature 4: Visual Themes
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system where each theme provides both dark and light palettes, supports system preference detection, and allows operator customization — all without JavaScript (except for optional persistence in static mode).
 
@@ -52,9 +52,9 @@ The main CSS file (`redd-archiver-universal.css`) uses only `var()` references f
 | Toggle UI | `<label for="dark-theme-toggle">` in `templates_jinja2/components/navigation.html` (line 38) |
 | Dark theme selectors | 478 `#dark-theme-toggle:checked` overrides scattered throughout the CSS |
 | CSS custom properties | ~52 `var(--...)` usages (partial adoption — mostly for comment depth colors, gradients, and shadows) |
-| System preference | Not supported — no `@media (prefers-color-scheme)` rules |
+| System preference | Theme toggle is manual only. One `@media (prefers-color-scheme: dark)` block exists (CSS line ~4250, platform-badge colors), but the overall dark/light theme does not follow the OS setting |
 | System fonts | Yes — native font stack, no external font loading |
-| CSS minifier | `html_modules/css_minifier.py` using `rcssmin` — exists but not used in default build |
+| CSS minifier | `html_modules/css_minifier.py` using `rcssmin` — used by default (`copy_static_assets(output_dir, minify_css=True)` in `reddarc.py`, called at the two export sites without overriding the default) |
 | Themes available | 2 (dark default, light via toggle) |
 
 ### Key files
