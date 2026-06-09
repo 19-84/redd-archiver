@@ -28,7 +28,6 @@ This project intentionally deviates from the global `~/.claude/docs/` convention
 | Source control | jj preferred | git only | jj not configured for this repo |
 | Pre-commit | Expected | Not yet activated | `pre-commit` in dev deps but no `.pre-commit-config.yaml`; CI gates enforce quality. Planned (see `roadmap/10-pre-commit-hooks.md`) |
 | Ruff rules | includes SIM, RUF | Missing SIM, RUF | Being added incrementally (see `roadmap/09-ruff-sim-ruf-rules.md`) |
-| Docker Python | Consistent | 3.12 (builder) vs 3.14 (search-server) | Known mismatch; fix planned (see `roadmap/11-docker-python-version-alignment.md`) |
 
 ## Build & Run Commands
 
