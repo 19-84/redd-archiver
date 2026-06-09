@@ -1,7 +1,7 @@
 # Feature 7: Voat Data Enrichment
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Import the full breadth of Voat metadata from the Voat SQL archive to enrich Voat archives with subverse descriptions, moderator lists, user profiles, post flair, post thumbnails, and subscriber history that exist in the SQL dumps but are not currently imported.
 
@@ -260,7 +260,7 @@ Voat shut down permanently in December 2020. This SQL dump from searchvoat.co is
 
 ### Reuse: `subreddit_metadata` table (shared with Feature 6)
 
-Feature 6 defines the `subreddit_metadata` table with `PRIMARY KEY (subreddit, platform)`. Voat subverse data maps cleanly to this table with `platform='voat'`:
+Feature 6's spec proposes the (new) `subreddit_metadata` table with `PRIMARY KEY (subreddit, platform)`. Voat subverse data maps to this table with `platform='voat'`:
 
 | F6 Column | Voat Source | Notes |
 |---|---|---|
@@ -272,8 +272,8 @@ Feature 6 defines the `subreddit_metadata` table with `PRIMARY KEY (subreddit, p
 | `subscribers` | `subverse.subscriberCount` | At time of scrape |
 | `created_utc` | `subverse.creationDate` | Converted to Unix timestamp |
 | `over_18` | `subverse.isAdult` | NSFW flag |
-| `subreddit_type` | `subverse.type` | Community type |
-| `raw_json` | Full row as JSONB | Includes all 20 columns |
+| `subreddit_type` | — (do **not** map `subverse.type` here) | F6's `subreddit_type` is an *access level* (public/private/restricted/archived); Voat's `type` is a *content type* (link/text — see line 79), a different concept. Leave NULL for Voat, or derive from a Voat private/restricted flag if one exists. Voat's `type` is preserved in `raw_json`. |
+| `raw_json` | Full row as JSONB | Includes all 20 columns (incl. the unmapped `type`) |
 
 **New columns needed on `subreddit_metadata`:**
 
@@ -396,7 +396,7 @@ COLUMN_MAPS = {
 }
 ```
 
-The existing `stream_rows()` method (`voat_sql_parser.py:98`) works unchanged — it already accepts any `table_name` and looks up the column map. The only constraint is that the SQL file must contain `INSERT INTO \`{table_name}\`` statements.
+The existing `stream_rows()` method (`voat_sql_parser.py:98`) works unchanged once the new tables are registered — it handles any `table_name` **that has a `COLUMN_MAPS` entry** (it raises `ValueError: Unknown table` otherwise, `voat_sql_parser.py:112`). So the only code change is adding the `COLUMN_MAPS` entries; the parser logic itself is untouched. The SQL file must contain `INSERT INTO \`{table_name}\`` statements.
 
 ---
 
@@ -489,7 +489,7 @@ python reddarc.py --enrich-voat /data/voat-sql-tables/ \
 
 #### 2. Subverse index pages
 
-**Current flow:** `write_subreddit_pages_jinja2()` (`html_modules/html_pages_jinja.py:175`) builds context with `subreddit`, `posts`, `page_num`, `total_pages`, stats — then renders `pages/subreddit.html`.
+**Current flow:** `write_subreddit_pages_jinja2()` (`html_modules/html_pages_jinja.py:20`; the context dict is assembled around line 175) builds context with `subreddit`, `posts`, `page_num`, `total_pages`, stats — then renders `pages/subreddit.html`.
 
 **Enrichment:** Same approach as Feature 6. Fetch `get_subreddit_metadata(subverse, 'voat')`, add `description_html` for "About this community" section.
 
@@ -683,7 +683,7 @@ All questions about Voat data have been resolved by inspecting the actual SQL du
 | 4 | What does `subverse.moderators` contain? | **Semicolon-separated usernames.** Verified: `'DerpyPigSauce;T4C0M4ST3R'`. The `subverseModerator` table provides richer data (levels, dates). |
 | 5 | What is `subverseSubscribers` format? | **Date-series.** `(subverse, date, count)` tuples. ~660K rows across all subverses. |
 | 6 | Are there sensitive fields? | **Yes.** `user.svpassword` (always empty in data but must be excluded from storage). `user.profilePicture` contains voat.co CDN URLs that are dead. |
-| 7 | Can existing VoatSQLParser handle new tables? | **Yes.** `stream_rows()` already accepts any `table_name` and looks up the column map. Only COLUMN_MAPS additions needed. |
+| 7 | Can existing VoatSQLParser handle new tables? | **Yes, with a one-line registration each.** `stream_rows()` handles any `table_name` that has a `COLUMN_MAPS` entry (it raises `ValueError: Unknown table` otherwise). Only `COLUMN_MAPS` additions needed — no parser logic changes. |
 | 8 | What is `submissionAttribute` format? | **Flair data.** `type='linkflairlabel'`, `name` contains the flair text. ~1M records. Maps to `json_data.link_flair_text` on posts. |
 
 ---
