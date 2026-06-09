@@ -1,20 +1,22 @@
 # Feature 11: Align Docker Python Versions
 
-**Status:** Planned
+**Status:** ✅ Done (2026-06-09)
 **Last updated:** 2026-06-09
 
-**Goal:** Align all Dockerfiles to use the same Python version, eliminating a known version mismatch.
+**Goal:** Align all Dockerfiles to the same Python version (3.12, matching CI), eliminating the version mismatch.
 
-**Problem:** The search-server Dockerfile uses `python:3.14-alpine` while the builder Dockerfile and CI both use Python 3.12. Python 3.14 (released October 2025) is stable, but the mismatch is an inconsistency: the search-server does not require any 3.14-specific features, and running a different minor version than the builder/CI risks subtle behavior differences and complicates maintenance. Aligning on 3.12 removes the outlier.
+**Problem (resolved):** The search-server Dockerfile used `python:3.14-alpine` while the builder Dockerfile and CI used 3.12. A brief Dependabot auto-merge episode pushed the builder and mcp_server images to 3.14 as well, widening the gap. Critically, CI's test suite runs on 3.12, so the 3.14 images ran an untested Python version — and 3.14 surfaced a `PythonFinalizationError` from psycopg's connection pool at shutdown that the 3.12 suite never showed. All images were reverted/aligned to **3.12** to match the version CI actually validates.
 
 | Component | Python Version |
 |-----------|---------------|
-| `Dockerfile` (builder) | 3.12-alpine |
-| `docker/search-server/Dockerfile` | **3.14-alpine** (mismatch — the only outlier) |
-| `docker/leaderboard/Dockerfile` | 3.12-alpine |
-| `mcp_server/Dockerfile` | 3.12-slim-bookworm (Debian, intentional — not alpine) |
+| `Dockerfile` (builder) | 3.12-alpine ✅ |
+| `docker/search-server/Dockerfile` | 3.12-alpine ✅ (was the 3.14 outlier) |
+| `docker/leaderboard/Dockerfile` | 3.12-alpine ✅ |
+| `mcp_server/Dockerfile` | 3.12-slim-bookworm ✅ (Debian flavor, intentional) |
 | CI (`test.yml`, `lint.yml`) | 3.12 |
 | `pyproject.toml` requires-python | >=3.10 |
+
+> **If a future move to 3.14 is desired**, do it deliberately: bump CI (`test.yml`/`lint.yml`) to 3.14 first so the suite validates it, resolve the psycopg pool `PythonFinalizationError` at interpreter shutdown, then move the images — not via auto-merged base-image bumps.
 
 ---
 
@@ -30,9 +32,9 @@
 
 ---
 
-## Acceptance Criteria
+## Acceptance Criteria (all met)
 
-- All Dockerfiles target Python **3.12** (the search-server drops from 3.14 to 3.12). The base-image *flavor* need not be uniform: `mcp_server` intentionally stays on `3.12-slim-bookworm` (Debian) and is out of scope — the goal is eliminating the 3.14 version outlier, not forcing alpine everywhere.
-- `docker compose up -d --build` succeeds
-- Search-server health endpoint responds correctly
-- CI Docker workflow passes
+- ✅ All Dockerfiles target Python **3.12** (alpine for builder/search-server/leaderboard; slim-bookworm for mcp_server — the *flavor* differs intentionally, but the Python minor version is uniform and matches CI).
+- ✅ `docker compose up -d --build` succeeds (Docker Compose Integration Test passes in CI)
+- ✅ Search-server health endpoint responds correctly
+- ✅ CI Docker workflow passes
