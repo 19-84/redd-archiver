@@ -4,7 +4,7 @@
 # ============================================================================
 # Alpine-based build for minimal image size and fast deployment
 # ============================================================================
-FROM python:3.14-alpine
+FROM python:3.12-alpine
 
 # Set working directory
 WORKDIR /app
