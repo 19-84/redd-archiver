@@ -1,7 +1,7 @@
 # Feature 1: Static Index & Search Improvements
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Improve content discoverability in pure static hosting environments (GitHub Pages, Netlify, etc.) where no server or JavaScript is available.
 
@@ -134,7 +134,7 @@ finalize_archive_with_stats()
 
 - Use `render_template_to_file()` for all page generation (existing pattern)
 - Use `get_posts_paginated_keyset()` for paginated queries (existing, O(1) performance)
-- Use `generate_page_seo_content()` from `html_seo.py` for SEO metadata
+- Use the SEO helpers in `html_seo.py` for metadata — e.g. `generate_index_meta_description()`, `generate_subreddit_meta_description()`, `generate_subreddit_seo_title()` (there is no single `generate_page_seo_content()` entry point; pick the helper matching the page type)
 - Follow the parallel generation pattern from `write_subreddit_pages_parallel_jinja2()` if page count is high
 
 ---

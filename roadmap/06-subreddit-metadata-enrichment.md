@@ -1,7 +1,7 @@
 # Feature 6: Subreddit Metadata Enrichment
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Import subreddit metadata, rules, and wiki pages from Arctic Shift's [subreddit metadata dump](https://academictorrents.com/details/5d0bf258a025a5b802572ddc29cde89bf093185c) to enrich archives with community context that doesn't exist in post/comment data alone.
 
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS subreddit_wiki_pages (
 
 #### 2. Subreddit index pages
 
-**Current flow:** `write_subreddit_pages_jinja2()` (`html_modules/html_pages_jinja.py:175`) builds a context dict with `subreddit`, `posts`, `page_num`, `total_pages`, stats — then renders `pages/subreddit.html`.
+**Current flow:** `write_subreddit_pages_jinja2()` (`html_modules/html_pages_jinja.py:20`; the context dict is assembled around line 175) builds a context dict with `subreddit`, `posts`, `page_num`, `total_pages`, stats — then renders `pages/subreddit.html`.
 
 **Enrichment:** Before rendering, fetch `get_subreddit_metadata(subreddit)`. Add to context:
 - `description_html` for a collapsible "About this community" section at the top of the first index page

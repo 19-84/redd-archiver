@@ -1,7 +1,7 @@
 # Feature 10: Activate Pre-Commit Hooks
 
 **Status:** Planned
-**Last updated:** 2026-02-11
+**Last updated:** 2026-06-09
 
 **Goal:** Create a `.pre-commit-config.yaml` and activate pre-commit hooks for local development, providing faster feedback than CI-only enforcement.
 
@@ -15,7 +15,7 @@
   ```yaml
   repos:
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.0  # Match version in pyproject.toml
+      rev: v0.15.10  # Match version in pyproject.toml
       hooks:
         - id: ruff
           args: [--fix]
@@ -30,8 +30,8 @@
 
 ## Notes
 
-- Hook versions should stay pinned to match the ruff version in `pyproject.toml` (currently `0.15.0`)
-- When ruff is updated via Dependabot, the pre-commit config version should be updated in the same PR
+- Hook versions should stay pinned to match the ruff version in `pyproject.toml` (currently `0.15.10`)
+- Ruff bumps now arrive via the `uv` Dependabot ecosystem (updating `pyproject.toml` + `uv.lock`) and **auto-merge on green CI without touching `.pre-commit-config.yaml`** — so the pre-commit `rev` will drift unless kept in sync separately. Options: add a `pre-commit` entry to a CI `pre-commit autoupdate` step, or treat CI `ruff` as the source of truth and refresh the hook `rev` periodically. (Dependabot has no native pre-commit ecosystem.)
 
 ## Acceptance Criteria
 
