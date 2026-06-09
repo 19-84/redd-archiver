@@ -4292,3 +4292,95 @@ details.comment[open] .md {
 details.comment[open][data-depth="1"] {
     min-height: 120px; /* Reduced from 140px */
 }
+
+/* =========================================================================
+   Subreddit About page (Feature 6 — metadata enrichment)
+   ========================================================================= */
+.about-page {
+    max-width: 880px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+.about-title {
+    margin: 0;
+    font-size: 1.6rem;
+}
+.about-tagline {
+    margin: 0.35rem 0 0;
+    font-style: italic;
+    color: var(--bs-secondary);
+}
+.about-badges {
+    margin: 0.5rem 0 0;
+}
+.about-badges .badge {
+    margin-right: 0.4rem;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+.badge-nsfw {
+    background-color: var(--bs-danger);
+    color: var(--bs-white);
+}
+.badge-quarantine {
+    background-color: var(--bs-warning);
+    color: var(--bs-dark);
+}
+.badge-type,
+.badge-lang {
+    background-color: var(--bs-secondary);
+    color: var(--bs-white);
+}
+.about-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0 0 1.25rem;
+}
+.about-facts dt {
+    font-weight: 600;
+    color: var(--bs-secondary);
+}
+.about-facts dd {
+    margin: 0;
+}
+.about-card .card-body section {
+    margin-bottom: 1.5rem;
+}
+.about-card .card-body h2 {
+    font-size: 1.15rem;
+    border-bottom: 1px solid var(--primary-20);
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.75rem;
+}
+.about-card .md :first-child {
+    margin-top: 0;
+}
+.about-card .md :last-child {
+    margin-bottom: 0;
+}
+.about-card .md img {
+    max-width: 100%;
+    height: auto;
+}
+.rules-list {
+    padding-left: 1.4rem;
+}
+.rules-list .rule {
+    margin-bottom: 0.9rem;
+}
+.rule-name {
+    font-weight: 600;
+}
+.rule-kind {
+    color: var(--bs-secondary);
+    font-size: 0.85em;
+    margin-left: 0.3rem;
+}
+.rule-desc {
+    margin-top: 0.25rem;
+}
+.about-empty {
+    color: var(--bs-secondary);
+    font-style: italic;
+}

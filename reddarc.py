@@ -607,7 +607,12 @@ Examples:
         "--version", action="version", version=get_version_string(), help="Show version information and exit"
     )
 
-    parser.add_argument("input_dir", help="Directory containing .zst files")
+    parser.add_argument(
+        "input_dir",
+        nargs="?",
+        default=None,
+        help="Directory containing .zst files (optional for --enrich-only runs)",
+    )
     parser.add_argument(
         "--output", "-o", default="redd-archive-output", help="Output directory (default: redd-archive-output)"
     )
@@ -683,6 +688,24 @@ Examples:
     )
     parser.add_argument(
         "--list-communities", action="store_true", help="List available communities in archive without importing"
+    )
+
+    # Subreddit metadata enrichment (Feature 6)
+    parser.add_argument(
+        "--enrich",
+        metavar="DIR",
+        help="Enrich tracked subreddits with descriptions/rules from Arctic Shift dumps in DIR "
+        "(auto-detects subreddits_*.zst and subreddit_rules_*.zst). Composes with --export-from-database.",
+    )
+    parser.add_argument(
+        "--enrich-metadata",
+        metavar="FILE",
+        help="Explicit path to a subreddits_*.zst metadata dump (overrides --enrich auto-detect)",
+    )
+    parser.add_argument(
+        "--enrich-rules",
+        metavar="FILE",
+        help="Explicit path to a subreddit_rules_*.zst dump (overrides --enrich auto-detect)",
     )
 
     # Performance Override Arguments (for debugging/testing only)
@@ -801,7 +824,22 @@ Examples:
         )
         return
 
+    # Feature 6: subreddit metadata enrichment. Independent of post-import file
+    # discovery — it filters the Arctic Shift dumps down to already-tracked
+    # subreddits. Runs standalone, or chains into export when --export-from-database
+    # is also given.
+    if args.enrich or args.enrich_metadata or args.enrich_rules:
+        process_enrich(args)
+        if args.export_from_database:
+            process_export_only(args.input_dir or ".", args.output, {}, args)
+        return
+
     # Validate input directory
+    if not args.input_dir:
+        print_error("input_dir is required (directory containing .zst files)")
+        print_info("For enrichment without importing, use --enrich DIR instead", indent=1)
+        return
+
     if not os.path.exists(args.input_dir):
         print_error(f"Input directory does not exist: {args.input_dir}")
         return
@@ -1005,6 +1043,46 @@ Examples:
             resume_state,
             state_data,
         )
+
+
+def process_enrich(args: argparse.Namespace) -> None:
+    """Enrich tracked subreddits with Arctic Shift metadata/rules (Feature 6).
+
+    Connects to PostgreSQL, ensures the enrichment tables exist, determines which
+    subreddits are already archived, and streams the dumps importing only those.
+    """
+    print_section("Enrichment Mode: Importing subreddit metadata")
+
+    connection_string = get_postgres_connection_string()
+    if not connection_string or "postgresql://" not in connection_string:
+        print_error("Enrichment requires PostgreSQL to be configured")
+        print_info("Set DATABASE_URL environment variable to PostgreSQL connection string", indent=1)
+        return
+
+    try:
+        db = PostgresDatabase(connection_string, workload_type="default")
+        print_success("Connected to PostgreSQL database")
+    except Exception as e:
+        print_error(f"Failed to connect to PostgreSQL: {e}")
+        return
+
+    try:
+        db.create_enrichment_tables()
+        tracked = db.get_tracked_subreddits()
+        print_info(f"{len(tracked)} tracked subreddit(s) in archive")
+
+        from core.enrichment import subreddit_metadata as enrich_mod
+
+        counts = enrich_mod.enrich(
+            db,
+            args.enrich,
+            tracked,
+            metadata_file=args.enrich_metadata,
+            rules_file=args.enrich_rules,
+        )
+        print_success(f"Enrichment complete: {counts['metadata']} metadata record(s), {counts['rules']} rule set(s)")
+    finally:
+        db.cleanup()
 
 
 def process_import_only(
