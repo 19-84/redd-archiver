@@ -4280,12 +4280,12 @@ def api_post_related(post_id: str):
                     f"""
                     SELECT id, title, subreddit, author, score, created_utc, permalink,
                            ts_rank(
-                               to_tsvector('english', title || ' ' || COALESCE(selftext, '')),
-                               to_tsquery('english', %s)
+                               to_tsvector('simple', title || ' ' || COALESCE(selftext, '')),
+                               to_tsquery('simple', %s)
                            ) as similarity
                     FROM posts
-                    WHERE to_tsvector('english', title || ' ' || COALESCE(selftext, ''))
-                          @@ to_tsquery('english', %s)
+                    WHERE to_tsvector('simple', title || ' ' || COALESCE(selftext, ''))
+                          @@ to_tsquery('simple', %s)
                     AND id != %s
                     {where_extra}
                     ORDER BY similarity DESC

@@ -272,6 +272,10 @@ INSERT INTO schema_version (version, description)
 VALUES (7, 'Added subreddit_wiki_pages table for archived wiki content')
 ON CONFLICT (version) DO NOTHING;
 
+INSERT INTO schema_version (version, description)
+VALUES (8, 'Rebuilt FTS indexes with simple regconfig for non-English search')
+ON CONFLICT (version) DO NOTHING;
+
 -- =============================================================================
 -- COMMENTS
 -- =============================================================================

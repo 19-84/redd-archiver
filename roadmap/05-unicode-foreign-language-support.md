@@ -1,7 +1,7 @@
 # Feature 5: Unicode & Foreign Language Support
 
-**Status:** Planned
-**Last updated:** 2026-06-09
+**Status:** In progress — Phase 1 (`simple` regconfig) + truncation fix implemented; Phase 2 (pg_trgm CJK fallback) not started
+**Last updated:** 2026-06-10
 
 **Goal:** Ensure redd-archiver correctly stores, searches, displays, and indexes content from non-English subreddits, including CJK (Chinese/Japanese/Korean), Cyrillic, Arabic, and other scripts.
 
