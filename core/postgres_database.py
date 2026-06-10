@@ -3735,7 +3735,7 @@ class PostgresDatabase:
     def create_enrichment_tables(self) -> bool:
         """Idempotently create the Feature 6 enrichment tables (+ indexes).
 
-        Runs migrations 005/006 (all ``CREATE TABLE/INDEX IF NOT EXISTS``). Safe to
+        Runs migrations 005/006/007 (all ``CREATE TABLE/INDEX IF NOT EXISTS``). Safe to
         call on a fresh or existing database. Needed because ``setup_schema()`` only
         runs ``schema.sql`` on brand-new databases and migrations are not
         auto-applied.
@@ -3748,7 +3748,7 @@ class PostgresDatabase:
                 print_warning(f"Migrations dir not found: {migrations_dir}")
                 return False
             files = sorted(
-                f for f in os.listdir(migrations_dir) if f.startswith(("005_", "006_")) and f.endswith(".sql")
+                f for f in os.listdir(migrations_dir) if f.startswith(("005_", "006_", "007_")) and f.endswith(".sql")
             )
             for fname in files:
                 with open(os.path.join(migrations_dir, fname)) as f:
@@ -3758,7 +3758,7 @@ class PostgresDatabase:
                         cur.execute(sql_text)
                     conn.commit()
             if files:
-                print_success("Enrichment tables ready (subreddit_metadata, subreddit_rules)")
+                print_success("Enrichment tables ready (subreddit_metadata, subreddit_rules, subreddit_wiki_pages)")
                 return True
             print_warning("No enrichment migration files found; tables may be missing")
             return False
@@ -3917,6 +3917,72 @@ class PostgresDatabase:
                     return [dict(row) for row in cur]
         except Exception:
             return []
+
+    def save_wiki_page(self, subreddit: str, platform: str, page: dict[str, Any]) -> bool:
+        """Upsert one wiki page keyed on (subreddit, platform, path)."""
+        columns = [
+            "content",
+            "content_html",
+            "revision_author",
+            "revision_date",
+            "revision_reason",
+            "retrieved_on",
+        ]
+        col_sql = ", ".join(columns)
+        update_sql = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"INSERT INTO subreddit_wiki_pages (subreddit, platform, path, {col_sql}, updated_at) "
+                        f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()) "
+                        f"ON CONFLICT (subreddit, platform, path) DO UPDATE SET {update_sql}, updated_at = NOW()",
+                        (
+                            subreddit,
+                            platform,
+                            page["path"],
+                            page.get("content") or "",
+                            page.get("content_html"),
+                            page.get("revision_author"),
+                            page.get("revision_date"),
+                            page.get("revision_reason"),
+                            page.get("retrieved_on"),
+                        ),
+                    )
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to save wiki page {page.get('path')!r} for r/{subreddit}: {e}")
+            return False
+
+    def get_wiki_pages(self, subreddit: str, platform: str = "reddit") -> list[dict[str, Any]]:
+        """Fetch a subreddit's wiki pages ordered by path; [] if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM subreddit_wiki_pages "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s ORDER BY path ASC",
+                        (subreddit, platform),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception:
+            return []
+
+    def get_wiki_page(self, subreddit: str, path: str, platform: str = "reddit") -> dict[str, Any] | None:
+        """Fetch one wiki page, or None if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM subreddit_wiki_pages "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s AND path = %s",
+                        (subreddit, platform, path),
+                    )
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        except Exception:
+            return None
 
     def update_statistics_file_sizes(self, subreddit: str, raw_data_size: int = None, output_size: int = None) -> bool:
         """Update file sizes after HTML generation completes.

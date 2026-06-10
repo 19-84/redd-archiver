@@ -1,0 +1,75 @@
+{% extends "base/base.html" %}
+
+{# A single archived wiki page (Feature 6, Phase 2). Lives at
+   {prefix}/{sub}/wiki/{path}/ — path may be nested (e.g. config/sidebar), so
+   all relative URLs are depth-aware and provided by the writer. #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_about }}">about</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md about-page">
+  <article class="card about-card">
+    <header class="card-header">
+      <p class="wiki-breadcrumb"><a href="{{ url_wiki_index }}">wiki</a> / {{ page.path }}</p>
+      <h1 class="about-title">{{ page.path }}</h1>
+      {% if page.revision_date or page.revision_author %}
+      <p class="wiki-revision">
+        Last revised {{ page.revision_date }}{% if page.revision_author %} by {{ page.revision_author }}{% endif %}{% if page.revision_reason %} — {{ page.revision_reason }}{% endif %}
+      </p>
+      {% endif %}
+    </header>
+
+    <div class="card-body">
+      {% if page.content_html %}
+      <div class="md">{{ page.content_html|safe }}</div>
+      {% else %}
+      <p class="about-empty">This wiki page was archived without content.</p>
+      {% endif %}
+    </div>
+  </article>
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Wiki content for {{ url_prefix }}/{{ subreddit }} archived from public Reddit data.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

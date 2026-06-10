@@ -108,9 +108,10 @@ CREATE INDEX IF NOT EXISTS idx_subreddit_stats_banned ON subreddit_statistics(is
 CREATE INDEX IF NOT EXISTS idx_subreddit_stats_posts ON subreddit_statistics(total_posts DESC);
 CREATE INDEX IF NOT EXISTS idx_subreddit_stats_activity ON subreddit_statistics(posts_per_day DESC);
 
--- NOTE: subreddit_metadata / subreddit_rules indexes (Feature 6) are created by
--- the enrichment step (create_enrichment_tables -> migrations 005/006), not here,
--- because those tables may not exist yet during a posts-only bulk import.
+-- NOTE: subreddit_metadata / subreddit_rules / subreddit_wiki_pages indexes
+-- (Feature 6) are created by the enrichment step (create_enrichment_tables ->
+-- migrations 005/006/007), not here, because those tables may not exist yet
+-- during a posts-only bulk import.
 
 -- =============================================================================
 -- STATISTICS AND OPTIMIZATION
