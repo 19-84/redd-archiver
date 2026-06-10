@@ -72,8 +72,10 @@ def write_subreddit_pages_jinja2(
     url_prefix = get_url_prefix(platform)
     print_info(f"Generating subreddit pages for {url_prefix}/{subreddit} using Jinja2")
 
-    # Whether an About page exists for this subreddit (Feature 6) — gates the nav link
-    has_about = reddit_db.get_subreddit_metadata(subreddit) is not None
+    # Enrichment metadata (Feature 6) — gates the About nav link and feeds SEO
+    sub_metadata = reddit_db.get_subreddit_metadata(subreddit, platform)
+    has_about = sub_metadata is not None
+    public_description = (sub_metadata or {}).get("public_description")
 
     # Calculate score ranges for badge coloring (sample-based)
     try:
@@ -141,7 +143,7 @@ def write_subreddit_pages_jinja2(
                     subreddit, sort, page_num, total_pages, stat_sub_filtered_links, platform
                 )
                 meta_description = generate_subreddit_meta_description(
-                    subreddit, sort, page_num, stat_sub_filtered_links, platform
+                    subreddit, sort, page_num, stat_sub_filtered_links, platform, public_description
                 )
                 page_post_titles = [p["title"] for p in page_posts]
                 keywords = generate_subreddit_keywords(subreddit, sort, page_post_titles)

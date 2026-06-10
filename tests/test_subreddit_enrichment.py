@@ -412,3 +412,62 @@ class TestWikiPageRender:
         monkeypatch.chdir(tmp_path)
         assert write_subreddit_wiki_jinja2("test_enrich_absent", None, enriched_db) == 0
         assert not (tmp_path / "r/test_enrich_absent").exists()
+
+
+class TestEnrichmentCounts:
+    def test_count_rules_and_wiki_pages(self, enriched_db):
+        assert enriched_db.count_subreddit_rules(TEST_SUB) == 0
+        assert enriched_db.count_wiki_pages(TEST_SUB) == 0
+
+        enriched_db.save_subreddit_rules(
+            TEST_SUB, "reddit", [{"priority": 0, "short_name": "A"}, {"priority": 1, "short_name": "B"}]
+        )
+        enriched_db.save_wiki_page(TEST_SUB, "reddit", {"path": "index", "content": "x"})
+        assert enriched_db.count_subreddit_rules(TEST_SUB.upper()) == 2  # case-insensitive
+        assert enriched_db.count_wiki_pages(TEST_SUB) == 1
+
+
+class TestDashboardCardEnrichment:
+    SUB = {
+        "name": TEST_SUB,
+        "platform": "reddit",
+        "stats": {
+            "total_posts": 10,
+            "archived_posts": 10,
+            "total_comments": 5,
+            "archived_comments": 5,
+            "unique_users": 3,
+            "latest_date": "2025-01-15T00:00:00",
+        },
+    }
+
+    def test_card_includes_enrichment_fields(self):
+        from html_modules.dashboard_helpers import prepare_dashboard_card_data
+
+        metadata = {
+            "public_description": "A test community for dashboards. " * 10,
+            "subscribers": 1234,
+            "created_utc": 1200000000,
+            "over_18": True,
+            "quarantine": False,
+        }
+        card = prepare_dashboard_card_data(self.SUB, 0, 0, metadata=metadata)
+
+        assert card["subscribers"] == 1234
+        assert card["created_text"] == "Jan 2008"
+        assert card["is_nsfw"] is True
+        assert card["is_quarantined"] is False
+        # Tagline truncated to ~120 chars at a word boundary
+        assert card["public_description"].startswith("A test community")
+        assert len(card["public_description"]) <= 123
+
+    def test_card_without_metadata(self):
+        from html_modules.dashboard_helpers import prepare_dashboard_card_data
+
+        card = prepare_dashboard_card_data(self.SUB, 0, 0)
+
+        assert card["public_description"] is None
+        assert card["subscribers"] is None
+        assert card["created_text"] is None
+        assert card["is_nsfw"] is False
+        assert card["is_quarantined"] is False

@@ -263,7 +263,37 @@ VALID_SUBREDDIT_FIELDS = {
     "filters",
     "filtered_posts",
     "filtered_comments",
+    # Enrichment metadata (Feature 6) — present only when enrichment has run
+    "description",
+    "public_description",
+    "lang",
+    "subscribers",
+    "created_utc",
+    "over18",
+    "quarantine",
+    "icon_img",
+    "rules_count",
+    "wiki_pages_count",
 }
+
+
+def get_subreddit_enrichment_fields(db, subreddit: str) -> dict:
+    """Enrichment metadata fields for a subreddit (Feature 6), {} if not enriched."""
+    metadata = db.get_subreddit_metadata(subreddit)
+    if not metadata:
+        return {}
+    return {
+        "description": metadata.get("description"),
+        "public_description": metadata.get("public_description"),
+        "lang": metadata.get("lang"),
+        "subscribers": metadata.get("subscribers"),
+        "created_utc": metadata.get("created_utc"),
+        "over18": bool(metadata.get("over_18")),
+        "quarantine": bool(metadata.get("quarantine")),
+        "icon_img": metadata.get("icon_img") or metadata.get("community_icon"),
+        "rules_count": db.count_subreddit_rules(subreddit),
+        "wiki_pages_count": db.count_wiki_pages(subreddit),
+    }
 
 
 def parse_fields_param(fields_param: str | None) -> list[str]:
@@ -2084,6 +2114,10 @@ def get_subreddit(subreddit: str):
     try:
         db = get_db()
 
+        # Enrichment metadata (Feature 6) — fetched outside the connection
+        # below so we never hold two pool connections at once
+        enrichment = get_subreddit_enrichment_fields(db, subreddit)
+
         with db.pool.get_connection() as conn:
             with conn.cursor() as cur:
                 # Try to get from subreddit_statistics table first
@@ -2108,6 +2142,7 @@ def get_subreddit(subreddit: str):
                         "earliest_post": format_unix_timestamp(stats_row["earliest_date"]),
                         "latest_post": format_unix_timestamp(stats_row["latest_date"]),
                         "avg_post_score": float(stats_row["avg_post_score"]) if stats_row["avg_post_score"] else 0,
+                        **enrichment,
                     }
                     # Apply field selection
                     subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
@@ -2153,6 +2188,7 @@ def get_subreddit(subreddit: str):
                     "earliest_post": format_unix_timestamp(row["earliest"]),
                     "latest_post": format_unix_timestamp(row["latest"]),
                     "avg_post_score": float(row["avg_score"]) if row["avg_score"] else 0,
+                    **enrichment,
                 }
                 # Apply field selection
                 subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
@@ -3538,6 +3574,10 @@ def api_subreddit_summary(subreddit: str):
     try:
         db = get_db()
 
+        # Enrichment metadata (Feature 6) — exactly the context an AI client
+        # needs to orient itself; None values when enrichment hasn't run
+        metadata = db.get_subreddit_metadata(subreddit) or {}
+
         with db.pool.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SET statement_timeout = '30000'")
@@ -3632,6 +3672,8 @@ def api_subreddit_summary(subreddit: str):
                 return jsonify(
                     {
                         "subreddit": subreddit,
+                        "public_description": metadata.get("public_description"),
+                        "lang": metadata.get("lang"),
                         "stats": {
                             "total_posts": stats["total_posts"],
                             "total_comments": comment_count,

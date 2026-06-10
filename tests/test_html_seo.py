@@ -297,6 +297,30 @@ class TestGenerateSubredditMetaDescription:
 
         assert "1,000" in result
 
+    def test_public_description_leads_when_available(self):
+        """Test community tagline becomes the primary description (Feature 6)."""
+        result = generate_subreddit_meta_description(
+            "technology", "score", 1, 1000, public_description="All things tech."
+        )
+
+        assert result.startswith("All things tech")
+        assert "1,000" in result
+
+    def test_blank_public_description_falls_back(self):
+        """Test blank tagline falls back to the auto-generated description."""
+        for tagline in (None, "", "   "):
+            result = generate_subreddit_meta_description("technology", "score", 1, 1000, public_description=tagline)
+
+            assert "top-rated" in result.lower()
+
+    def test_public_description_truncated(self):
+        """Test long taglines keep the description within meta limits."""
+        result = generate_subreddit_meta_description(
+            "technology", "score", 1, 1000, public_description="community words " * 50
+        )
+
+        assert len(result) <= 163  # 160 + "..." suffix from truncate_smart
+
 
 @pytest.mark.unit
 class TestGenerateUserMetaDescription:

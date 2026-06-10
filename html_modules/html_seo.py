@@ -753,9 +753,19 @@ def generate_post_meta_description(post_data: dict[str, Any], platform: str = "r
 
 
 def generate_subreddit_meta_description(
-    subreddit: str, sort_type: str, page_num: Any, total_posts: Any, platform: str = "reddit"
+    subreddit: str,
+    sort_type: str,
+    page_num: Any,
+    total_posts: Any,
+    platform: str = "reddit",
+    public_description: str | None = None,
 ) -> str:
-    """Generate meta description for subreddit pages"""
+    """Generate meta description for subreddit pages.
+
+    When the community's own tagline (public_description from enrichment
+    metadata) is available it leads the description; otherwise an
+    auto-generated summary is used.
+    """
     sort_descriptions = {
         "score": "top-rated posts",
         "num_comments": "most discussed posts",
@@ -767,9 +777,14 @@ def generate_subreddit_meta_description(
     total_posts = int(float(total_posts)) if total_posts is not None else 0
 
     url_prefix = get_url_prefix(platform)
-    base = f"Browse {sort_descriptions.get(sort_type, 'posts')} from {url_prefix}/{subreddit}"
     stats = f"Archive contains {total_posts:,} posts"
     page_info = f" - Page {page_num}" if page_num > 1 else ""
+
+    public_description = (public_description or "").strip()
+    if public_description:
+        base = truncate_smart(clean_html_and_markdown(public_description).rstrip("."), 110)
+    else:
+        base = f"Browse {sort_descriptions.get(sort_type, 'posts')} from {url_prefix}/{subreddit}"
 
     description = f"{base}. {stats}{page_info}"
     return truncate_smart(description, 160)
