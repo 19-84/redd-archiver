@@ -209,6 +209,20 @@ class TestTruncateSmartFilter:
 
         assert result.endswith(">>>")
 
+    def test_spaceless_text_cut_at_length(self):
+        """Test CJK / space-less text is cut at the length limit, not discarded."""
+        text = "日本語のテキストです" * 10
+        result = truncate_smart(text, 20)
+
+        assert result == text[:20] + "..."
+
+    def test_early_space_does_not_overtruncate(self):
+        """Test a lone early space doesn't discard most of the text."""
+        text = "Hi " + "x" * 100
+        result = truncate_smart(text, 30)
+
+        assert result == text[:30] + "..."
+
     def test_empty_text(self):
         """Test empty text returns empty."""
         result = truncate_smart("", 100)
@@ -511,3 +525,32 @@ class TestCaching:
 
         assert str(result1) == str(result2)
         assert info_after_second.hits > info_after_first.hits
+
+
+class TestSearchServerFilterRegistration:
+    """The search server registers the shared filter set (Feature 2 Phase 1)."""
+
+    def test_register_filters_populates_environment(self):
+        from jinja2 import Environment
+
+        env = Environment(autoescape=True)
+        register_filters(env)
+
+        assert env.filters["format_number"] is format_number
+        assert env.filters["truncate_smart"] is truncate_smart
+
+    def test_shared_filters_registered(self, flask_app):
+        for name in (
+            "reddit_date",
+            "date_tooltip",
+            "format_number",
+            "truncate_smart",
+            "score_class",
+            "score_class_global",
+            "safe_int",
+            "score_tooltip",
+            "author_tooltip",
+            "pluralize",
+            "extract_domain",
+        ):
+            assert name in flask_app.jinja_env.filters, f"filter {name!r} not registered"

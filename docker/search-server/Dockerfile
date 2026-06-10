@@ -52,6 +52,10 @@ COPY search_server.py /app/
 COPY core/ /app/core/
 COPY utils/ /app/utils/
 
+# Copy shared template filters (required by search_server.py; the package
+# __init__ is import-light so this pulls no extra dependencies)
+COPY html_modules/ /app/html_modules/
+
 # Copy API endpoints (required by search_server.py)
 COPY api/ /app/api/
 

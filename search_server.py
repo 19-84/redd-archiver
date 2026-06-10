@@ -13,6 +13,7 @@ from flask_wtf.csrf import CSRFProtect
 from markupsafe import escape
 
 from core.postgres_search import PostgresSearch, SearchQuery
+from html_modules.jinja_filters import register_filters
 from utils.console_output import print_error, print_info, print_success
 from utils.error_handling import format_user_error
 from utils.input_validation import validator
@@ -486,6 +487,11 @@ def csrf_error(error):
 # ============================================================================
 # JINJA2 FILTERS
 # ============================================================================
+
+# Shared filters used by the static-export templates (reddit_date, format_number,
+# truncate_smart, score_class, ...) — registered so the search server can render
+# those templates too (Feature 2, Phase 1)
+register_filters(app.jinja_env)
 
 
 @app.template_filter("highlight")
