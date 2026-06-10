@@ -1230,9 +1230,22 @@ curl "https://archive.example.com/api/v1/subreddits/privacy"
   "unique_users": 5000,
   "earliest_post": "2010-01-01T00:00:00Z",
   "latest_post": "2024-12-31T23:59:59Z",
-  "avg_post_score": 45.5
+  "avg_post_score": 45.5,
+  "description": "Welcome to r/privacy...",
+  "public_description": "The intersection of technology, privacy, and freedom in a digital world.",
+  "lang": "en",
+  "subscribers": 1400000,
+  "created_utc": 1235343461,
+  "over18": false,
+  "quarantine": false,
+  "icon_img": "https://...",
+  "rules_count": 10,
+  "wiki_pages_count": 12
 }
 ```
+
+The enrichment fields (`description` through `wiki_pages_count`) are present only
+when subreddit metadata enrichment has been run (`reddarc.py --enrich`).
 
 **Status Codes**:
 - `200 OK` - Subreddit found
@@ -1257,6 +1270,8 @@ curl "https://archive.example.com/api/v1/subreddits/privacy/summary"
 ```json
 {
   "subreddit": "privacy",
+  "public_description": "The intersection of technology, privacy, and freedom in a digital world.",
+  "lang": "en",
   "total_posts": 25000,
   "total_comments": 250000,
   "unique_users": 5000,
@@ -1265,6 +1280,8 @@ curl "https://archive.example.com/api/v1/subreddits/privacy/summary"
   "recent_activity": [...]
 }
 ```
+
+`public_description` and `lang` are `null` unless metadata enrichment has been run.
 
 **Status Codes**:
 - `200 OK` - Success
@@ -1517,7 +1534,9 @@ first_seen_utc, first_seen_at, last_seen_utc, last_seen_at, subreddit_activity
 **Subreddits**:
 ```
 name, subreddit, total_posts, total_comments, unique_users, earliest_post,
-latest_post, avg_post_score, avg_score
+latest_post, avg_post_score, avg_score, description, public_description, lang,
+subscribers, created_utc, over18, quarantine, icon_img, rules_count,
+wiki_pages_count
 ```
 
 ### Usage Examples

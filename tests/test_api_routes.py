@@ -136,6 +136,104 @@ class TestSubredditsEndpoint:
         assert "total_comments" in data
         assert "unique_users" in data
 
+    @staticmethod
+    def _enrich(clean_database, subreddit):
+        """Save enrichment metadata + one rule + one wiki page for `subreddit`."""
+        clean_database.create_enrichment_tables()
+        clean_database.save_subreddit_metadata(
+            subreddit,
+            "reddit",
+            {
+                "display_name": subreddit,
+                "public_description": "A community for testing.",
+                "description": "Sidebar text.",
+                "lang": "en",
+                "subscribers": 1234,
+                "created_utc": 1200000000,
+                "over_18": False,
+                "quarantine": True,
+                "icon_img": "https://example.com/icon.png",
+            },
+        )
+        clean_database.save_subreddit_rules(subreddit, "reddit", [{"priority": 0, "short_name": "Be nice"}])
+        clean_database.save_wiki_page(subreddit, "reddit", {"path": "index", "content": "hello"})
+
+    @staticmethod
+    def _unenrich(clean_database, subreddit):
+        with clean_database.pool.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("DELETE FROM subreddit_wiki_pages WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                conn.commit()
+
+    def test_subreddit_detail_includes_enrichment_fields(self, api_client, clean_database, sample_post_data):
+        """Test /api/v1/subreddits/{name} merges enrichment metadata (Feature 6)"""
+        subreddit = sample_post_data["subreddit"]
+        clean_database.insert_posts_batch([sample_post_data])
+        self._enrich(clean_database, subreddit)
+        try:
+            response = api_client.get(f"/api/v1/subreddits/{subreddit}")
+            assert response.status_code == 200
+            data = response.get_json()
+
+            assert data["public_description"] == "A community for testing."
+            assert data["description"] == "Sidebar text."
+            assert data["lang"] == "en"
+            assert data["subscribers"] == 1234
+            assert data["created_utc"] == 1200000000
+            assert data["over18"] is False
+            assert data["quarantine"] is True
+            assert data["icon_img"] == "https://example.com/icon.png"
+            assert data["rules_count"] == 1
+            assert data["wiki_pages_count"] == 1
+        finally:
+            self._unenrich(clean_database, subreddit)
+
+    def test_subreddit_detail_field_selection_of_enrichment(self, api_client, clean_database, sample_post_data):
+        """Test ?fields= accepts the new enrichment field names"""
+        subreddit = sample_post_data["subreddit"]
+        clean_database.insert_posts_batch([sample_post_data])
+        self._enrich(clean_database, subreddit)
+        try:
+            response = api_client.get(f"/api/v1/subreddits/{subreddit}?fields=public_description,subscribers")
+            assert response.status_code == 200
+            data = response.get_json()
+
+            assert data["public_description"] == "A community for testing."
+            assert data["subscribers"] == 1234
+            assert "total_posts" not in data
+        finally:
+            self._unenrich(clean_database, subreddit)
+
+    def test_subreddit_detail_without_enrichment(self, api_client, clean_database, sample_post_data):
+        """Test detail endpoint omits enrichment fields when enrichment never ran"""
+        subreddit = sample_post_data["subreddit"]
+        clean_database.insert_posts_batch([sample_post_data])
+        self._unenrich(clean_database, subreddit)
+
+        response = api_client.get(f"/api/v1/subreddits/{subreddit}")
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert "public_description" not in data
+        assert "rules_count" not in data
+
+    def test_subreddit_summary_includes_enrichment(self, api_client, clean_database, sample_post_data):
+        """Test /summary exposes public_description and lang (MCP context)"""
+        subreddit = sample_post_data["subreddit"]
+        clean_database.insert_posts_batch([sample_post_data])
+        self._enrich(clean_database, subreddit)
+        try:
+            response = api_client.get(f"/api/v1/subreddits/{subreddit}/summary")
+            assert response.status_code == 200
+            data = response.get_json()
+
+            assert data["public_description"] == "A community for testing."
+            assert data["lang"] == "en"
+        finally:
+            self._unenrich(clean_database, subreddit)
+
 
 class TestUsersEndpoint:
     """Test users endpoint"""

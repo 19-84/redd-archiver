@@ -4411,3 +4411,16 @@ details.comment[open][data-depth="1"] {
     font-size: 0.85rem;
     color: var(--bs-secondary);
 }
+
+/* Dashboard card enrichment (Feature 6, Phase 3) */
+.card-public-description {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+    font-style: italic;
+    color: var(--bs-secondary);
+}
+.card-header-badges {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+}

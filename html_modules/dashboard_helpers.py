@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from html_modules.html_utils import format_file_size
+from html_modules.jinja_filters import truncate_smart
 
 
 def prepare_global_summary_data(
@@ -162,6 +163,7 @@ def prepare_dashboard_card_data(
     min_comments: int,
     filtered_posts: int | None = None,
     filtered_comments: int | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Prepare subreddit dashboard card data for Jinja2 template.
@@ -175,12 +177,24 @@ def prepare_dashboard_card_data(
         min_comments: Minimum comments filter
         filtered_posts: Actual count of posts after filtering (optional)
         filtered_comments: Actual count of comments after filtering (optional)
+        metadata: Enrichment row from subreddit_metadata (optional, Feature 6)
 
     Returns:
         dict: Prepared data for dashboard_card.html template
     """
     stats = sub["stats"]
     name = sub["name"]
+
+    # Enrichment fields (Feature 6) — all None/False when metadata is absent
+    metadata = metadata or {}
+    public_description = truncate_smart((metadata.get("public_description") or "").strip(), 120) or None
+    subscribers = metadata.get("subscribers")
+    created_text = None
+    if metadata.get("created_utc"):
+        try:
+            created_text = datetime.fromtimestamp(metadata["created_utc"]).strftime("%b %Y")
+        except (ValueError, OSError, OverflowError):
+            created_text = None
 
     # Status calculation
     cutoff_date = datetime(2024, 12, 1)
@@ -362,6 +376,12 @@ def prepare_dashboard_card_data(
         "status_class": status_class,
         "status_text": status_text,
         "status_tooltip": status_tooltip,
+        # Enrichment (Feature 6)
+        "public_description": public_description,
+        "subscribers": subscribers,
+        "created_text": created_text,
+        "is_nsfw": bool(metadata.get("over_18")),
+        "is_quarantined": bool(metadata.get("quarantine")),
         "archive_percentage": archive_percentage,
         "comment_percentage": comment_percentage,
         "time_span_text": time_span_text,

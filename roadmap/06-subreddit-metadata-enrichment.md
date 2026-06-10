@@ -1,7 +1,7 @@
 # Feature 6: Subreddit Metadata Enrichment
 
-**Status:** In progress — Phases 1–2 implemented, Phase 3 (dashboard/SEO/API surfacing) remaining
-**Last updated:** 2026-06-09
+**Status:** Implemented (Phases 1–3) — Phase 4 (image archival) deferred
+**Last updated:** 2026-06-10
 
 **Goal:** Import subreddit metadata, rules, and wiki pages from Arctic Shift's [subreddit metadata dump](https://academictorrents.com/details/5d0bf258a025a5b802572ddc29cde89bf093185c) to enrich archives with community context that doesn't exist in post/comment data alone.
 
@@ -460,7 +460,7 @@ python reddarc.py --enrich /path/to/dumps/
 |---|---|---|
 | **Phase 1: Metadata + Rules** | Import `subreddits_*.zst` and `subreddit_rules_*.zst`. Generate about pages (rules render inside the about page per the about-as-hub design). | **Implemented** (PR #52). Dashboard cards / SEO meta / API integration deferred to Phase 3. |
 | **Phase 2: Wiki pages** | Import `subreddit_wikis_*.zst`. Generate wiki HTML pages at `{prefix}/{sub}/wiki/`, linked from the about page. | **Implemented** (stacked on PR #52). Path format verified empirically: `/r/{sub}/wiki/{page}`. |
-| **Phase 3: Surface integration** | Dashboard card enrichment, SEO `<meta description>` from `public_description`, REST API metadata fields. | Not started. |
+| **Phase 3: Surface integration** | Dashboard card enrichment, SEO `<meta description>` from `public_description`, REST API metadata fields. | **Implemented.** Dashboard cards show tagline/subscribers/created date + NSFW/quarantine badges; subreddit index meta descriptions lead with the tagline; `/subreddits/{name}` merges 10 enrichment fields (incl. `rules_count`, `wiki_pages_count`); `/summary` adds `public_description` + `lang`. |
 | **Phase 4: Image archival** | Download and archive subreddit icons/banners locally. | **Deferred** — depends on CDN persistence research. Low priority unless images are confirmed disappearing. |
 
 Arctic Shift publishes new dumps monthly, so the enrichment import can be re-run to pick up updated metadata. The upsert (metadata) and delete+replace (rules) strategies handle re-import cleanly.
