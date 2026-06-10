@@ -4384,3 +4384,30 @@ details.comment[open][data-depth="1"] {
     color: var(--bs-secondary);
     font-style: italic;
 }
+
+/* Wiki pages (Feature 6, Phase 2) — reuse the about-page card layout */
+.wiki-list {
+    width: 100%;
+    border-collapse: collapse;
+}
+.wiki-list th,
+.wiki-list td {
+    text-align: left;
+    padding: 0.35rem 0.75rem 0.35rem 0;
+    border-bottom: 1px solid var(--primary-20);
+}
+.wiki-list th {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--bs-secondary);
+}
+.wiki-breadcrumb {
+    margin: 0 0 0.25rem;
+    font-size: 0.85rem;
+    color: var(--bs-secondary);
+}
+.wiki-revision {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: var(--bs-secondary);
+}
