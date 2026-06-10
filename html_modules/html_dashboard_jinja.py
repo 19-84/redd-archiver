@@ -177,17 +177,24 @@ def write_index_jinja2(
     # Prepare global summary data for template (after filtered counts calculated)
     global_summary_data = prepare_global_summary_data(global_stats, min_score, min_comments, subs)
 
+    # Enrichment metadata (Feature 6) — empty dict if enrichment never ran
+    all_metadata = postgres_db.get_all_subreddit_metadata()
+
     # Prepare dashboard card data for each subreddit
     prepared_subs = []
     for sub in subs:
         if "stats" in sub:
             filtered_data = filtered_counts.get(sub["name"], {})
+            metadata = all_metadata.get(sub["name"].lower())
+            if metadata and metadata.get("platform") != sub.get("platform", "reddit"):
+                metadata = None
             card_data = prepare_dashboard_card_data(
                 sub,
                 min_score=filtered_data.get("min_score", 0),
                 min_comments=filtered_data.get("min_comments", 0),
                 filtered_posts=filtered_data.get("filtered_posts"),
                 filtered_comments=filtered_data.get("filtered_comments"),
+                metadata=metadata,
             )
             prepared_subs.append(card_data)
 

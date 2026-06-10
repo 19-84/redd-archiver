@@ -3904,6 +3904,34 @@ class PostgresDatabase:
             print_error(f"Failed to save rules for r/{subreddit}: {e}")
             return False
 
+    def count_subreddit_rules(self, subreddit: str, platform: str = "reddit") -> int:
+        """Count a subreddit's rules; 0 if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM subreddit_rules "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                        (subreddit, platform),
+                    )
+                    return cur.fetchone()["n"]
+        except Exception:
+            return 0
+
+    def count_wiki_pages(self, subreddit: str, platform: str = "reddit") -> int:
+        """Count a subreddit's wiki pages; 0 if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM subreddit_wiki_pages "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                        (subreddit, platform),
+                    )
+                    return cur.fetchone()["n"]
+        except Exception:
+            return 0
+
     def get_subreddit_rules(self, subreddit: str, platform: str = "reddit") -> list[dict[str, Any]]:
         """Fetch a subreddit's rules ordered by priority; [] if absent / table missing."""
         try:
