@@ -986,6 +986,17 @@ def process_subreddit_database_backed(subreddit, postgres_db, processed_subreddi
                 seo_config=seo_config,
             )
 
+            # Generate the per-subreddit About page (Feature 6) when metadata has
+            # been imported for this subreddit. No-op (returns False) otherwise.
+            try:
+                from html_modules.html_pages_jinja import write_subreddit_about_jinja2
+
+                write_subreddit_about_jinja2(subreddit, seo_config, reddit_db)
+            except Exception as about_err:
+                from utils.console_output import print_warning
+
+                print_warning(f"Failed to generate about page for {subreddit}: {about_err}")
+
             # DISABLED: Lunr.js search page generation (deprecated)
             # This was loading all 145K+ posts into memory, causing OOM crashes.
             # PostgreSQL full-text search using GIN indexes is the replacement strategy.
