@@ -193,6 +193,19 @@ class TestPostgresSearchIntegration:
                 "permalink": "/r/test_other/comments/search_test_3/",
                 "platform": "reddit",
             },
+            {
+                "id": "search_test_4",
+                "subreddit": "test_search",
+                "author": "test_author_3",
+                "title": "приватность и безопасность данных",
+                "selftext": "обсуждение конфиденциальности в интернете",
+                "created_utc": 1640003000,
+                "score": 10,
+                "num_comments": 1,
+                "url": "https://example.com/4",
+                "permalink": "/r/test_search/comments/search_test_4/",
+                "platform": "reddit",
+            },
         ]
 
         test_comments = [
@@ -261,6 +274,14 @@ class TestPostgresSearchIntegration:
 
         assert count > 0
         assert all(r.result_type == "post" for r in results)
+
+    def test_search_non_english_text(self):
+        """Test Cyrillic search returns results with the 'simple' regconfig (Feature 5 Phase 1)."""
+        query = SearchQuery(query_text="приватность", result_type="post")
+        results, count = self.search.search(query)
+
+        assert count == 1
+        assert results[0].id == "search_test_4"
 
     def test_search_comments_basic(self):
         """Test basic full-text search on comments."""

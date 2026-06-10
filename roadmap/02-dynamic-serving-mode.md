@@ -1,7 +1,7 @@
 # Feature 2: Dynamic Serving Mode
 
-**Status:** Planned
-**Last updated:** 2026-06-09
+**Status:** In progress — Phase 1 (shared Jinja filters registered in search server) implemented; Phases 2–5 not started
+**Last updated:** 2026-06-10
 
 **Goal:** Expand the Flask search server into a full application server that serves all page types from PostgreSQL, enabling the dynamic serving mode described in [README.md > Serving Modes](README.md#serving-modes).
 

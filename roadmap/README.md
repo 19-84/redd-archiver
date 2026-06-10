@@ -16,10 +16,10 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | # | Feature | Spec | Status |
 |---|---------|------|--------|
 | 1 | [Static Index & Search Improvements](01-static-index-improvements.md) | Title index, flair index, archive map | Planned |
-| 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | Planned |
+| 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | In progress (Phase 1 implemented) |
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Planned |
-| 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | Planned |
+| 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | In progress (Phase 1 + truncation fix implemented) |
 | 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | Implemented (Phases 1–3; image archival deferred) |
 | 7 | [Voat Data Enrichment](07-voat-data-enrichment.md) | Subverse metadata, user profiles, thumbnails, flair (5 phases) | Planned |
 | 8 | [Pyright Type Checking](08-pyright-type-checking.md) | Add pyright standard mode, CI integration | Planned |
@@ -171,9 +171,11 @@ When `REDDARCHIVER_SERVE_MODE=dynamic`, Flask registers additional route handler
 
 The ordering below prioritizes small, high-value wins early (fixing existing bugs and gaps) before larger architectural work. Each step builds on the previous one, and phases within features are split across steps where it makes sense.
 
-### Step 1: Foundation Fixes (~1 day)
+### Step 1: Foundation Fixes (~1 day) — DONE
 
 **F5 Phase 1 (simple regconfig) + F5 truncation fix + F2 Phase 1 (Jinja filter import)**
+
+All three implemented (migration 008 rebuilds FTS indexes on existing databases; bulk-load imports pick the new index definitions up automatically).
 
 Three small, independent changes that fix existing FTS and rendering gaps:
 
