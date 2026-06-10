@@ -20,7 +20,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Planned |
 | 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | Planned |
-| 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | In progress (Phases 1–2 implemented) |
+| 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | Implemented (Phases 1–3; image archival deferred) |
 | 7 | [Voat Data Enrichment](07-voat-data-enrichment.md) | Subverse metadata, user profiles, thumbnails, flair (5 phases) | Planned |
 | 8 | [Pyright Type Checking](08-pyright-type-checking.md) | Add pyright standard mode, CI integration | Planned |
 | 9 | [SIM + RUF Ruff Rules](09-ruff-sim-ruf-rules.md) | Enable flake8-simplify and Ruff-specific rules | Planned |

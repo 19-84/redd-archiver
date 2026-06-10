@@ -10,13 +10,25 @@
                 {% set url_prefix = {'reddit': 'r', 'voat': 'v', 'ruqqus': 'g'}.get(sub.platform, 'r') %}
                 <a href="{{ url_prefix }}/{{ sub.name }}/index.html" class="text-decoration-none">{{ url_prefix }}/{{ sub.name }}</a>
             </h3>
-            <span class="badge badge-{{ sub.status_class }}" title="{{ sub.status_tooltip }}">
-                {{ sub.status_text }}
+            <span class="card-header-badges">
+                {% if sub.is_nsfw %}
+                <span class="badge badge-danger" title="Marked NSFW (18+) on the source platform">NSFW</span>
+                {% endif %}
+                {% if sub.is_quarantined %}
+                <span class="badge badge-warning" title="Quarantined on the source platform">QUARANTINED</span>
+                {% endif %}
+                <span class="badge badge-{{ sub.status_class }}" title="{{ sub.status_tooltip }}">
+                    {{ sub.status_text }}
+                </span>
             </span>
         </div>
 
         {# Card Body #}
         <div class="card-body">
+            {# Community tagline (Feature 6 enrichment) #}
+            {% if sub.public_description %}
+            <p class="card-public-description">{{ sub.public_description }}</p>
+            {% endif %}
             {# Posts Statistics #}
             <div class="card-stat-section mb-3" data-tooltip="{{ sub.posts_tooltip }}">
                 <div class="d-flex justify-content-between">
@@ -88,6 +100,26 @@
             </div>
 
             {# File Sizes - REMOVED: Size calculation inaccurate with incremental builds #}
+
+            {# Community metadata (Feature 6 enrichment) #}
+            {% if sub.subscribers or sub.created_text %}
+            <div class="card-stat-section mb-3" data-tooltip="Reddit-reported figures from the enrichment snapshot">
+                <div class="row">
+                    {% if sub.subscribers %}
+                    <div class="col-6">
+                        <small class="text-muted">Subscribers:</small><br>
+                        <strong>{{ sub.subscribers|format_number }}</strong>
+                    </div>
+                    {% endif %}
+                    {% if sub.created_text %}
+                    <div class="col-6">
+                        <small class="text-muted">Created:</small><br>
+                        <strong>{{ sub.created_text }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             {# Archive Status #}
             <div class="text-muted">
