@@ -53,6 +53,8 @@ dependencies = [
     "flask-cors==6.0.2",
     "sqlparse>=0.5.5",
     "python-multipart>=0.0.22",
+    "markdown>=3.10.2",
+    "bleach>=6.4.0",
 ]
 
 [project.optional-dependencies]
