@@ -2,6 +2,7 @@
 # ABOUTME: Provides dual-path rendering functions that use Jinja2 templates
 
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -260,6 +261,7 @@ def write_subreddit_about_jinja2(
     platform = metadata.get("platform", "reddit")
     url_prefix = get_url_prefix(platform)
     rules = reddit_db.get_subreddit_rules(subreddit, platform)
+    wiki_count = len(reddit_db.get_wiki_pages(subreddit, platform))
 
     # About page is one directory deeper than the default index (.../{sub}/about/).
     site_nav_base = "../../../"
@@ -284,6 +286,8 @@ def write_subreddit_about_jinja2(
         "url_prefix": url_prefix,
         "metadata": metadata,
         "rules": rules,
+        "wiki_count": wiki_count,
+        "url_wiki": "../wiki/index.html",
         "include_path": asset_prefix,
         "url_subs": site_nav_base + "index.html",
         "url_idx_score": subreddit_nav_base + "index.html",
@@ -306,6 +310,115 @@ def write_subreddit_about_jinja2(
     render_template_to_file("pages/subreddit_about.html", filepath, **context)
     print_info(f"Generated about page for {url_prefix}/{subreddit}")
     return True
+
+
+# Wiki page paths become output directories. The importer only stores safe
+# segments, but rows could predate that validation — re-check before writing.
+_WIKI_PAGE_PATH_RE = re.compile(r"^(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+$")
+
+
+def write_subreddit_wiki_jinja2(
+    subreddit: str,
+    seo_config: dict[str, Any] | None,
+    reddit_db: Any,
+) -> int:
+    """Generate the per-subreddit wiki index + pages (Feature 6, Phase 2).
+
+    Renders ``{prefix}/{sub}/wiki/index.html`` (listing) plus one
+    ``{prefix}/{sub}/wiki/{path}/index.html`` per imported page. Returns the
+    number of wiki pages written; 0 (a no-op) when no wiki content has been
+    imported, so callers can skip it cheaply.
+    """
+    from html_modules.html_seo import generate_canonical_and_og_url, generate_seo_assets
+    from utils.console_output import print_info, print_warning
+
+    metadata = reddit_db.get_subreddit_metadata(subreddit)
+    platform = (metadata or {}).get("platform", "reddit")
+    pages = reddit_db.get_wiki_pages(subreddit, platform)
+    if not pages:
+        return 0
+
+    url_prefix = get_url_prefix(platform)
+    seo_data = seo_config.get(subreddit, {}) if seo_config else {}
+    base_url = seo_data.get("base_url", seo_config.get("base_url", "") if seo_config else "")
+    project_url = (seo_config or {}).get("project_url", "https://github.com/19-84/redd-archiver")
+    site_name = seo_data.get("site_name", f"{url_prefix}/{subreddit} Archive")
+
+    def build_context(depth: int, page_url: str, seo_title: str, meta_description: str) -> dict[str, Any]:
+        """Shared template context; `depth` is directory levels below {prefix}/{sub}/."""
+        site_nav_base = "../" * (2 + depth)
+        subreddit_nav_base = "../" * depth
+        favicon_tags, og_image_tag = generate_seo_assets(seo_config, subreddit, site_nav_base)
+        canonical_tag, og_url_tag = generate_canonical_and_og_url(base_url, page_url)
+        return {
+            "subreddit": subreddit,
+            "platform": platform,
+            "url_prefix": url_prefix,
+            "include_path": site_nav_base,
+            "url_subs": site_nav_base + "index.html",
+            "url_idx_score": subreddit_nav_base + "index.html",
+            "url_idx_cmnt": subreddit_nav_base + "index-" + sort_indexes["num_comments"]["slug"] + "/index.html",
+            "url_idx_date": subreddit_nav_base + "index-" + sort_indexes["created_utc"]["slug"] + "/index.html",
+            "url_about": subreddit_nav_base + "about/index.html",
+            "url_search": site_nav_base + "search",
+            "url_project": project_url,
+            "seo_title": seo_title,
+            "meta_description": meta_description,
+            "keywords": f"{subreddit}, wiki, {platform}, archive",
+            "og_title": seo_title,
+            "canonical_tag": canonical_tag,
+            "og_url_tag": og_url_tag,
+            "site_name": site_name,
+            "favicon_tags": favicon_tags,
+            "og_image_tag": og_image_tag,
+        }
+
+    # Listing first ("index" page on top, then alphabetical).
+    pages_sorted = sorted(pages, key=lambda p: (p["path"] != "index", p["path"]))
+    listing = [
+        {
+            "path": p["path"],
+            "href": p["path"] + "/index.html",
+            "revision_date": p["revision_date"].strftime("%Y-%m-%d") if p.get("revision_date") else "",
+            "revision_author": p.get("revision_author") or "",
+        }
+        for p in pages_sorted
+    ]
+    context = build_context(
+        depth=1,
+        page_url=f"{url_prefix}/{subreddit}/wiki/",
+        seo_title=f"{url_prefix}/{subreddit} - Wiki",
+        meta_description=f"Archived wiki pages from {url_prefix}/{subreddit}",
+    )
+    context["wiki_pages"] = listing
+    render_template_to_file("pages/wiki_index.html", f"{url_prefix}/{subreddit}/wiki/index.html", **context)
+
+    written = 0
+    for page in pages_sorted:
+        path = page["path"]
+        if not _WIKI_PAGE_PATH_RE.match(path):
+            print_warning(f"Skipping wiki page with unsafe path {path!r} for {url_prefix}/{subreddit}")
+            continue
+        depth = 1 + path.count("/") + 1  # wiki/ + path segments
+        context = build_context(
+            depth=depth,
+            page_url=f"{url_prefix}/{subreddit}/wiki/{path}/",
+            seo_title=f"{url_prefix}/{subreddit} - Wiki: {path}",
+            meta_description=f"Archived wiki page {path} from {url_prefix}/{subreddit}",
+        )
+        context["page"] = {
+            "path": path,
+            "content_html": page.get("content_html") or "",
+            "revision_author": page.get("revision_author") or "",
+            "revision_date": page["revision_date"].strftime("%Y-%m-%d") if page.get("revision_date") else "",
+            "revision_reason": page.get("revision_reason") or "",
+        }
+        context["url_wiki_index"] = "../" * (path.count("/") + 1) + "index.html"
+        render_template_to_file("pages/wiki_page.html", f"{url_prefix}/{subreddit}/wiki/{path}/index.html", **context)
+        written += 1
+
+    print_info(f"Generated {written} wiki page(s) for {url_prefix}/{subreddit}")
+    return written
 
 
 def _get_sort_order_sql(sort_type: str) -> str:

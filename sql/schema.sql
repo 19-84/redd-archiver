@@ -210,6 +210,26 @@ CREATE TABLE IF NOT EXISTS subreddit_rules (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Subreddit wiki pages (Feature 6, Phase 2): one row per page, upserted on
+-- (subreddit, platform, path) so monthly re-imports update in place.
+CREATE TABLE IF NOT EXISTS subreddit_wiki_pages (
+    id SERIAL PRIMARY KEY,
+    subreddit TEXT NOT NULL,
+    platform TEXT DEFAULT 'reddit' NOT NULL,
+
+    path TEXT NOT NULL,                  -- Page path, e.g. "index", "faq", "config/sidebar"
+    content TEXT NOT NULL,               -- Wiki page markdown
+    content_html TEXT,                   -- Rendered + sanitized HTML
+    revision_author TEXT,
+    revision_date TIMESTAMPTZ,
+    revision_reason TEXT,
+
+    retrieved_on TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (subreddit, platform, path)
+);
+
 -- Schema version control
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
@@ -246,6 +266,10 @@ ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES (6, 'Added subreddit_rules table for per-subreddit rule lists')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES (7, 'Added subreddit_wiki_pages table for archived wiki content')
 ON CONFLICT (version) DO NOTHING;
 
 -- =============================================================================

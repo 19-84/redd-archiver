@@ -1,6 +1,6 @@
 # Feature 6: Subreddit Metadata Enrichment
 
-**Status:** Planned
+**Status:** In progress — Phases 1–2 implemented, Phase 3 (dashboard/SEO/API surfacing) remaining
 **Last updated:** 2026-06-09
 
 **Goal:** Import subreddit metadata, rules, and wiki pages from Arctic Shift's [subreddit metadata dump](https://academictorrents.com/details/5d0bf258a025a5b802572ddc29cde89bf093185c) to enrich archives with community context that doesn't exist in post/comment data alone.
@@ -112,7 +112,7 @@ Per-page objects:
 }
 ```
 
-**Schema note:** The wiki dump does NOT include a `subreddit` field per record. The `path` field (min 14 chars, avg 39.25 chars) likely encodes subreddit info (e.g., `r/{sub}/wiki/{page}` or `{sub}/{page}`), but this must be verified by inspecting actual data. **Wiki import is Phase 2 — metadata and rules import (Phase 1) can proceed without resolving this.**
+**Schema note:** The wiki dump does NOT include a `subreddit` field per record. The `path` field encodes it as `/r/{sub}/wiki/{page}` (verified empirically — see Resolved Research Q3). `{page}` may contain slashes (e.g. `config/sidebar`); `revision_date` is an ISO-8601 string while `retrieved_on` is a Unix timestamp.
 
 Common wiki pages: `index` (landing page), `faq`, `rules` (extended rules), `config/sidebar`, `config/description`, `config/submit_text`, community-specific pages.
 
@@ -456,11 +456,12 @@ python reddarc.py --enrich /path/to/dumps/
 
 ## Implementation Phasing
 
-| Phase | Scope | Blocker? |
+| Phase | Scope | Status |
 |---|---|---|
-| **Phase 1: Metadata + Rules** | Import `subreddits_*.zst` and `subreddit_rules_*.zst`. Generate about/rules HTML pages. Integrate with dashboard, API, navigation. | **No blockers** — can implement now. |
-| **Phase 2: Wiki pages** | Import `subreddit_wikis_*.zst`. Generate wiki HTML pages. | **Blocked** on verifying wiki dump `path` field format (see Resolved Research Q3). Unblock by inspecting first 100 records of the dump. |
-| **Phase 3: Image archival** | Download and archive subreddit icons/banners locally. | **Deferred** — depends on CDN persistence research. Low priority unless images are confirmed disappearing. |
+| **Phase 1: Metadata + Rules** | Import `subreddits_*.zst` and `subreddit_rules_*.zst`. Generate about pages (rules render inside the about page per the about-as-hub design). | **Implemented** (PR #52). Dashboard cards / SEO meta / API integration deferred to Phase 3. |
+| **Phase 2: Wiki pages** | Import `subreddit_wikis_*.zst`. Generate wiki HTML pages at `{prefix}/{sub}/wiki/`, linked from the about page. | **Implemented** (stacked on PR #52). Path format verified empirically: `/r/{sub}/wiki/{page}`. |
+| **Phase 3: Surface integration** | Dashboard card enrichment, SEO `<meta description>` from `public_description`, REST API metadata fields. | Not started. |
+| **Phase 4: Image archival** | Download and archive subreddit icons/banners locally. | **Deferred** — depends on CDN persistence research. Low priority unless images are confirmed disappearing. |
 
 Arctic Shift publishes new dumps monthly, so the enrichment import can be re-run to pick up updated metadata. The upsert (metadata) and delete+replace (rules) strategies handle re-import cleanly.
 
@@ -488,7 +489,7 @@ All questions that previously blocked this spec have been answered or reframed:
 |---|----------|------------|
 | 1 | `lang` field completeness | **Non-blocking.** No public research on accuracy. Treat as optional enrichment hint for Feature 5 (per-subreddit FTS config), not a prerequisite for metadata import. If most subreddits default to `"en"`, the field is still useful for the minority that set it correctly. |
 | 2 | Wiki page volume per subreddit | **Varies wildly** (0–3 for small subs, hundreds for large subs like r/AskHistorians). Non-blocking — streaming architecture handles any volume. Storage estimates in the Scale Estimates section remain valid. |
-| 3 | Wiki dump subreddit association | **Unresolved — needs empirical data.** Schema confirmed: no `subreddit` field per wiki record. The `path` field has min 14 chars (avg 39.25), suggesting it may encode subreddit info (e.g., `r/{sub}/wiki/{page}` or `{sub}/{page}`). **Action required:** download and inspect first 100 records of `subreddit_wikis_2025-01.zst` to determine path format. **This blocks wiki import but not metadata/rules import.** |
+| 3 | Wiki dump subreddit association | **Resolved empirically (2026-06-09).** The `path` field is `/r/{subreddit}/wiki/{page}` where `{page}` may itself contain slashes (e.g. `config/sidebar`, `index/sub_page`). Verified against 50K records of `subreddit_wikis_2025-01.zst`: all paths match `^/r/[A-Za-z0-9_-]+/wiki/((?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+)$`. |
 | 4 | Image CDN persistence | **Uncertain.** Quarantined subreddits have documented access issues. Banned subreddit images may still work via direct CDN URL, but needs empirical verification. **Phase 2 feature anyway** — doesn't block metadata/rules import. |
 | 5 | Update frequency | **Monthly.** Arctic Shift publishes new dumps monthly ([GitHub releases](https://github.com/ArthurHeitmann/arctic_shift/releases)). Supports incremental re-enrichment using the same import pattern (upsert metadata, delete+replace rules). |
 | 6 | Overlap with `subreddit_statistics` | **Resolved.** Reddit-sourced metadata is canonical for subreddit-level facts (subscribers, created_utc, description). `subreddit_statistics` is canonical for archive-computed facts (posts archived, pages generated, score averages). No conflict — they are peers keyed on `(subreddit, platform)`, joined at read time. |
@@ -496,9 +497,6 @@ All questions that previously blocked this spec have been answered or reframed:
 
 ### Remaining empirical tests
 
-These block wiki import only, not metadata/rules:
-
-- **Download and inspect `subreddit_wikis_2025-01.zst`** (first 100 records) to determine how wiki pages are associated with subreddits via the `path` field format
 - **Test Reddit CDN URLs** from banned/quarantined subreddits to assess image persistence (informs image archival priority)
 
 ---
