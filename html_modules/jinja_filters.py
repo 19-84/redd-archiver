@@ -134,6 +134,11 @@ def truncate_smart(text: str, length: int = 150, suffix: str = "...") -> str:
 
     # Truncate at word boundary
     truncated = text[:length].rsplit(" ", 1)[0]
+    if len(truncated) < length // 2:
+        # Space-less scripts (CJK) or pathological spacing: breaking at the
+        # last space would discard most of the text, so cut at the length
+        # limit instead (slicing is code-point-safe in Python)
+        truncated = text[:length]
     return truncated + suffix
 
 

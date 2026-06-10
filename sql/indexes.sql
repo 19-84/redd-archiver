@@ -71,20 +71,21 @@ CREATE INDEX IF NOT EXISTS idx_processing_export_completed ON processing_metadat
 -- =============================================================================
 
 -- Posts full-text search on title and selftext
--- Uses to_tsvector with English stemming and stopword removal
+-- Uses the 'simple' regconfig (no stemming/stopwords) so FTS works for all
+-- languages, not just English — see roadmap/05-unicode-foreign-language-support.md
 CREATE INDEX IF NOT EXISTS idx_posts_search ON posts
-USING GIN(to_tsvector('english', title || ' ' || COALESCE(selftext, '')));
+USING GIN(to_tsvector('simple', title || ' ' || COALESCE(selftext, '')));
 
 -- Comments full-text search on body
 CREATE INDEX IF NOT EXISTS idx_comments_search ON comments
-USING GIN(to_tsvector('english', body));
+USING GIN(to_tsvector('simple', body));
 
 -- Author search (for fast autocomplete)
 CREATE INDEX IF NOT EXISTS idx_posts_author_search ON posts
-USING GIN(to_tsvector('english', author));
+USING GIN(to_tsvector('simple', author));
 
 CREATE INDEX IF NOT EXISTS idx_comments_author_search ON comments
-USING GIN(to_tsvector('english', author));
+USING GIN(to_tsvector('simple', author));
 
 -- =============================================================================
 -- JSONB INDEXES (for flexible queries on json_data)

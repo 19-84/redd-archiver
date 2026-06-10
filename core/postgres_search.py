@@ -214,7 +214,7 @@ class PostgresSearch:
         # Main full-text search clause (always TRUE for wildcard to enable filter-only searches)
         where_clauses.append(
             sql.SQL(
-                "({} = '*' OR to_tsvector('english', title || ' ' || COALESCE(selftext, '')) @@ websearch_to_tsquery('english', {}))"
+                "({} = '*' OR to_tsvector('simple', title || ' ' || COALESCE(selftext, '')) @@ websearch_to_tsquery('simple', {}))"
             ).format(sql.Placeholder(), sql.Placeholder())
         )
         params.extend([tsquery_text, tsquery_text])
@@ -263,15 +263,15 @@ class PostgresSearch:
             NULL::text as body,
             NULL::text as post_id,
             NULL::text as post_title,
-            ts_rank(to_tsvector('english', title || ' ' || COALESCE(selftext, '')),
-                    websearch_to_tsquery('english', {ts_rank_param})) as rank,
-            ts_headline('english',
+            ts_rank(to_tsvector('simple', title || ' ' || COALESCE(selftext, '')),
+                    websearch_to_tsquery('simple', {ts_rank_param})) as rank,
+            ts_headline('simple',
                        CASE
                            WHEN selftext IS NOT NULL AND selftext != ''
                            THEN title || ' ' || selftext
                            ELSE title
                        END,
-                       websearch_to_tsquery('english', {ts_headline_param}),
+                       websearch_to_tsquery('simple', {ts_headline_param}),
                        'MaxWords=50, MinWords=25, MaxFragments=1') as headline
         FROM posts
         WHERE {where_clause}
@@ -300,7 +300,7 @@ class PostgresSearch:
 
         # Main full-text search clause (always TRUE for wildcard to enable filter-only searches)
         where_clauses.append(
-            sql.SQL("({} = '*' OR to_tsvector('english', body) @@ websearch_to_tsquery('english', {}))").format(
+            sql.SQL("({} = '*' OR to_tsvector('simple', body) @@ websearch_to_tsquery('simple', {}))").format(
                 sql.Placeholder(), sql.Placeholder()
             )
         )
@@ -349,11 +349,11 @@ class PostgresSearch:
             comments.body,
             comments.post_id,
             posts.title as post_title,
-            ts_rank(to_tsvector('english', comments.body),
-                    websearch_to_tsquery('english', {ts_rank_param})) as rank,
-            ts_headline('english',
+            ts_rank(to_tsvector('simple', comments.body),
+                    websearch_to_tsquery('simple', {ts_rank_param})) as rank,
+            ts_headline('simple',
                        comments.body,
-                       websearch_to_tsquery('english', {ts_headline_param}),
+                       websearch_to_tsquery('simple', {ts_headline_param}),
                        'MaxWords=50, MinWords=25, MaxFragments=1') as headline
         FROM comments
         LEFT JOIN posts ON comments.post_id = posts.id
