@@ -20,7 +20,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Planned |
 | 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | Planned |
-| 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | Planned |
+| 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | In progress (Phases 1–2 implemented) |
 | 7 | [Voat Data Enrichment](07-voat-data-enrichment.md) | Subverse metadata, user profiles, thumbnails, flair (5 phases) | Planned |
 | 8 | [Pyright Type Checking](08-pyright-type-checking.md) | Add pyright standard mode, CI integration | Planned |
 | 9 | [SIM + RUF Ruff Rules](09-ruff-sim-ruf-rules.md) | Enable flake8-simplify and Ruff-specific rules | Planned |
@@ -191,7 +191,7 @@ Replace 478 hardcoded color overrides in `redd-archiver-universal.css` with CSS 
 
 ### Step 4: Metadata Enrichment Phase 1 (F6 Phase 1 + F7 Phase 1)
 
-Import subreddit descriptions and rules from Arctic Shift dumps (F6), and subverse metadata from Voat SQL dumps (F7). Enriches archives with contextual information that was previously missing. F6 requires `markdown` + `bleach` dependencies for safe rendering; F7 only needs `bleach` (Voat sidebar HTML is pre-rendered). F7 Phase 1 can ship alongside F6 Phase 1 — they share a new `subreddit_metadata` table and a new about-page template (`templates_jinja2/pages/subreddit_about.html`), both introduced by this work (neither exists today). Phase 2 (wiki import) is deferred until the wiki dump path format is verified empirically.
+Import subreddit descriptions and rules from Arctic Shift dumps (F6), and subverse metadata from Voat SQL dumps (F7). Enriches archives with contextual information that was previously missing. F6 requires `markdown` + `bleach` dependencies for safe rendering; F7 only needs `bleach` (Voat sidebar HTML is pre-rendered). F7 Phase 1 can ship alongside F6 Phase 1 — they share a new `subreddit_metadata` table and a new about-page template (`templates_jinja2/pages/subreddit_about.html`), both introduced by this work (neither exists today). Phase 2 (wiki import) followed once the wiki dump path format was verified empirically (`/r/{sub}/wiki/{page}`).
 
 ### Step 5: Dynamic Serving Mode Phases 2–4 (F2 core)
 
@@ -209,7 +209,7 @@ These phases are valuable but not urgent. Ship when demand justifies the effort:
 |---|---|---|
 | F5 Phase 2 | pg_trgm CJK fallback | Only needed if significant CJK archive demand emerges |
 | F4 Phases 2–4 | System preference, theme-agnostic CSS, custom branding | Phase 1 (tokens) is the prerequisite; further phases add polish |
-| F6 Phases 2–3 | Wiki import, image archival | Wiki blocked on path format verification; images blocked on CDN persistence research |
+| F6 Phases 3–4 | Dashboard/SEO/API surfacing, image archival | Phase 2 (wiki import) shipped; images blocked on CDN persistence research |
 | F7 Phases 2–5 | User profiles, moderators, flair, thumbnails, historical data | Phase 1 (subverse metadata) is the prerequisite; thumbnails need storage decisions |
 | F2 Phase 5 | Performance optimization | Only needed after dynamic mode is live and under real load |
 

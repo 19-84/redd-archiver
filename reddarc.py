@@ -694,8 +694,10 @@ Examples:
     parser.add_argument(
         "--enrich",
         metavar="DIR",
-        help="Enrich tracked subreddits with descriptions/rules from Arctic Shift dumps in DIR "
-        "(auto-detects subreddits_*.zst and subreddit_rules_*.zst). Composes with --export-from-database.",
+        help="Enrich tracked subreddits with descriptions/rules/wikis from Arctic Shift dumps in DIR. "
+        "Auto-detects monolithic dumps (subreddits_*.zst, subreddit_rules_*.zst, subreddit_wikis_*.zst) "
+        "and per-subreddit split files ({Sub}_metadata.zst, {Sub}_rules.zst, {Sub}_wiki.zst — see "
+        "tools/split_subreddit_dumps.py); split files are preferred. Composes with --export-from-database.",
     )
     parser.add_argument(
         "--enrich-metadata",
@@ -706,6 +708,11 @@ Examples:
         "--enrich-rules",
         metavar="FILE",
         help="Explicit path to a subreddit_rules_*.zst dump (overrides --enrich auto-detect)",
+    )
+    parser.add_argument(
+        "--enrich-wikis",
+        metavar="FILE",
+        help="Explicit path to a subreddit_wikis_*.zst dump (overrides --enrich auto-detect)",
     )
 
     # Performance Override Arguments (for debugging/testing only)
@@ -828,7 +835,7 @@ Examples:
     # discovery — it filters the Arctic Shift dumps down to already-tracked
     # subreddits. Runs standalone, or chains into export when --export-from-database
     # is also given.
-    if args.enrich or args.enrich_metadata or args.enrich_rules:
+    if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis:
         process_enrich(args)
         if args.export_from_database:
             process_export_only(args.input_dir or ".", args.output, {}, args)
@@ -1079,8 +1086,12 @@ def process_enrich(args: argparse.Namespace) -> None:
             tracked,
             metadata_file=args.enrich_metadata,
             rules_file=args.enrich_rules,
+            wikis_file=args.enrich_wikis,
         )
-        print_success(f"Enrichment complete: {counts['metadata']} metadata record(s), {counts['rules']} rule set(s)")
+        print_success(
+            f"Enrichment complete: {counts['metadata']} metadata record(s), "
+            f"{counts['rules']} rule set(s), {counts['wikis']} wiki page(s)"
+        )
     finally:
         db.cleanup()
 

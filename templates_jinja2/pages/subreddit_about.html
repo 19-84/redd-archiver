@@ -62,6 +62,7 @@
         {% if metadata.subscribers %}<dt>Subscribers</dt><dd>{{ metadata.subscribers|format_number }}</dd>{% endif %}
         {% if metadata.created_utc %}<dt>Created</dt><dd>{{ metadata.created_utc|reddit_date }}</dd>{% endif %}
         {% if metadata.submission_type %}<dt>Submission type</dt><dd>{{ metadata.submission_type }}</dd>{% endif %}
+        {% if wiki_count %}<dt>Wiki</dt><dd><a href="{{ url_wiki }}">{{ wiki_count }} archived page{{ 's' if wiki_count != 1 }}</a></dd>{% endif %}
       </dl>
 
       {% if metadata.quarantine and metadata.quarantine_message_html %}

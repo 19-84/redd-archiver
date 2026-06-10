@@ -1,0 +1,79 @@
+{% extends "base/base.html" %}
+
+{# Wiki listing for a subreddit: all archived wiki pages imported from the
+   Arctic Shift wiki dumps (Feature 6, Phase 2). Lives at {prefix}/{sub}/wiki/.
+   Relies on base.html for meta tags, favicon, and CSS (via include_path). #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_about }}">about</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md about-page">
+  <article class="card about-card">
+    <header class="card-header">
+      <h1 class="about-title">{{ url_prefix }}/{{ subreddit }} Wiki</h1>
+      <p class="about-tagline">{{ wiki_pages|length }} archived wiki page{{ 's' if wiki_pages|length != 1 }}</p>
+    </header>
+
+    <div class="card-body">
+      <table class="wiki-list">
+        <thead>
+          <tr><th>Page</th><th>Last revised</th><th>By</th></tr>
+        </thead>
+        <tbody>
+          {% for page in wiki_pages %}
+          <tr>
+            <td><a href="{{ page.href }}">{{ page.path }}</a></td>
+            <td>{{ page.revision_date }}</td>
+            <td>{{ page.revision_author }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Wiki content for {{ url_prefix }}/{{ subreddit }} archived from public Reddit data.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

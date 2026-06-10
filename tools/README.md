@@ -126,6 +126,30 @@ python tools/calculate_platform_metrics.py --all
 
 Aggregates totals from all three scanners into `platform_metrics.json`.
 
+### Subreddit Metadata Dump Splitter
+
+```bash
+# Split the Arctic Shift metadata/rules/wiki dumps into per-subreddit files
+# for every subreddit you have post dumps for
+python tools/split_subreddit_dumps.py /data/subreddit-dumps/ \
+    --output /data/subreddits_split/ \
+    --filter-dir /data/subreddits25/
+
+# Or split specific subreddits only
+python tools/split_subreddit_dumps.py /data/subreddit-dumps/ \
+    --output /data/subreddits_split/ \
+    --subreddits degoogle,PrivacyGuides
+```
+
+One-time operation that mirrors the per-subreddit `{Sub}_comments.zst` /
+`{Sub}_submissions.zst` layout for the Feature 6 enrichment dumps, producing
+`{Sub}_metadata.zst`, `{Sub}_rules.zst`, and `{Sub}_wiki.zst`. Afterwards,
+`reddarc.py --enrich /data/subreddits_split/` imports tracked subreddits
+instantly instead of scanning the 22M-record monolithic dump on every run.
+
+A subreddit filter (`--filter-dir` and/or `--subreddits`) is required —
+splitting all 22M subreddits in the dump would create 22M files.
+
 ### Screenshot Capture Tool
 
 ```bash
