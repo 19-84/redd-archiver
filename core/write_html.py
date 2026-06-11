@@ -1008,6 +1008,31 @@ def process_subreddit_database_backed(subreddit, postgres_db, processed_subreddi
 
                 print_warning(f"Failed to generate wiki pages for {subreddit}: {wiki_err}")
 
+            # Generate the alphabetical title index (Feature 1, Phase 1)
+            try:
+                from html_modules.html_static_indexes import write_title_index_jinja2
+
+                write_title_index_jinja2(
+                    subreddit, seo_config, reddit_db, min_score=args.min_score, min_comments=args.min_comments
+                )
+            except Exception as title_err:
+                from utils.console_output import print_warning
+
+                print_warning(f"Failed to generate title index for {subreddit}: {title_err}")
+
+            # Generate the flair index (Feature 1, Phase 2) — no-op (returns 0)
+            # for subreddits without flair data.
+            try:
+                from html_modules.html_static_indexes import write_flair_index_jinja2
+
+                write_flair_index_jinja2(
+                    subreddit, seo_config, reddit_db, min_score=args.min_score, min_comments=args.min_comments
+                )
+            except Exception as flair_err:
+                from utils.console_output import print_warning
+
+                print_warning(f"Failed to generate flair index for {subreddit}: {flair_err}")
+
             # DISABLED: Lunr.js search page generation (deprecated)
             # This was loading all 145K+ posts into memory, causing OOM crashes.
             # PostgreSQL full-text search using GIN indexes is the replacement strategy.

@@ -1,0 +1,94 @@
+{% extends "base/base.html" %}
+
+{# Per-letter title listing (Feature 1, Phase 1). Lives at
+   {prefix}/{sub}/titles/{letter}/ with overflow pages at {letter}/{n}/.
+   Designed for browser Ctrl+F searching — every title is plain visible text. #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="{{ url_titles_dir }}">titles</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md about-page">
+  <article class="card about-card">
+    <header class="card-header">
+      <h1 class="about-title">Titles: {{ letter_label }}{% if total_pages > 1 %} <small>(page {{ page_num }} of {{ total_pages }})</small>{% endif %}</h1>
+      <nav class="letter-tabs" aria-label="Title index letters">
+        <a href="{{ url_titles_dir }}">all</a>
+        {% for l in letters %}
+        {% if l.active %}<strong>{{ l.label }}</strong>{% else %}<a href="{{ l.href }}">{{ l.label }}</a>{% endif %}
+        {% endfor %}
+      </nav>
+    </header>
+
+    <div class="card-body">
+      <p class="ctrl-f-tip">Tip: use your browser's find (<kbd>Ctrl</kbd>+<kbd>F</kbd>) to search this page.</p>
+      <table class="wiki-list title-list">
+        <thead>
+          <tr><th>Title</th><th>Score</th><th>Comments</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {% for t in titles %}
+          <tr>
+            <td><a href="{{ t.href }}">{{ t.title }}</a></td>
+            <td>{{ t.score }}</td>
+            <td>{{ t.num_comments }}</td>
+            <td>{{ t.created_utc|reddit_date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if total_pages > 1 %}
+      <nav class="title-pager" aria-label="Pagination">
+        {% if prev_href %}<a href="{{ prev_href }}">&laquo; previous</a>{% endif %}
+        <span>page {{ page_num }} of {{ total_pages }}</span>
+        {% if next_href %}<a href="{{ next_href }}">next &raquo;</a>{% endif %}
+      </nav>
+      {% endif %}
+    </div>
+  </article>
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Title index for {{ url_prefix }}/{{ subreddit }}.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

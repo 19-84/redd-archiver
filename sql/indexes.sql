@@ -87,6 +87,10 @@ USING GIN(to_tsvector('simple', author));
 CREATE INDEX IF NOT EXISTS idx_comments_author_search ON comments
 USING GIN(to_tsvector('simple', author));
 
+-- Flair lookups for the static flair index pages (Feature 1) — B-tree on the
+-- extracted JSONB value, no schema change needed
+CREATE INDEX IF NOT EXISTS idx_posts_flair ON posts ((json_data->>'link_flair_text'));
+
 -- =============================================================================
 -- JSONB INDEXES (for flexible queries on json_data)
 -- =============================================================================
