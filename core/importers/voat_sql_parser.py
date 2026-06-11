@@ -81,6 +81,30 @@ class VoatSQLParser:
             "fetchCount",
             "lastFetched",
         ],
+        # Subverse metadata table (Feature 7 Phase 1). Column order verified
+        # against the CREATE TABLE in the searchvoat.co dump.
+        "subverse": [
+            "id",
+            "name",
+            "createdBy",
+            "creationDate",
+            "description",
+            "formattedSidebar",
+            "isAdult",
+            "isAnonymized",
+            "isDefault",
+            "isDeleted",
+            "moderators",
+            "sidebar",
+            "subscriberCount",
+            "title",
+            "type",
+            "lastFetched",
+            "fetchCount",
+            "hideTop50",
+            "lastPosted",
+            "isUnauthorised",
+        ],
     }
 
     # MariaDB escape sequences

@@ -243,6 +243,20 @@ def write_subreddit_pages_jinja2(
     return True
 
 
+def _post_platform(reddit_db: Any, subreddit: str) -> str | None:
+    """Platform of this archive's posts for `subreddit`, or None when undetectable.
+
+    Used to disambiguate metadata lookups: a Reddit subreddit and a Voat
+    subverse can share a name, and `subreddit_metadata` is keyed on
+    (subreddit, platform).
+    """
+    try:
+        sample = next(reddit_db.get_posts_paginated(subreddit, limit=1), None)
+        return sample.get("platform", "reddit") if sample else None
+    except Exception:
+        return None
+
+
 def write_subreddit_about_jinja2(
     subreddit: str,
     seo_config: dict[str, Any] | None,
@@ -257,7 +271,9 @@ def write_subreddit_about_jinja2(
     from html_modules.html_seo import generate_canonical_and_og_url, generate_seo_assets, get_fallback_description
     from utils.console_output import print_info
 
-    metadata = reddit_db.get_subreddit_metadata(subreddit)
+    # A Reddit subreddit and a Voat subverse can share a name; the archived
+    # posts say which platform THIS archive is, so look metadata up with it.
+    metadata = reddit_db.get_subreddit_metadata(subreddit, platform=_post_platform(reddit_db, subreddit))
     if not metadata:
         return False
 
@@ -335,7 +351,7 @@ def write_subreddit_wiki_jinja2(
     from html_modules.html_seo import generate_canonical_and_og_url, generate_seo_assets
     from utils.console_output import print_info, print_warning
 
-    metadata = reddit_db.get_subreddit_metadata(subreddit)
+    metadata = reddit_db.get_subreddit_metadata(subreddit, platform=_post_platform(reddit_db, subreddit))
     platform = (metadata or {}).get("platform", "reddit")
     pages = reddit_db.get_wiki_pages(subreddit, platform)
     if not pages:
@@ -520,7 +536,7 @@ def write_subreddit_pages_parallel_jinja2(
 
     # Whether an About page exists (Feature 6) — gates the nav link. Computed once
     # here and threaded down to avoid a per-page query.
-    has_about = reddit_db.get_subreddit_metadata(subreddit) is not None
+    has_about = reddit_db.get_subreddit_metadata(subreddit, platform=_post_platform(reddit_db, subreddit)) is not None
 
     # Calculate score ranges for badge coloring (sample-based)
     try:
