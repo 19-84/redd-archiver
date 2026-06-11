@@ -141,6 +141,27 @@ class VoatSQLParser:
             "fetchOldCommentsError",
             "svpassword",
         ],
+        # Structured moderator relationships (Feature 7 Phase 3)
+        "subverseModerator": [
+            "id",
+            "username",
+            "subverse",
+            "level",
+            "firstDate",
+            "lastDate",
+        ],
+        # Post attributes (Feature 7 Phase 3). Rows with type='Flair' carry the
+        # user-visible link flair in `name`; type='Data' rows are system labels
+        # (Anon/NSFW/Archived) and are not flair.
+        "submissionAttribute": [
+            "id",
+            "submissionid",
+            "attributeid",
+            "cssClass",
+            "type",
+            "name",
+            "description",
+        ],
     }
 
     # MariaDB escape sequences
