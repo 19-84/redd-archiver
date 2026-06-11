@@ -715,6 +715,15 @@ Examples:
         help="Explicit path to a subreddit_wikis_*.zst dump (overrides --enrich auto-detect)",
     )
 
+    # Voat subverse metadata enrichment (Feature 7)
+    parser.add_argument(
+        "--enrich-voat",
+        metavar="PATH",
+        help="Enrich tracked Voat subverses with metadata from the searchvoat.co SQL archive. "
+        "PATH is the extracted voat-sql-tables directory (auto-detects subverse.sql.gz) or the "
+        "file itself. Composes with --export-from-database.",
+    )
+
     # Performance Override Arguments (for debugging/testing only)
     parser.add_argument(
         "--force-parallel-users",
@@ -835,8 +844,11 @@ Examples:
     # discovery — it filters the Arctic Shift dumps down to already-tracked
     # subreddits. Runs standalone, or chains into export when --export-from-database
     # is also given.
-    if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis:
-        process_enrich(args)
+    if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis or args.enrich_voat:
+        if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis:
+            process_enrich(args)
+        if args.enrich_voat:
+            process_enrich_voat(args)
         if args.export_from_database:
             process_export_only(args.input_dir or ".", args.output, {}, args)
         return
@@ -1092,6 +1104,42 @@ def process_enrich(args: argparse.Namespace) -> None:
             f"Enrichment complete: {counts['metadata']} metadata record(s), "
             f"{counts['rules']} rule set(s), {counts['wikis']} wiki page(s)"
         )
+    finally:
+        db.cleanup()
+
+
+def process_enrich_voat(args: argparse.Namespace) -> None:
+    """Enrich tracked Voat subverses with searchvoat.co SQL metadata (Feature 7).
+
+    Connects to PostgreSQL, ensures the enrichment tables exist, determines which
+    subverses are already archived, and streams subverse.sql.gz importing only those.
+    """
+    print_section("Enrichment Mode: Importing Voat subverse metadata")
+
+    connection_string = get_postgres_connection_string()
+    if not connection_string or "postgresql://" not in connection_string:
+        print_error("Enrichment requires PostgreSQL to be configured")
+        print_info("Set DATABASE_URL environment variable to PostgreSQL connection string", indent=1)
+        return
+
+    try:
+        db = PostgresDatabase(connection_string, workload_type="default")
+        print_success("Connected to PostgreSQL database")
+    except Exception as e:
+        print_error(f"Failed to connect to PostgreSQL: {e}")
+        return
+
+    try:
+        db.create_enrichment_tables()
+        # Platform-scoped: a Reddit subreddit and a Voat subverse can share a
+        # name; only communities with archived Voat posts are enriched here.
+        tracked = db.get_archived_subreddit_names("voat")
+        print_info(f"{len(tracked)} tracked Voat subverse(s) in archive")
+
+        from core.enrichment import voat_metadata as voat_mod
+
+        counts = voat_mod.enrich_voat(db, args.enrich_voat, tracked)
+        print_success(f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s)")
     finally:
         db.cleanup()
 

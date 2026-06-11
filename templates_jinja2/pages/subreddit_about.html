@@ -51,6 +51,7 @@
       {% endif %}
       <p class="about-badges">
         {% if metadata.over_18 %}<span class="badge badge-nsfw">NSFW</span>{% endif %}
+        {% if metadata.is_deleted %}<span class="badge badge-quarantine">Deleted community</span>{% endif %}
         {% if metadata.quarantine %}<span class="badge badge-quarantine">Quarantined</span>{% endif %}
         {% if metadata.subreddit_type and metadata.subreddit_type != 'public' %}<span class="badge badge-type">{{ metadata.subreddit_type }}</span>{% endif %}
         {% if metadata.lang and metadata.lang != 'en' %}<span class="badge badge-lang">{{ metadata.lang }}</span>{% endif %}
@@ -61,7 +62,12 @@
       <dl class="about-facts">
         {% if metadata.subscribers %}<dt>Subscribers</dt><dd>{{ metadata.subscribers|format_number }}</dd>{% endif %}
         {% if metadata.created_utc %}<dt>Created</dt><dd>{{ metadata.created_utc|reddit_date }}</dd>{% endif %}
+        {% if metadata.created_by %}<dt>Founded by</dt><dd>{{ metadata.created_by }}</dd>{% endif %}
         {% if metadata.submission_type %}<dt>Submission type</dt><dd>{{ metadata.submission_type }}</dd>{% endif %}
+        {% if metadata.moderators_json %}
+        <dt>Moderators</dt>
+        <dd>{% for mod in metadata.moderators_json %}{{ mod.username }}{% if mod.level %} ({{ mod.level }}){% endif %}{{ ", " if not loop.last }}{% endfor %}</dd>
+        {% endif %}
         {% if wiki_count %}<dt>Wiki</dt><dd><a href="{{ url_wiki }}">{{ wiki_count }} archived page{{ 's' if wiki_count != 1 }}</a></dd>{% endif %}
       </dl>
 
