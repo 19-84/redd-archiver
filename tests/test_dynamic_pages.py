@@ -129,7 +129,14 @@ def seeded_db_module(request):
                 conn.commit()
 
     cleanup()
-    db.insert_posts_batch([_post(1, "Dynamic alpha post", num_comments=2), _post(2, "Dynamic beta post")])
+    db.insert_posts_batch(
+        [
+            _post(1, "Dynamic alpha post", num_comments=2),
+            _post(2, "Dynamic beta post"),
+            # extreme score: lands on page 1 of /all/ even with other test data present
+            _post(3, "Dynamic gamma post", score=999999),
+        ]
+    )
     db.insert_comments_batch(
         [
             {
@@ -216,9 +223,9 @@ class TestDynamicRoutes:
         assert f'href="/r/{TEST_SUB}/comments/dynpages_1/slug/"'.encode() in r.data
         # pagination links use query patterns
         assert f"/r/{TEST_SUB}/?sort=score&amp;page=".encode() in r.data
-        # about link present (metadata exists), titles link absent (Phase 4)
+        # about and titles nav links present
         assert f'href="/r/{TEST_SUB}/about/"'.encode() in r.data
-        assert b">titles</a>" not in r.data
+        assert f'href="/r/{TEST_SUB}/titles/"'.encode() in r.data
 
     def test_subreddit_sort_param(self, dynamic_client):
         r = dynamic_client.get(f"/r/{TEST_SUB}/?sort=date")
@@ -256,6 +263,64 @@ class TestDynamicRoutes:
         r = dynamic_client.get(f"/r/{TEST_SUB}/about/")
         assert r.status_code == 200
         assert b"A dyn test sub" in r.data
+
+
+class TestDynamicFilters:
+    def test_min_score_filter(self, dynamic_client):
+        # both posts score=10 -> min_score=11 filters everything out
+        r = dynamic_client.get(f"/r/{TEST_SUB}/?min_score=11")
+        assert r.status_code == 200
+        assert b"Dynamic alpha post" not in r.data
+        r = dynamic_client.get(f"/r/{TEST_SUB}/?min_score=5")
+        assert b"Dynamic alpha post" in r.data
+
+    def test_date_range_filter(self, dynamic_client):
+        # posts are at 2020-09-13 (1600000000+) — a 2019 window excludes them
+        r = dynamic_client.get(f"/r/{TEST_SUB}/?from=2019-01-01&to=2019-12-31")
+        assert b"Dynamic alpha post" not in r.data
+        r = dynamic_client.get(f"/r/{TEST_SUB}/?from=2020-01-01&to=2020-12-31")
+        assert b"Dynamic alpha post" in r.data
+
+    def test_pagination_preserves_filters(self, dynamic_client):
+        r = dynamic_client.get(f"/r/{TEST_SUB}/?min_score=5&sort=date")
+        assert b"min_score=5" in r.data and b"sort=date" in r.data
+
+    def test_all_route(self, dynamic_client):
+        r = dynamic_client.get("/all/")
+        assert r.status_code == 200
+        assert b"r/all" in r.data
+        # the seeded extreme-score post outranks anything else in the test DB
+        assert b"Dynamic gamma post" in r.data
+
+    def test_all_route_404_in_hybrid(self, hybrid_client):
+        assert hybrid_client.get("/all/").status_code == 404
+
+
+class TestDynamicTitles:
+    def test_directory(self, dynamic_client):
+        r = dynamic_client.get(f"/r/{TEST_SUB}/titles/")
+        assert r.status_code == 200
+        assert f'href="/r/{TEST_SUB}/titles/d/"'.encode() in r.data
+
+    def test_letter_page(self, dynamic_client):
+        # both posts start with "Dynamic" -> letter d
+        r = dynamic_client.get(f"/r/{TEST_SUB}/titles/d/")
+        assert r.status_code == 200
+        assert b"Dynamic alpha post" in r.data and b"Dynamic beta post" in r.data
+        assert f'href="/r/{TEST_SUB}/comments/dynpages_1/slug/"'.encode() in r.data
+
+    def test_empty_letter_404s(self, dynamic_client):
+        assert dynamic_client.get(f"/r/{TEST_SUB}/titles/z/").status_code == 404
+        assert dynamic_client.get(f"/r/{TEST_SUB}/titles/zz/").status_code == 404
+
+    def test_titles_nav_link_present(self, dynamic_client):
+        r = dynamic_client.get(f"/r/{TEST_SUB}/")
+        assert f'href="/r/{TEST_SUB}/titles/"'.encode() in r.data
+
+    def test_overflow_redirect(self, dynamic_client):
+        r = dynamic_client.get(f"/r/{TEST_SUB}/titles/d/2/")
+        assert r.status_code == 301
+        assert r.headers["Location"] == f"/r/{TEST_SUB}/titles/d/?page=2"
 
 
 class TestStaticPathRedirects:

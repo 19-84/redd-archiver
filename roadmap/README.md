@@ -16,7 +16,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | # | Feature | Spec | Status |
 |---|---------|------|--------|
 | 1 | [Static Index & Search Improvements](01-static-index-improvements.md) | Title index, flair index, archive map | Implemented |
-| 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | In progress (Phases 1–3 implemented) |
+| 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | In progress (Phases 1–4 implemented) |
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | In progress (Phase 1 implemented) |
 | 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | In progress (Phase 1 + truncation fix implemented) |

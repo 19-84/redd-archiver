@@ -1359,6 +1359,149 @@ class PostgresDatabase:
             print_error(f"Failed to stream post titles for {subreddit}: {e}")
             return
 
+    # First-character bucket of a title, matching letter_bucket() in
+    # html_modules/html_static_indexes.py: single lowercase a-z, else '0-9'
+    # (a multi-char lowercase expansion like 'İ' -> 'i̇' fails the regex).
+    _TITLE_BUCKET_SQL = (
+        "CASE WHEN lower(substr(ltrim(title), 1, 1)) ~ '^[a-z]$' THEN lower(substr(ltrim(title), 1, 1)) ELSE '0-9' END"
+    )
+
+    def get_title_letter_counts(self, subreddit: str) -> dict[str, int]:
+        """Per-letter title counts for a subreddit ('a'..'z' + '0-9'), for dynamic title browsing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"""
+                        SELECT {self._TITLE_BUCKET_SQL} AS bucket, COUNT(*) AS n
+                        FROM posts WHERE LOWER(subreddit) = LOWER(%s)
+                        GROUP BY bucket
+                        """,  # noqa: S608 — _TITLE_BUCKET_SQL is a class constant, not user input
+                        (subreddit,),
+                    )
+                    return {row["bucket"]: row["n"] for row in cur}
+        except Exception as e:
+            print_error(f"Failed to count title letters for {subreddit}: {e}")
+            return {}
+
+    def get_titles_by_letter(
+        self, subreddit: str, letter: str, limit: int = 500, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """One letter bucket of a subreddit's titles, alphabetical, paginated (dynamic title browsing)."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"""
+                        SELECT id, title, score, num_comments, created_utc, permalink
+                        FROM posts
+                        WHERE LOWER(subreddit) = LOWER(%s) AND {self._TITLE_BUCKET_SQL} = %s
+                        ORDER BY LOWER(title) ASC, id ASC
+                        LIMIT %s OFFSET %s
+                        """,  # noqa: S608 — _TITLE_BUCKET_SQL is a class constant, not user input
+                        (subreddit, letter, limit, offset),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception as e:
+            print_error(f"Failed to fetch titles for {subreddit}/{letter}: {e}")
+            return []
+
+    # Whitelisted ORDER BY clauses for filtered post queries (dynamic mode)
+    _FILTERED_ORDER_BY = {
+        "score DESC, created_utc DESC",
+        "num_comments DESC, score DESC",
+        "created_utc DESC, score DESC",
+    }
+
+    @staticmethod
+    def _filtered_posts_where(
+        subreddit: str | None,
+        flair: str | None,
+        domain: str | None,
+        date_from: int | None,
+        date_to: int | None,
+        min_score: int,
+    ) -> tuple[str, list[Any]]:
+        """Shared WHERE builder for query/count_posts_filtered. All values are bound params."""
+        clauses = ["score >= %s"]
+        params: list[Any] = [min_score]
+        if subreddit:
+            clauses.append("LOWER(subreddit) = LOWER(%s)")
+            params.append(subreddit)
+        if flair:
+            clauses.append("json_data->>'link_flair_text' = %s")
+            params.append(flair)
+        if domain:
+            # URL host: https://host/... -> third '/'-separated field
+            clauses.append("(split_part(url, '/', 3) = %s OR split_part(url, '/', 3) ILIKE %s)")
+            like = domain.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            params.extend([domain, f"%.{like}"])
+        if date_from is not None:
+            clauses.append("created_utc >= %s")
+            params.append(date_from)
+        if date_to is not None:
+            clauses.append("created_utc <= %s")
+            params.append(date_to)
+        return " AND ".join(clauses), params
+
+    def query_posts_filtered(
+        self,
+        subreddit: str | None = None,
+        flair: str | None = None,
+        domain: str | None = None,
+        date_from: int | None = None,
+        date_to: int | None = None,
+        min_score: int = 0,
+        order_by: str = "score DESC, created_utc DESC",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Filtered post query for dynamic serving mode (F2 Phase 4).
+
+        ``subreddit=None`` browses across all archived communities (/all/).
+        All filters combine as WHERE clauses — nothing is pre-computed.
+        """
+        if order_by not in self._FILTERED_ORDER_BY:
+            order_by = "score DESC, created_utc DESC"
+        where, params = self._filtered_posts_where(subreddit, flair, domain, date_from, date_to, min_score)
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    query = sql.SQL("SELECT json_data::text FROM posts WHERE {} ORDER BY {} LIMIT %s OFFSET %s").format(
+                        sql.SQL(where), sql.SQL(order_by)
+                    )
+                    cur.execute(query, (*params, limit, offset))
+                    out = []
+                    for row in cur:
+                        try:
+                            out.append(json.loads(row["json_data"]))
+                        except Exception as e:
+                            print_error(f"Failed to parse post JSON: {e}")
+                    return out
+        except Exception as e:
+            print_error(f"Failed filtered post query: {e}")
+            return []
+
+    def count_posts_filtered(
+        self,
+        subreddit: str | None = None,
+        flair: str | None = None,
+        domain: str | None = None,
+        date_from: int | None = None,
+        date_to: int | None = None,
+        min_score: int = 0,
+    ) -> int:
+        """Row count matching query_posts_filtered's WHERE (for pagination totals)."""
+        where, params = self._filtered_posts_where(subreddit, flair, domain, date_from, date_to, min_score)
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql.SQL("SELECT COUNT(*) AS n FROM posts WHERE {}").format(sql.SQL(where)), params)
+                    return cur.fetchone()["n"]
+        except Exception as e:
+            print_error(f"Failed filtered post count: {e}")
+            return 0
+
     def get_flair_counts(self, subreddit: str, min_score: int = 0, min_comments: int = 0) -> list[dict[str, Any]]:
         """Distinct link flairs of a subreddit with post counts, most-used first (Feature 1 flair index)."""
         try:
