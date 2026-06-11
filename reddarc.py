@@ -2815,6 +2815,15 @@ def finalize_archive_with_stats(
             min_comments=min_comments,
         )
 
+        # Generate the archive map page (Feature 1, Phase 3) — the static
+        # navigation hub linking browse/title/flair indexes for every subreddit
+        try:
+            from html_modules.html_static_indexes import write_archive_map_jinja2
+
+            write_archive_map_jinja2(postgres_db, seo_config)
+        except Exception as map_err:
+            print_warning(f"Failed to generate archive map: {map_err}", indent=1)
+
         # Generate sitemaps and SEO files from PostgreSQL database
         print_info("Generating sitemaps and SEO files...", indent=1)
         print_info("🗄️  Using database-backed SEO generation", indent=2)

@@ -1,7 +1,7 @@
 # Feature 1: Static Index & Search Improvements
 
-**Status:** Planned
-**Last updated:** 2026-06-09
+**Status:** Implemented (all phases)
+**Last updated:** 2026-06-11
 
 **Goal:** Improve content discoverability in pure static hosting environments (GitHub Pages, Netlify, etc.) where no server or JavaScript is available.
 

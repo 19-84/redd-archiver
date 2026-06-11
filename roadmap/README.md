@@ -15,7 +15,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 
 | # | Feature | Spec | Status |
 |---|---------|------|--------|
-| 1 | [Static Index & Search Improvements](01-static-index-improvements.md) | Title index, flair index, archive map | Planned |
+| 1 | [Static Index & Search Improvements](01-static-index-improvements.md) | Title index, flair index, archive map | Implemented |
 | 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | In progress (Phase 1 implemented) |
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Planned |
@@ -184,6 +184,8 @@ Three small, independent changes that fix existing FTS and rendering gaps:
 - **F2 Phase 1:** Import the cached filters from `html_modules/jinja_filters.py` into `search_server.py` and register them — it currently registers only `highlight` and `number_format` and never imports the shared filter module. Prerequisite that unblocks dynamic-mode template rendering.
 
 ### Step 2: Static Index & Search Improvements (F1, all phases)
+
+Implemented — per-letter title index pages with overflow pagination, flair index pages, and the archive map navigation hub, all generated during export.
 
 The full Feature 1 — title index, flair index, and archive map page. Medium scope, no dependencies, immediate value for static and hybrid mode users. The archive map page also replaces the non-functional search form in static-only deployments.
 
