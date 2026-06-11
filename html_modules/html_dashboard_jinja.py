@@ -19,23 +19,14 @@ from html_modules.platform_utils import get_url_prefix
 from utils.console_output import print_info
 
 
-def write_index_jinja2(
+def build_index_context(
     postgres_db: "PostgresDatabase", seo_config: dict[str, Any] | None = None, min_score: int = 0, min_comments: int = 0
-) -> bool:
-    """
-    Write the main index page with dashboard using Jinja2 templates.
+) -> dict[str, Any] | None:
+    """Build the dashboard template context from PostgreSQL statistics.
 
-    Replaces the legacy write_index() function with clean Jinja2 rendering
-    that separates data preparation from presentation.
-
-    Args:
-        postgres_db: PostgresDatabase instance (required)
-        seo_config: SEO configuration
-        min_score: Minimum score filter (for display)
-        min_comments: Minimum comments filter (for display)
-
-    Returns:
-        bool: True if successful, False otherwise
+    Shared by the static writer (write_index_jinja2) and the dynamic-mode
+    Flask route — both render pages/index.html from this context. Returns
+    None when the database holds no subreddit statistics.
     """
     from html_modules.html_statistics import calculate_global_statistics
 
@@ -45,7 +36,7 @@ def write_index_jinja2(
 
     if not db_stats or len(db_stats) == 0:
         print("WARNING: No subreddit statistics found in database")
-        return False
+        return None
 
     # Validate and recalculate suspicious statistics before dashboard generation
     for stat in db_stats:
@@ -243,6 +234,17 @@ def write_index_jinja2(
         "favicon_tags": favicon_tags,
         "og_image_tag": og_image_tag,
     }
+
+    return context
+
+
+def write_index_jinja2(
+    postgres_db: "PostgresDatabase", seo_config: dict[str, Any] | None = None, min_score: int = 0, min_comments: int = 0
+) -> bool:
+    """Write the main index page with dashboard using Jinja2 templates."""
+    context = build_index_context(postgres_db, seo_config, min_score=min_score, min_comments=min_comments)
+    if context is None:
+        return False
 
     # Check resume mode
     # Use absolute path to ensure it goes to output directory

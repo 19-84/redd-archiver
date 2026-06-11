@@ -50,9 +50,11 @@
           <a class="nav-link" href="{{ url_idx_about }}">about</a>
         </li>
         {% endif %}
+        {% if url_idx_titles %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_idx_titles }}">titles</a>
         </li>
+        {% endif %}
         <li class="nav-item {{ url_search_css }}">
           <a class="nav-link" href="{{ url_search }}">search</a>
         </li>
@@ -70,7 +72,7 @@
 
 {% block content %}
 {# Top pagination #}
-{{ pagination(page_num, total_pages) }}
+{{ pagination(page_num, total_pages, url_pattern=pagination_url_pattern|default('')) }}
 
 {# Post listings #}
 <div class="links">
@@ -80,7 +82,7 @@
 </div>
 
 {# Bottom pagination #}
-{{ pagination(page_num, total_pages) }}
+{{ pagination(page_num, total_pages, url_pattern=pagination_url_pattern|default('')) }}
 {% endblock content %}
 
 {% block footer %}
