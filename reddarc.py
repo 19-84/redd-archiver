@@ -1169,7 +1169,10 @@ def process_enrich_voat(args: argparse.Namespace) -> None:
         from core.enrichment import voat_metadata as voat_mod
 
         counts = voat_mod.enrich_voat(db, args.enrich_voat, tracked)
-        print_success(f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s)")
+        print_success(
+            f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s), "
+            f"{counts.get('users', 0)} user profile(s)"
+        )
     finally:
         db.cleanup()
 

@@ -12,12 +12,15 @@ from core.enrichment.voat_metadata import (
     _to_unix,
     enrich_voat,
     import_subverses,
+    import_users,
     map_subverse,
+    map_user,
     parse_moderators,
 )
 from core.importers.voat_sql_parser import VoatSQLParser
 
 TEST_SUB = "test_voatenrich"
+TEST_USER = "test_voat_user"
 
 
 _SQL_TEMPLATE = """-- MariaDB dump 10.19
@@ -213,10 +216,10 @@ class TestImportSubverses:
     def test_enrich_voat_directory_detection(self, voat_db, subverse_file, tmp_path):
         subverse_file(_row())
         counts = enrich_voat(voat_db, str(tmp_path), {TEST_SUB: TEST_SUB})
-        assert counts == {"subverses": 1}
+        assert counts == {"subverses": 1, "users": 0}
 
     def test_enrich_voat_no_tracked(self, voat_db, tmp_path):
-        assert enrich_voat(voat_db, str(tmp_path), {}) == {"subverses": 0}
+        assert enrich_voat(voat_db, str(tmp_path), {}) == {"subverses": 0, "users": 0}
 
 
 class TestPlatformScopedTracking:
@@ -242,6 +245,120 @@ class TestPlatformScopedTracking:
         )
         assert TEST_SUB not in voat_db.get_archived_subreddit_names("voat")
         assert voat_db.get_archived_subreddit_names("reddit").get(TEST_SUB) == TEST_SUB
+
+
+_USER_SQL_TEMPLATE = """-- Adminer 4.8.1 MySQL dump
+SET NAMES utf8mb4;
+DROP TABLE IF EXISTS `user`;
+CREATE TABLE `user` (
+  `id` int(11) NOT NULL AUTO_INCREMENT
+);
+INSERT INTO `user` (`id`, `userName`, `bio`, `commentPointsSum`, `registrationDate`, `profilePicture`, `submissionPointsSum`, `isBot`, `isDeleted`, `svpassword`) VALUES
+__ROWS__;
+"""
+
+
+def _user_row(name=TEST_USER, bio="hello voat", is_bot=0):
+    return f"(5,'{name}','{bio}',321,'2014-06-01 10:00:00','',789,{is_bot},0,'')"
+
+
+@pytest.fixture
+def user_file(tmp_path):
+    def make(rows):
+        path = tmp_path / "user.sql.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as f:
+            f.write(_USER_SQL_TEMPLATE.replace("__ROWS__", rows))
+        return str(path)
+
+    return make
+
+
+@pytest.mark.unit
+class TestMapUser:
+    ROW = {
+        "id": 5,
+        "userName": TEST_USER,
+        "bio": "hello voat",
+        "commentPointsSum": 321,
+        "registrationDate": "2014-06-01 10:00:00",
+        "profilePicture": "",
+        "submissionPointsSum": 789,
+        "isBot": 1,
+        "isDeleted": 0,
+        "svpassword": "must-never-persist",
+    }
+
+    def test_field_mapping(self):
+        m = map_user(self.ROW)
+        assert m["bio"] == "hello voat"
+        assert m["comment_karma"] == 321
+        assert m["submission_karma"] == 789
+        assert m["registration_date"] == _to_unix("2014-06-01 10:00:00")
+        assert m["is_bot"] is True
+        assert m["is_deleted"] is False
+        assert m["profile_picture"] is None
+
+    def test_svpassword_stripped(self):
+        m = map_user(self.ROW)
+        assert "svpassword" not in m["raw_json"]
+        assert "must-never-persist" not in str(m)
+
+
+class TestImportUsers:
+    @pytest.fixture
+    def user_db(self, voat_db):
+        voat_db.create_user_metadata_table()
+
+        def cleanup():
+            with voat_db.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
+                    conn.commit()
+
+        cleanup()
+        yield voat_db
+        cleanup()
+
+    def test_adminer_format_parsed_and_filtered(self, user_db, user_file):
+        path = user_file(_user_row() + ",\n" + _user_row(name="untracked_voat_user"))
+        count = import_users(user_db, path, {TEST_USER.lower(): TEST_USER})
+        assert count == 1
+        row = user_db.get_user_metadata(TEST_USER)
+        assert row is not None
+        assert row["bio"] == "hello voat"
+        assert row["comment_karma"] == 321
+        assert "svpassword" not in row["raw_json"]
+        assert user_db.get_user_metadata("untracked_voat_user") is None
+
+    def test_case_insensitive_lookup(self, user_db, user_file):
+        import_users(user_db, user_file(_user_row()), {TEST_USER.lower(): TEST_USER})
+        assert user_db.get_user_metadata(TEST_USER.upper()) is not None
+
+    def test_enrich_voat_detects_user_file(self, user_db, user_file, subverse_file, tmp_path, monkeypatch):
+        subverse_file(_row())
+        user_file(_user_row())
+        # the tracked author must exist as an archived voat author
+        user_db.insert_posts_batch(
+            [
+                {
+                    "id": "voatenrich_u1",
+                    "subreddit": TEST_SUB,
+                    "author": TEST_USER,
+                    "title": "by tracked user",
+                    "selftext": "",
+                    "created_utc": 1500000000,
+                    "score": 1,
+                    "num_comments": 0,
+                    "url": "",
+                    "permalink": f"/v/{TEST_SUB}/comments/voatenrich_u1/",
+                    "is_self": True,
+                    "platform": "voat",
+                }
+            ]
+        )
+        counts = enrich_voat(user_db, str(tmp_path), {TEST_SUB: TEST_SUB})
+        assert counts["subverses"] == 1
+        assert counts["users"] == 1
 
 
 class TestVoatAboutPage:

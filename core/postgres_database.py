@@ -4260,6 +4260,93 @@ class PostgresDatabase:
             return {}
         return result
 
+    def create_user_metadata_table(self) -> bool:
+        """Idempotently create the user_metadata table (migration 011, Feature 7 Phase 2)."""
+        try:
+            migrations_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sql", "migrations"
+            )
+            with open(os.path.join(migrations_dir, "011_user_metadata.sql")) as f:
+                sql_text = f.read()
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql_text)
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to create user_metadata table: {e}")
+            return False
+
+    def save_user_metadata(self, username: str, platform: str, metadata: dict[str, Any]) -> bool:
+        """Upsert one user_metadata row keyed on (username, platform)."""
+        columns = [
+            "bio",
+            "registration_date",
+            "profile_picture",
+            "comment_karma",
+            "submission_karma",
+            "is_bot",
+            "is_deleted",
+            "raw_json",
+        ]
+        values: list[Any] = []
+        for c in columns:
+            v = metadata.get(c)
+            if c == "raw_json" and v is not None and not isinstance(v, Jsonb):
+                v = Jsonb(v)
+            values.append(v)
+        col_sql = ", ".join(columns)
+        placeholders = ", ".join(["%s"] * len(columns))
+        update_sql = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+        query = (
+            f"INSERT INTO user_metadata (username, platform, {col_sql}, updated_at) "  # noqa: S608
+            f"VALUES (%s, %s, {placeholders}, NOW()) "
+            f"ON CONFLICT (username, platform) DO UPDATE SET {update_sql}, updated_at = NOW()"
+        )
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, [username, platform, *values])
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to save user metadata for u/{username}: {e}")
+            return False
+
+    def get_user_metadata(self, username: str, platform: str = "voat") -> dict[str, Any] | None:
+        """Fetch one user's metadata, or None if absent / table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM user_metadata WHERE LOWER(username) = LOWER(%s) AND platform = %s",
+                        (username, platform),
+                    )
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        except Exception:
+            # Table may not exist yet (enrichment never run) — treat as no metadata.
+            return None
+
+    def get_archived_author_names(self, platform: str) -> dict[str, str]:
+        """{lowercased_author: exact_author} for authors with archived content on a platform."""
+        names: dict[str, str] = {}
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT DISTINCT author FROM posts WHERE platform = %s "
+                        "UNION SELECT DISTINCT author FROM comments WHERE platform = %s",
+                        (platform, platform),
+                    )
+                    for row in cur:
+                        author = row["author"]
+                        if author and author != "[deleted]":
+                            names[author.lower()] = author
+        except Exception as e:
+            print_error(f"Failed to load archived {platform} author names: {e}")
+        return names
+
     def save_subreddit_rules(self, subreddit: str, platform: str, rules: list[dict[str, Any]]) -> bool:
         """Replace a subreddit's rules (DELETE + INSERT in one transaction)."""
         try:

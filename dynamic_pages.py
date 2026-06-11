@@ -458,6 +458,7 @@ def user_page(username: str):
     context = {
         **_nav_context(),
         "username": username,
+        "user_metadata": db.get_user_metadata(username),
         "content": content,
         "page_num": page_num,
         "total_pages": total_pages,
