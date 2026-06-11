@@ -1327,6 +1327,108 @@ class PostgresDatabase:
             print_error(f"Failed to query paginated posts: {e}")
             return
 
+    def stream_post_titles(
+        self,
+        subreddit: str,
+        min_score: int = 0,
+        min_comments: int = 0,
+        batch_size: int = 5000,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream all post titles of a subreddit alphabetically (Feature 1 title index).
+
+        Uses a server-side cursor so memory stays constant regardless of post
+        count. Yields dicts with id, title, score, num_comments, created_utc,
+        and permalink.
+        """
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor(name="title_index_stream") as cur:
+                    cur.itersize = batch_size
+                    cur.execute(
+                        """
+                        SELECT id, title, score, num_comments, created_utc, permalink
+                        FROM posts
+                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                        ORDER BY LOWER(title) ASC, id ASC
+                        """,
+                        (subreddit, min_score, min_comments),
+                    )
+                    for row in cur:
+                        yield dict(row)
+        except Exception as e:
+            print_error(f"Failed to stream post titles for {subreddit}: {e}")
+            return
+
+    def get_flair_counts(self, subreddit: str, min_score: int = 0, min_comments: int = 0) -> list[dict[str, Any]]:
+        """Distinct link flairs of a subreddit with post counts, most-used first (Feature 1 flair index)."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT json_data->>'link_flair_text' AS flair, COUNT(*) AS count
+                        FROM posts
+                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                          AND COALESCE(json_data->>'link_flair_text', '') <> ''
+                        GROUP BY 1
+                        ORDER BY count DESC, flair ASC
+                        """,
+                        (subreddit, min_score, min_comments),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception as e:
+            print_error(f"Failed to query flair counts for {subreddit}: {e}")
+            return []
+
+    def get_posts_by_flair(
+        self,
+        subreddit: str,
+        flair: str,
+        limit: int = 100,
+        offset: int = 0,
+        min_score: int = 0,
+        min_comments: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Posts of a subreddit with the given link flair, highest score first (Feature 1 flair index)."""
+        posts = []
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT json_data::text FROM posts
+                        WHERE LOWER(subreddit) = LOWER(%s) AND json_data->>'link_flair_text' = %s
+                          AND score >= %s AND num_comments >= %s
+                        ORDER BY score DESC, created_utc DESC
+                        LIMIT %s OFFSET %s
+                        """,
+                        (subreddit, flair, min_score, min_comments, limit, offset),
+                    )
+                    for row in cur:
+                        try:
+                            posts.append(json.loads(row["json_data"]))
+                        except Exception as e:
+                            print_error(f"Failed to parse post JSON: {e}")
+        except Exception as e:
+            print_error(f"Failed to query posts by flair for {subreddit}: {e}")
+        return posts
+
+    def ensure_flair_index(self) -> bool:
+        """Create the expression index backing flair queries if it doesn't exist (Feature 1).
+
+        Also defined in sql/indexes.sql for fresh databases; this covers
+        --export-from-database runs against databases imported by older versions.
+        """
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_posts_flair ON posts ((json_data->>'link_flair_text'))")
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to create flair index: {e}")
+            return False
+
     def get_posts_paginated_keyset(
         self,
         subreddit: str,
@@ -3061,6 +3163,7 @@ class PostgresDatabase:
             "idx_posts_created_utc_brin",
             "idx_posts_search",
             "idx_posts_author_search",
+            "idx_posts_flair",
             "idx_posts_json_data",
             # Comments table indexes
             "idx_comments_subreddit",

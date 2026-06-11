@@ -4424,3 +4424,54 @@ details.comment[open][data-depth="1"] {
     gap: 0.25rem;
     align-items: center;
 }
+
+/* Static index pages (Feature 1): title index, flair index, archive map */
+.ctrl-f-tip {
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+    color: var(--bs-secondary);
+}
+.ctrl-f-tip kbd {
+    padding: 0.1rem 0.3rem;
+    border: 1px solid var(--primary-20);
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+.letter-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+}
+.letter-grid li a {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+.letter-grid .letter-count {
+    font-size: 0.8rem;
+    color: var(--bs-secondary);
+}
+.letter-tabs {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.6rem;
+}
+.title-pager {
+    margin-top: 1rem;
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+.flair-header {
+    margin: 1rem 0;
+}
+.map-sub .about-title {
+    font-size: 1.2rem;
+}
+.map-letters a {
+    margin-right: 0.4rem;
+}

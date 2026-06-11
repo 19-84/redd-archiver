@@ -1,0 +1,78 @@
+{% extends "base/base.html" %}
+
+{# Flair directory for a subreddit: all flairs with post counts (Feature 1,
+   Phase 2). Lives at {prefix}/{sub}/flair/. Only generated when the
+   subreddit has flair data. #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="index.html">flair</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md about-page">
+  <article class="card about-card">
+    <header class="card-header">
+      <h1 class="about-title">{{ url_prefix }}/{{ subreddit }} by flair</h1>
+      <p class="about-tagline">{{ flairs|length }} flair{{ 's' if flairs|length != 1 }}</p>
+    </header>
+
+    <div class="card-body">
+      <table class="wiki-list flair-list">
+        <thead>
+          <tr><th>Flair</th><th>Posts</th></tr>
+        </thead>
+        <tbody>
+          {% for f in flairs %}
+          <tr>
+            <td><a href="{{ f.href }}">{{ f.flair }}</a></td>
+            <td>{{ f.count|format_number }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Flair index for {{ url_prefix }}/{{ subreddit }}.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

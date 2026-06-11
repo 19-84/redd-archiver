@@ -1,0 +1,72 @@
+{% extends "base/base.html" %}
+
+{# Posts tagged with one flair (Feature 1, Phase 2). Lives at
+   {prefix}/{sub}/flair/{slug}/ with overflow pages at {slug}/{n}/.
+   Uses the standard post card, same as subreddit index pages. #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_idx_score }}">{{ url_prefix }}/{{ subreddit }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_score }}">score</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_cmnt }}">comments</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_idx_date }}">date</a>
+        </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="{{ url_flair_dir }}">flair</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md">
+  <header class="flair-header">
+    <h1 class="about-title">Flair: {{ flair }}{% if total_pages > 1 %} <small>(page {{ page_num }} of {{ total_pages }})</small>{% endif %}</h1>
+    <p class="text-muted">{{ flair_count|format_number }} post{{ 's' if flair_count != 1 }} &middot; <a href="{{ url_flair_dir }}">all flairs</a></p>
+  </header>
+
+  {% for post in posts %}
+    {% include 'components/post_card.html' %}
+  {% endfor %}
+
+  {% if total_pages > 1 %}
+  <nav class="title-pager" aria-label="Pagination">
+    {% if prev_href %}<a href="{{ prev_href }}">&laquo; previous</a>{% endif %}
+    <span>page {{ page_num }} of {{ total_pages }}</span>
+    {% if next_href %}<a href="{{ next_href }}">next &raquo;</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Flair index for {{ url_prefix }}/{{ subreddit }}.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

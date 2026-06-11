@@ -1,0 +1,94 @@
+{% extends "base/base.html" %}
+
+{# Archive map (Feature 1, Phase 3): structured overview of everything in the
+   archive — per-subreddit browse links, title index letters, flairs, and
+   stats. The navigation hub for static-only deployments where the search
+   form has no server behind it. Lives at archive-map/. #}
+
+{% block header %}
+<header>
+  <nav class="navbar navbar-expand-sm navbar-dark bg-primary">
+    <a class="navbar-brand" href="{{ url_subs }}">{{ site_name }}</a>
+    <input type="checkbox" id="navbar-toggle" class="navbar-toggle">
+    <label for="navbar-toggle" class="navbar-toggler" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </label>
+    <div class="navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item active">
+          <a class="nav-link" href="index.html">archive map</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_search }}">search</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_subs }}">home</a>
+        </li>
+        <li class="nav-item">
+          <label for="dark-theme-toggle" class="nav-link theme-toggle" title="Toggle dark theme"></label>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>
+{% endblock header %}
+
+{% block content %}
+<div class="container-md about-page">
+  <article class="card about-card">
+    <header class="card-header">
+      <h1 class="about-title">Archive map</h1>
+      <p class="about-tagline">{{ total_subreddits }} archived communit{{ 'ies' if total_subreddits != 1 else 'y' }} — every page reachable without search or JavaScript</p>
+    </header>
+    <div class="card-body">
+      <p class="ctrl-f-tip">Tip: title index pages list every post title as plain text — open a letter and use <kbd>Ctrl</kbd>+<kbd>F</kbd> to search offline.</p>
+    </div>
+  </article>
+
+  {% for sub in subs %}
+  <article class="card about-card map-sub">
+    <header class="card-header">
+      <h2 class="about-title"><a href="{{ sub.url_score }}">{{ sub.url_prefix }}/{{ sub.name }}</a></h2>
+      <p class="about-tagline">
+        {{ sub.total_posts|format_number }} posts &middot;
+        {{ sub.total_comments|format_number }} comments &middot;
+        {{ sub.unique_users|format_number }} users
+      </p>
+    </header>
+    <div class="card-body">
+      <dl class="about-facts">
+        <dt>Browse</dt>
+        <dd>
+          <a href="{{ sub.url_score }}">by score</a> &middot;
+          <a href="{{ sub.url_comments }}">by comments</a> &middot;
+          <a href="{{ sub.url_date }}">by date</a>
+        </dd>
+        {% if sub.letters %}
+        <dt>Titles</dt>
+        <dd class="map-letters">
+          <a href="{{ sub.url_titles }}">all {{ sub.total_titles|format_number }}</a>
+          {% for l in sub.letters %}<a href="{{ l.href }}">{{ l.label }}</a> {% endfor %}
+        </dd>
+        {% endif %}
+        {% if sub.flairs %}
+        <dt>Flair</dt>
+        <dd>
+          {% for f in sub.flairs %}<a href="{{ f.href }}">{{ f.flair }}</a> ({{ f.count|format_number }}){{ " · " if not loop.last }}{% endfor %}
+          {% if sub.more_flairs %} &middot; <a href="{{ sub.url_flair }}">+{{ sub.more_flairs }} more</a>{% endif %}
+        </dd>
+        {% endif %}
+      </dl>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endblock content %}
+
+{% block footer %}
+<footer class="container-fluid">
+  <p class="small mb-0">
+    Archive map.
+    <a href="{{ url_project }}">source code</a>.
+  </p>
+</footer>
+{% endblock footer %}

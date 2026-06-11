@@ -198,6 +198,7 @@ def write_subreddit_pages_jinja2(
                 "url_search": site_nav_base + "search",
                 "has_about": has_about,
                 "url_idx_about": subreddit_nav_base + "about/index.html",
+                "url_idx_titles": subreddit_nav_base + "titles/index.html",
                 "url_idx_score_css": "active" if sort == "score" else "",
                 "url_idx_cmnt_css": "active" if sort == "num_comments" else "",
                 "url_idx_date_css": "active" if sort == "created_utc" else "",
