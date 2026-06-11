@@ -156,31 +156,24 @@
 {% endmacro %}
 
 {# Pagination component - matches original 7-button style #}
-{% macro pagination(page_num, total_pages, base_url='') %}
+{# Page-N href: file-based for static output (index-N.html), or a URL pattern
+   for dynamic mode where __PAGE__ is replaced by the page number
+   (e.g. '?sort=comments&page=__PAGE__'). #}
+{% macro page_href(p, base_url='', url_pattern='') %}{% if url_pattern %}{{ url_pattern|replace('__PAGE__', p|string) }}{% else %}{{ base_url }}{% if p > 1 %}index-{{ p }}.html{% else %}index.html{% endif %}{% endif %}{% endmacro %}
+
+{% macro pagination(page_num, total_pages, base_url='', url_pattern='') %}
 {% set pager_skip = 10 %}
 <ul class="pagination pagination-sm mt-3">
   {# First page (<<<) #}
-  {% if page_num == 1 %}
-  <li class="page-item first-page disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&lsaquo;&lsaquo;&lsaquo;</a></li>
-  {% else %}
-  <li class="page-item first-page"><a class="page-link" href="{{ base_url }}index.html">&lsaquo;&lsaquo;&lsaquo;</a></li>
-  {% endif %}
+  <li class="page-item first-page{{ ' disabled' if page_num == 1 }}"><a class="page-link" href="{{ page_href(1, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == 1 }}>&lsaquo;&lsaquo;&lsaquo;</a></li>
 
   {# Skip back 10 pages (<<) #}
   {% set prev_skip = [1, page_num - pager_skip]|max %}
-  {% if page_num == 1 %}
-  <li class="page-item skip-back disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&lsaquo;&lsaquo;</a></li>
-  {% else %}
-  <li class="page-item skip-back"><a class="page-link" href="{{ base_url }}{% if prev_skip > 1 %}index-{{ prev_skip }}.html{% else %}index.html{% endif %}">&lsaquo;&lsaquo;</a></li>
-  {% endif %}
+  <li class="page-item skip-back{{ ' disabled' if page_num == 1 }}"><a class="page-link" href="{{ page_href(prev_skip, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == 1 }}>&lsaquo;&lsaquo;</a></li>
 
   {# Previous page (<) #}
-  {% set prev_page = page_num - 1 %}
-  {% if page_num == 1 %}
-  <li class="page-item prev-page disabled"><a class="page-link" href="{{ base_url }}index-0.html" tabindex="-1">&lsaquo;</a></li>
-  {% else %}
-  <li class="page-item prev-page"><a class="page-link" href="{{ base_url }}{% if prev_page > 1 %}index-{{ prev_page }}.html{% else %}index.html{% endif %}">&lsaquo;</a></li>
-  {% endif %}
+  {% set prev_page = [1, page_num - 1]|max %}
+  <li class="page-item prev-page{{ ' disabled' if page_num == 1 }}"><a class="page-link" href="{{ page_href(prev_page, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == 1 }}>&lsaquo;</a></li>
 
   {# Three numbered page buttons (centered window) #}
   {% if page_num == 1 %}
@@ -193,36 +186,20 @@
 
   {% for p in page_range %}
     {% if p >= 1 and p <= total_pages %}
-      {% if p == page_num %}
-      <li class="page-item active"><a class="page-link" href="{{ base_url }}{% if p > 1 %}index-{{ p }}.html{% else %}index.html{% endif %}">{{ p }}</a></li>
-      {% else %}
-      <li class="page-item"><a class="page-link" href="{{ base_url }}{% if p > 1 %}index-{{ p }}.html{% else %}index.html{% endif %}">{{ p }}</a></li>
-      {% endif %}
+      <li class="page-item{{ ' active' if p == page_num }}"><a class="page-link" href="{{ page_href(p, base_url, url_pattern) }}">{{ p }}</a></li>
     {% endif %}
   {% endfor %}
 
   {# Next page (>) #}
-  {% set next_page = page_num + 1 %}
-  {% if page_num == total_pages %}
-  <li class="page-item next-page disabled"><a class="page-link" href="{{ base_url }}index-{{ page_num }}.html" tabindex="-1">&rsaquo;</a></li>
-  {% else %}
-  <li class="page-item next-page"><a class="page-link" href="{{ base_url }}index-{{ next_page }}.html">&rsaquo;</a></li>
-  {% endif %}
+  {% set next_page = [total_pages, page_num + 1]|min %}
+  <li class="page-item next-page{{ ' disabled' if page_num == total_pages }}"><a class="page-link" href="{{ page_href(next_page, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == total_pages }}>&rsaquo;</a></li>
 
   {# Skip forward 10 pages (>>) #}
   {% set next_skip = [total_pages, page_num + pager_skip]|min %}
-  {% if page_num == total_pages %}
-  <li class="page-item skip-forward disabled"><a class="page-link" href="{{ base_url }}index.html" tabindex="-1">&rsaquo;&rsaquo;</a></li>
-  {% else %}
-  <li class="page-item skip-forward"><a class="page-link" href="{{ base_url }}{% if next_skip > 1 %}index-{{ next_skip }}.html{% else %}index.html{% endif %}">&rsaquo;&rsaquo;</a></li>
-  {% endif %}
+  <li class="page-item skip-forward{{ ' disabled' if page_num == total_pages }}"><a class="page-link" href="{{ page_href(next_skip, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == total_pages }}>&rsaquo;&rsaquo;</a></li>
 
   {# Last page (>>>) #}
-  {% if page_num == total_pages %}
-  <li class="page-item last-page disabled"><a class="page-link" href="{{ base_url }}{% if total_pages > 1 %}index-{{ total_pages }}.html{% else %}index.html{% endif %}" tabindex="-1">&rsaquo;&rsaquo;&rsaquo;</a></li>
-  {% else %}
-  <li class="page-item last-page"><a class="page-link" href="{{ base_url }}{% if total_pages > 1 %}index-{{ total_pages }}.html{% else %}index.html{% endif %}">&rsaquo;&rsaquo;&rsaquo;</a></li>
-  {% endif %}
+  <li class="page-item last-page{{ ' disabled' if page_num == total_pages }}"><a class="page-link" href="{{ page_href(total_pages, base_url, url_pattern) }}"{{ ' tabindex=-1'|safe if page_num == total_pages }}>&rsaquo;&rsaquo;&rsaquo;</a></li>
 </ul>
 {% endmacro %}
 
