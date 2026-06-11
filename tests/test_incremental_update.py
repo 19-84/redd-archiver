@@ -10,7 +10,8 @@ import pytest
 import zstandard
 
 from core.importers.arctic_shift_importer import ArcticShiftImporter, parse_dump_filename
-from core.incremental_update import run_update, sha256_file
+from core.incremental_update import discover_dump_pairs, run_update, sha256_file
+from core.selective_export import _delete_subreddit_listings, _delete_user_pages
 
 TEST_SUB = "test_incrupd"
 OTHER_SUB = "test_incrupd_untracked"
@@ -104,6 +105,58 @@ class TestImporter:
         files = ArcticShiftImporter().detect_files(str(tmp_path))
         assert [f.endswith("RS_2026-01.zst") for f in files["posts"]] == [True]
         assert [f.endswith("RC_2026-01.zst") for f in files["comments"]] == [True]
+
+
+@pytest.mark.unit
+class TestDiscoverDumpPairs:
+    def test_pairs_chronological(self, tmp_path):
+        for name in ["RC_2026-02.zst", "RS_2026-01.zst", "RC_2026-01.zst", "RS_2026-02.zst", "other.zst"]:
+            _write_zst(tmp_path / name, [_submission(1)])
+        pairs = discover_dump_pairs(str(tmp_path))
+        assert len(pairs) == 2
+        assert pairs[0][0].endswith("RS_2026-01.zst") and pairs[0][1].endswith("RC_2026-01.zst")
+        assert pairs[1][0].endswith("RS_2026-02.zst")
+
+    def test_unpaired_month_still_processed(self, tmp_path):
+        _write_zst(tmp_path / "RS_2026-03.zst", [_submission(1)])
+        pairs = discover_dump_pairs(str(tmp_path))
+        assert pairs == [(str(tmp_path / "RS_2026-03.zst"), None)]
+
+    def test_empty_dir(self, tmp_path):
+        assert discover_dump_pairs(str(tmp_path)) == []
+
+
+@pytest.mark.unit
+class TestSelectiveDeletion:
+    def test_listing_artifacts_deleted_post_pages_kept(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        sub = tmp_path / "r" / TEST_SUB
+        for f in ["index.html", "index-2.html"]:
+            (sub / "comments" / "abc").mkdir(parents=True, exist_ok=True)
+            sub.joinpath(f).write_text("stale")
+        for d in ["index-comments", "titles", "about"]:
+            (sub / d).mkdir(parents=True, exist_ok=True)
+            (sub / d / "index.html").write_text("stale")
+        (sub / "comments" / "abc" / "index.html").write_text("post page")
+
+        _delete_subreddit_listings("r", TEST_SUB)
+
+        assert not (sub / "index.html").exists()
+        assert not (sub / "index-2.html").exists()
+        assert not (sub / "index-comments").exists()
+        assert not (sub / "titles").exists()
+        # post pages and about pages survive
+        assert (sub / "comments" / "abc" / "index.html").exists()
+        assert (sub / "about" / "index.html").exists()
+
+    def test_user_pages_deleted(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "user" / "alice").mkdir(parents=True)
+        (tmp_path / "user" / "alice" / "index.html").write_text("x")
+        (tmp_path / "user" / "bob").mkdir(parents=True)
+        assert _delete_user_pages(["alice", "missing"]) == 1
+        assert not (tmp_path / "user" / "alice").exists()
+        assert (tmp_path / "user" / "bob").exists()
 
 
 @pytest.fixture
