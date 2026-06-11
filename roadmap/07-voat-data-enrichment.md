@@ -1,7 +1,7 @@
 # Feature 7: Voat Data Enrichment
 
-**Status:** Planned
-**Last updated:** 2026-06-09
+**Status:** In progress (Phase 1 implemented)
+**Last updated:** 2026-06-11
 
 **Goal:** Import the full breadth of Voat metadata from the Voat SQL archive to enrich Voat archives with subverse descriptions, moderator lists, user profiles, post flair, post thumbnails, and subscriber history that exist in the SQL dumps but are not currently imported.
 
@@ -612,7 +612,7 @@ The `thumbnail` column in the submission SQL (`voat_sql_parser.py:46`, column in
 
 | Phase | Scope | Effort | Blockers |
 |-------|-------|--------|----------|
-| **Phase 1: Subverse metadata** | Import subverse descriptions, sidebar HTML, creation dates, subscribers, NSFW, moderator names. Generate about pages. Integrate with dashboard and API. | Medium | None — sidebar HTML is pre-rendered |
+| **Phase 1: Subverse metadata** — **implemented** (`--enrich-voat`, migration 009, shared about pages; tracking is platform-scoped and prefers exact-case subverse names; API surfacing deferred) | Import subverse descriptions, sidebar HTML, creation dates, subscribers, NSFW, moderator names. Generate about pages. Integrate with dashboard and API. | Medium | None — sidebar HTML is pre-rendered |
 | **Phase 2: User profiles** | Import user bios, registration dates, karma breakdowns. Enrich user pages. | Medium | None |
 | **Phase 3: Moderators + flair** | Import structured moderator data (levels, dates). Import submission flair attributes. Show moderators on about page, flair on post cards. | Medium | Phase 1 (about page must exist for moderator display) |
 | **Phase 4: Thumbnails** | Extract and serve post thumbnails. Map UUID filenames to submissions. | Large | Phase 1 + storage decisions (14GB) |
