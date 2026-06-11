@@ -25,6 +25,8 @@ from utils.markdown_render import sanitize_html
 # Metadata files inside voat-sql-tables.tar
 SUBVERSE_FILENAME = "subverse.sql.gz"
 USER_FILENAME = "user.sql.gz"
+MODERATOR_FILENAME = "subverseModerator.sql.gz"
+ATTRIBUTE_FILENAME = "submissionAttribute.sql.gz"
 
 # Stripped from user rows before storage. svpassword is always empty in the
 # dump but must never be persisted; the fetch* fields are scraper bookkeeping.
@@ -121,6 +123,80 @@ def import_users(db: Any, user_file: str, tracked_users: dict[str, str]) -> int:
     return imported
 
 
+def import_moderators(db: Any, moderator_file: str, tracked: dict[str, str]) -> int:
+    """Stream subverseModerator.sql.gz, replacing tracked subverses' moderator lists.
+
+    The structured table (with permission levels and date ranges) supersedes the
+    semicolon-separated name list Phase 1 stored. Returns subverses updated.
+    """
+    print_info(f"Enriching moderators from {os.path.basename(moderator_file)} ...")
+    parser = VoatSQLParser()
+    by_subverse: dict[str, list[dict[str, Any]]] = {}
+    scanned = 0
+    # The table has a `subverse` column, so the parser's built-in filter applies
+    for row in parser.stream_rows(moderator_file, "subverseModerator", filter_subverses=list(tracked.values())):
+        scanned += 1
+        name = row.get("username")
+        sub = row.get("subverse") or ""
+        if not name or sub.lower() not in tracked:
+            continue
+        by_subverse.setdefault(sub.lower(), []).append(
+            {
+                "username": name,
+                "level": row.get("level"),
+                "first_date": row.get("firstDate"),
+                "last_date": row.get("lastDate"),
+            }
+        )
+    updated = 0
+    for lsub, mods in by_subverse.items():
+        # Owners first, then moderators, then the rest; stable within level
+        order = {"Owner": 0, "Moderator": 1}
+        mods.sort(key=lambda m: order.get(m.get("level"), 2))
+        if db.update_moderators_json(tracked[lsub], "voat", mods):
+            updated += 1
+    print_success(f"Updated structured moderators for {updated} subverse(s) ({scanned:,} records matched)")
+    return updated
+
+
+def import_flair(db: Any, attribute_file: str) -> int:
+    """Stream submissionAttribute.sql.gz, setting link_flair_text on archived posts.
+
+    Only rows with ``type='Flair'`` carry user-visible flair (``name``); the
+    far more numerous ``type='Data'`` rows are system labels (Anon/NSFW/
+    Archived) and are skipped. Returns posts updated. First flair wins when a
+    post somehow has several.
+    """
+    print_info(f"Enriching post flair from {os.path.basename(attribute_file)} ...")
+    archived_ids = db.get_post_ids_for_platform("voat")
+    if not archived_ids:
+        print_warning("No archived Voat posts — skipping flair enrichment", indent=1)
+        return 0
+    parser = VoatSQLParser()
+    updates: dict[str, str] = {}
+    scanned = 0
+    total = 0
+    for row in parser.stream_rows(attribute_file, "submissionAttribute"):
+        scanned += 1
+        if row.get("type") != "Flair":
+            continue
+        # name can parse as a number for purely numeric flairs — coerce to str
+        raw_name = row.get("name")
+        flair = str(raw_name).strip() if raw_name is not None else ""
+        if not flair:
+            continue
+        post_id = f"voat_{row.get('submissionid')}"
+        if post_id not in archived_ids or post_id in updates:
+            continue
+        updates[post_id] = flair
+        if len(updates) >= 5000:
+            total += db.update_post_flair_batch(updates)
+            updates.clear()
+    total += db.update_post_flair_batch(updates)
+    print_success(f"Set flair on {total} post(s) (scanned {scanned:,} attribute records)")
+    return total
+
+
 def import_subverses(db: Any, subverse_file: str, tracked: dict[str, str]) -> int:
     """Stream subverse.sql.gz, importing metadata for tracked subverses.
 
@@ -171,33 +247,37 @@ def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
     """
     if not tracked:
         print_warning("No tracked Voat subverses in the database — nothing to enrich. Import Voat posts first.")
-        return {"subverses": 0, "users": 0}
+        return {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
 
-    subverse_file = None
-    user_file = None
+    files: dict[str, str | None] = {
+        SUBVERSE_FILENAME: None,
+        USER_FILENAME: None,
+        MODERATOR_FILENAME: None,
+        ATTRIBUTE_FILENAME: None,
+    }
     if os.path.isdir(path):
-        candidate = os.path.join(path, SUBVERSE_FILENAME)
-        if os.path.isfile(candidate):
-            subverse_file = candidate
-        candidate = os.path.join(path, USER_FILENAME)
-        if os.path.isfile(candidate):
-            user_file = candidate
+        for fname in files:
+            candidate = os.path.join(path, fname)
+            if os.path.isfile(candidate):
+                files[fname] = candidate
     elif os.path.isfile(path):
-        if os.path.basename(path) == USER_FILENAME:
-            user_file = path
-        else:
-            subverse_file = path
+        base = os.path.basename(path)
+        files[base if base in files else SUBVERSE_FILENAME] = path
 
-    counts = {"subverses": 0, "users": 0}
-    if subverse_file:
-        counts["subverses"] = import_subverses(db, subverse_file, tracked)
+    counts = {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
+    if files[SUBVERSE_FILENAME]:
+        counts["subverses"] = import_subverses(db, files[SUBVERSE_FILENAME], tracked)
     else:
         print_warning(f"No {SUBVERSE_FILENAME} found in {path} (extract voat-sql-tables.tar first)")
-    if user_file:
+    if files[MODERATOR_FILENAME]:
+        counts["moderators"] = import_moderators(db, files[MODERATOR_FILENAME], tracked)
+    if files[ATTRIBUTE_FILENAME]:
+        counts["flair"] = import_flair(db, files[ATTRIBUTE_FILENAME])
+    if files[USER_FILENAME]:
         db.create_user_metadata_table()
         tracked_users = db.get_archived_author_names("voat")
         if tracked_users:
-            counts["users"] = import_users(db, user_file, tracked_users)
+            counts["users"] = import_users(db, files[USER_FILENAME], tracked_users)
         else:
             print_warning("No archived Voat authors found — skipping user profile enrichment")
     return counts

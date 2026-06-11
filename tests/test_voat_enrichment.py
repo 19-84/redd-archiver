@@ -11,6 +11,8 @@ import pytest
 from core.enrichment.voat_metadata import (
     _to_unix,
     enrich_voat,
+    import_flair,
+    import_moderators,
     import_subverses,
     import_users,
     map_subverse,
@@ -216,10 +218,10 @@ class TestImportSubverses:
     def test_enrich_voat_directory_detection(self, voat_db, subverse_file, tmp_path):
         subverse_file(_row())
         counts = enrich_voat(voat_db, str(tmp_path), {TEST_SUB: TEST_SUB})
-        assert counts == {"subverses": 1, "users": 0}
+        assert counts == {"subverses": 1, "users": 0, "moderators": 0, "flair": 0}
 
     def test_enrich_voat_no_tracked(self, voat_db, tmp_path):
-        assert enrich_voat(voat_db, str(tmp_path), {}) == {"subverses": 0, "users": 0}
+        assert enrich_voat(voat_db, str(tmp_path), {}) == {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
 
 
 class TestPlatformScopedTracking:
@@ -359,6 +361,99 @@ class TestImportUsers:
         counts = enrich_voat(user_db, str(tmp_path), {TEST_SUB: TEST_SUB})
         assert counts["subverses"] == 1
         assert counts["users"] == 1
+
+
+def _table_sql(table: str, rows: str) -> str:
+    return f"DROP TABLE IF EXISTS `{table}`;\nINSERT INTO `{table}` VALUES {rows};\n"
+
+
+@pytest.fixture
+def voat_table_file(tmp_path):
+    def make(filename, table, rows):
+        path = tmp_path / filename
+        with gzip.open(path, "wt", encoding="utf-8") as f:
+            f.write(_table_sql(table, rows))
+        return str(path)
+
+    return make
+
+
+class TestImportModerators:
+    def test_structured_moderators_replace_names(self, voat_db, voat_table_file):
+        voat_db.save_subreddit_metadata(TEST_SUB, "voat", map_subverse(TestMapSubverse.ROW))
+        path = voat_table_file(
+            "subverseModerator.sql.gz",
+            "subverseModerator",
+            f"(1,'modbob','{TEST_SUB}','Moderator','2016-01-01 00:00:00','2020-12-01 00:00:00'),"
+            f"(2,'owneralice','{TEST_SUB}','Owner',NULL,NULL),"
+            f"(3,'other','unrelated_sub','Owner',NULL,NULL)",
+        )
+        updated = import_moderators(voat_db, path, {TEST_SUB: TEST_SUB})
+        assert updated == 1
+        row = voat_db.get_subreddit_metadata(TEST_SUB, "voat")
+        mods = row["moderators_json"]
+        # Owner sorts first; levels and dates preserved
+        assert mods[0] == {"username": "owneralice", "level": "Owner", "first_date": None, "last_date": None}
+        assert mods[1]["username"] == "modbob"
+        assert mods[1]["first_date"] == "2016-01-01 00:00:00"
+
+    def test_no_metadata_row_means_no_update(self, voat_db, voat_table_file):
+        path = voat_table_file(
+            "subverseModerator.sql.gz",
+            "subverseModerator",
+            f"(1,'modbob','{TEST_SUB}','Owner',NULL,NULL)",
+        )
+        assert import_moderators(voat_db, path, {TEST_SUB: TEST_SUB}) == 0
+
+
+class TestImportFlair:
+    @pytest.fixture
+    def flair_db(self, voat_db):
+        voat_db.insert_posts_batch(
+            [
+                {
+                    "id": "voat_777001",
+                    "subreddit": TEST_SUB,
+                    "author": "someone",
+                    "title": "flaired post",
+                    "selftext": "",
+                    "created_utc": 1500000000,
+                    "score": 1,
+                    "num_comments": 0,
+                    "url": "",
+                    "permalink": f"/v/{TEST_SUB}/comments/voat_777001/",
+                    "is_self": True,
+                    "platform": "voat",
+                }
+            ]
+        )
+        return voat_db
+
+    def test_flair_rows_applied_data_rows_skipped(self, flair_db, voat_table_file):
+        path = voat_table_file(
+            "submissionAttribute.sql.gz",
+            "submissionAttribute",
+            "(1,777001,-1,'linkflairlabel','Data','NSFW','Not Safe For Work'),"
+            "(2,777001,-1,'ORANGE','Flair','Article/News','Article/News'),"
+            "(3,999999,-1,'news','Flair','news','news')",  # not archived
+        )
+        assert import_flair(flair_db, path) == 1
+        with flair_db.pool.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
+                assert cur.fetchone()["flair"] == "Article/News"
+
+    def test_first_flair_wins(self, flair_db, voat_table_file):
+        path = voat_table_file(
+            "submissionAttribute.sql.gz",
+            "submissionAttribute",
+            "(1,777001,-1,'a','Flair','First','d'),(2,777001,-1,'b','Flair','Second','d')",
+        )
+        assert import_flair(flair_db, path) == 1
+        with flair_db.pool.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
+                assert cur.fetchone()["flair"] == "First"
 
 
 class TestVoatAboutPage:
