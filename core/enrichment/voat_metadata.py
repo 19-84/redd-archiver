@@ -22,8 +22,13 @@ from core.importers.voat_sql_parser import VoatSQLParser
 from utils.console_output import print_info, print_success, print_warning
 from utils.markdown_render import sanitize_html
 
-# The subverse metadata file inside voat-sql-tables.tar
+# Metadata files inside voat-sql-tables.tar
 SUBVERSE_FILENAME = "subverse.sql.gz"
+USER_FILENAME = "user.sql.gz"
+
+# Stripped from user rows before storage. svpassword is always empty in the
+# dump but must never be persisted; the fetch* fields are scraper bookkeeping.
+SENSITIVE_USER_FIELDS = {"svpassword"}
 
 
 def _to_unix(value: Any) -> int | None:
@@ -73,6 +78,49 @@ def map_subverse(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def map_user(row: dict[str, Any]) -> dict[str, Any]:
+    """Map a ``user`` table row to user_metadata columns, stripping sensitive fields."""
+    raw = {k: v for k, v in row.items() if k not in SENSITIVE_USER_FIELDS}
+    return {
+        "bio": (row.get("bio") or "").strip() or None,
+        "registration_date": _to_unix(row.get("registrationDate")),
+        "profile_picture": (row.get("profilePicture") or "").strip() or None,
+        "comment_karma": row.get("commentPointsSum"),
+        "submission_karma": row.get("submissionPointsSum"),
+        "is_bot": bool(row.get("isBot")),
+        "is_deleted": bool(row.get("isDeleted")),
+        "raw_json": raw,
+    }
+
+
+def import_users(db: Any, user_file: str, tracked_users: dict[str, str]) -> int:
+    """Stream user.sql.gz, importing profiles for authors archived in this database.
+
+    ``tracked_users`` maps lowercased author names to their exact stored case
+    (:meth:`get_archived_author_names`). Rows are saved under the dump's own
+    username casing; lookups are case-insensitive.
+    """
+    print_info(f"Enriching user profiles from {os.path.basename(user_file)} ...")
+    parser = VoatSQLParser()
+    imported = 0
+    scanned = 0
+    found: set[str] = set()
+    for row in parser.stream_rows(user_file, "user"):
+        scanned += 1
+        name = row.get("userName") if isinstance(row.get("userName"), str) else ""
+        lname = name.lower()
+        if not lname or lname not in tracked_users or lname in found:
+            continue
+        if db.save_user_metadata(name, "voat", map_user(row)):
+            imported += 1
+        found.add(lname)
+        if len(found) == len(tracked_users):
+            print_info(f"All {len(tracked_users)} tracked user(s) found — stopping scan early", indent=1)
+            break
+    print_success(f"Imported profiles for {imported} user(s) (scanned {scanned:,} records)")
+    return imported
+
+
 def import_subverses(db: Any, subverse_file: str, tracked: dict[str, str]) -> int:
     """Stream subverse.sql.gz, importing metadata for tracked subverses.
 
@@ -115,27 +163,41 @@ def import_subverses(db: Any, subverse_file: str, tracked: dict[str, str]) -> in
 
 
 def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
-    """Run Voat enrichment (Phase 1: subverse metadata).
+    """Run Voat enrichment (Phase 1: subverse metadata; Phase 2: user profiles).
 
     ``path`` may be the extracted voat-sql-tables directory (auto-detects
-    ``subverse.sql.gz``) or the file itself. ``tracked`` is the
-    {lower: exact} name map of archived Voat communities.
+    ``subverse.sql.gz`` and ``user.sql.gz``) or a single one of those files.
+    ``tracked`` is the {lower: exact} name map of archived Voat communities.
     """
     if not tracked:
         print_warning("No tracked Voat subverses in the database — nothing to enrich. Import Voat posts first.")
-        return {"subverses": 0}
+        return {"subverses": 0, "users": 0}
 
     subverse_file = None
+    user_file = None
     if os.path.isdir(path):
         candidate = os.path.join(path, SUBVERSE_FILENAME)
         if os.path.isfile(candidate):
             subverse_file = candidate
+        candidate = os.path.join(path, USER_FILENAME)
+        if os.path.isfile(candidate):
+            user_file = candidate
     elif os.path.isfile(path):
-        subverse_file = path
+        if os.path.basename(path) == USER_FILENAME:
+            user_file = path
+        else:
+            subverse_file = path
 
-    counts = {"subverses": 0}
+    counts = {"subverses": 0, "users": 0}
     if subverse_file:
         counts["subverses"] = import_subverses(db, subverse_file, tracked)
     else:
         print_warning(f"No {SUBVERSE_FILENAME} found in {path} (extract voat-sql-tables.tar first)")
+    if user_file:
+        db.create_user_metadata_table()
+        tracked_users = db.get_archived_author_names("voat")
+        if tracked_users:
+            counts["users"] = import_users(db, user_file, tracked_users)
+        else:
+            print_warning("No archived Voat authors found — skipping user profile enrichment")
     return counts

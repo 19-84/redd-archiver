@@ -57,7 +57,7 @@
 {% block content %}
 {# User profile header #}
 <div class="user-profile-header pt-3">
-  <h2>u/{{ username }}</h2>
+  <h2>u/{{ username }}{% if user_metadata and user_metadata.is_bot %} <span class="badge badge-type">bot</span>{% endif %}{% if user_metadata and user_metadata.is_deleted %} <span class="badge badge-quarantine">deleted account</span>{% endif %}</h2>
   <p class="lead">
     {{ post_count }} post{{ post_count|pluralize }} ·
     {{ comment_count }} comment{{ comment_count|pluralize }} ·
@@ -65,6 +65,16 @@
   </p>
   {% if subreddit_summary %}
   <p class="text-muted">Active in: {{ subreddit_summary }}</p>
+  {% endif %}
+  {% if user_metadata %}
+  {% if user_metadata.bio %}
+  <p class="user-bio">{{ user_metadata.bio }}</p>
+  {% endif %}
+  <p class="text-muted">
+    {% if user_metadata.registration_date %}Member since {{ user_metadata.registration_date|reddit_date }}{% endif %}
+    {%- if user_metadata.submission_karma is not none %} · Post karma: {{ user_metadata.submission_karma|format_number }}{% endif %}
+    {%- if user_metadata.comment_karma is not none %} · Comment karma: {{ user_metadata.comment_karma|format_number }}{% endif %}
+  </p>
   {% endif %}
 </div>
 
