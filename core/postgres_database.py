@@ -3851,7 +3851,9 @@ class PostgresDatabase:
                 print_warning(f"Migrations dir not found: {migrations_dir}")
                 return False
             files = sorted(
-                f for f in os.listdir(migrations_dir) if f.startswith(("005_", "006_", "007_")) and f.endswith(".sql")
+                f
+                for f in os.listdir(migrations_dir)
+                if f.startswith(("005_", "006_", "007_", "009_")) and f.endswith(".sql")
             )
             for fname in files:
                 with open(os.path.join(migrations_dir, fname)) as f:
@@ -3890,6 +3892,26 @@ class PostgresDatabase:
             print_error(f"Failed to load tracked subreddits: {e}")
         return tracked
 
+    def get_archived_subreddit_names(self, platform: str) -> dict[str, str]:
+        """Return {lowercased_name: exact_name} for communities archived on one platform.
+
+        Unlike :meth:`get_tracked_subreddits` this is platform-scoped and preserves
+        the exact stored case — Voat had case-distinct subverses (e.g. Linux vs
+        linux), and enrichment must not import metadata for a same-named community
+        on a different platform.
+        """
+        names: dict[str, str] = {}
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT subreddit FROM posts WHERE platform = %s", (platform,))
+                    for row in cur:
+                        if row["subreddit"]:
+                            names[row["subreddit"].lower()] = row["subreddit"]
+        except Exception as e:
+            print_error(f"Failed to load archived {platform} community names: {e}")
+        return names
+
     def save_subreddit_metadata(self, subreddit: str, platform: str, metadata: dict[str, Any]) -> bool:
         """Upsert one subreddit_metadata row keyed on (subreddit, platform)."""
         columns = [
@@ -3921,11 +3943,15 @@ class PostgresDatabase:
             "submit_text_html",
             "retrieved_on",
             "raw_json",
+            # Voat enrichment columns (Feature 7); NULL for Reddit rows
+            "created_by",
+            "is_deleted",
+            "moderators_json",
         ]
         values: list[Any] = []
         for c in columns:
             v = metadata.get(c)
-            if c == "raw_json" and v is not None and not isinstance(v, Jsonb):
+            if c in ("raw_json", "moderators_json") and v is not None and not isinstance(v, Jsonb):
                 v = Jsonb(v)
             values.append(v)
         col_sql = ", ".join(columns)
@@ -3946,15 +3972,26 @@ class PostgresDatabase:
             print_error(f"Failed to save metadata for r/{subreddit}: {e}")
             return False
 
-    def get_subreddit_metadata(self, subreddit: str, platform: str = "reddit") -> dict[str, Any] | None:
-        """Fetch one subreddit's metadata, or None if absent / table missing."""
+    def get_subreddit_metadata(self, subreddit: str, platform: str | None = "reddit") -> dict[str, Any] | None:
+        """Fetch one subreddit's metadata, or None if absent / table missing.
+
+        ``platform=None`` matches any platform — community names are unique per
+        archive in practice, and callers like the about page shouldn't need to
+        know the platform up front.
+        """
         try:
             with self.pool.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT * FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
-                        (subreddit, platform),
-                    )
+                    if platform is None:
+                        cur.execute(
+                            "SELECT * FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s) LIMIT 1",
+                            (subreddit,),
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT * FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                            (subreddit, platform),
+                        )
                     row = cur.fetchone()
                     return dict(row) if row else None
         except Exception:
