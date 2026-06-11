@@ -105,6 +105,42 @@ class VoatSQLParser:
             "lastPosted",
             "isUnauthorised",
         ],
+        # User profile table (Feature 7 Phase 2). The dump is Adminer-format
+        # with an explicit column list per INSERT, which overrides this order;
+        # the entry mainly registers the table as known.
+        "user": [
+            "id",
+            "userName",
+            "bio",
+            "commentPointsDownCount",
+            "commentPointsSum",
+            "commentPointsUpCount",
+            "commentVotingDownCount",
+            "commentVotingSum",
+            "commentVotingUpCount",
+            "generationDate",
+            "profilePicture",
+            "registrationDate",
+            "submissionPointsDownCount",
+            "submissionPointsSum",
+            "submissionPointsUpCount",
+            "submissionVotingDownCount",
+            "submissionVotingSum",
+            "submissionVotingUpCount",
+            "lastFetched",
+            "fetchCount",
+            "hideTop50",
+            "isBot",
+            "isDeleted",
+            "noPing",
+            "noCrosslinker",
+            "noCrosslinkee",
+            "fetchOldCommentsDate",
+            "fetchOldCommentsPage",
+            "fetchOldCommentsLast",
+            "fetchOldCommentsError",
+            "svpassword",
+        ],
     }
 
     # MariaDB escape sequences
@@ -137,7 +173,11 @@ class VoatSQLParser:
             raise ValueError(f"Unknown table: {table_name}. Expected: {list(self.COLUMN_MAPS.keys())}")
 
         columns = self.COLUMN_MAPS[table_name]
-        insert_pattern = re.compile(rf"INSERT INTO `{table_name}` VALUES", re.IGNORECASE)
+        # Matches both mysqldump form (INSERT INTO `t` VALUES) and Adminer form
+        # with an explicit column list (INSERT INTO `t` (`a`, `b`, ...) VALUES) —
+        # the user table dump uses the latter. A captured column list overrides
+        # the COLUMN_MAPS order for that statement.
+        insert_pattern = re.compile(rf"INSERT INTO `{table_name}`\s*(\(([^)]*)\))?\s*VALUES", re.IGNORECASE)
 
         # Find subverse column index for quick filtering
         subverse_idx = columns.index("subverse") if "subverse" in columns else -1
@@ -180,14 +220,15 @@ class VoatSQLParser:
                         continue
 
                     # Look for INSERT statement (standard format)
-                    if insert_pattern.search(line):
-                        # Find VALUES position
-                        values_pos = line.upper().find("VALUES")
-                        if values_pos == -1:
-                            continue
+                    if m := insert_pattern.search(line):
+                        # Explicit column list (Adminer dumps) overrides COLUMN_MAPS order
+                        if m.group(2):
+                            columns = [c.strip().strip("`") for c in m.group(2).split(",")]
+                        else:
+                            columns = self.COLUMN_MAPS[table_name]
 
-                        # Start parsing from after VALUES
-                        buffer = line[values_pos + 6 :]
+                        # Start parsing from after VALUES (end of the regex match)
+                        buffer = line[m.end() :]
                         in_split_format = False
 
                     # Split file format: lines starting with '(' are tuples (may span multiple lines)
