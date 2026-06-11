@@ -1135,6 +1135,31 @@ def write_link_page_jinja2(
     return True
 
 
+# Source-platform user metadata (Feature 7 Phase 2), loaded once per process.
+# The table only holds enriched authors (Voat), so the full load is small;
+# a per-user query here would be the N+1 pattern the batch export avoids.
+_user_metadata_cache: dict[str, dict[str, Any]] | None = None
+
+
+def _all_user_metadata() -> dict[str, dict[str, Any]]:
+    global _user_metadata_cache
+    if _user_metadata_cache is None:
+        _user_metadata_cache = {}
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+
+            conn_str = os.environ.get("DATABASE_URL")
+            if conn_str:
+                with psycopg.connect(conn_str, row_factory=dict_row) as conn:
+                    for row in conn.execute("SELECT * FROM user_metadata"):
+                        _user_metadata_cache[row["username"].lower()] = dict(row)
+        except Exception:
+            # Table missing (enrichment never ran) or DB unreachable - no metadata
+            _user_metadata_cache = {}
+    return _user_metadata_cache
+
+
 def write_user_page_jinja2(
     username: str, user_data: dict[str, Any], subs: list[dict[str, Any]], seo_config: dict[str, Any] | None = None
 ) -> bool:
@@ -1244,6 +1269,7 @@ def write_user_page_jinja2(
         # Build context
         context = {
             "username": username,
+            "user_metadata": _all_user_metadata().get(username.lower()),
             "content": page,
             "page_num": page_num,
             "total_pages": len(pages),
