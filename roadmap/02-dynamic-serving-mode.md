@@ -1,7 +1,7 @@
 # Feature 2: Dynamic Serving Mode
 
-**Status:** In progress — Phase 1 (shared Jinja filters registered in search server) implemented; Phases 2–5 not started
-**Last updated:** 2026-06-10
+**Status:** In progress — Phases 1–3 implemented (shared filters; URL adaptation via context-driven links + pagination URL patterns; core page routes behind `REDDARCHIVER_SERVE_MODE=dynamic`: dashboard, subreddit indexes with sort/page params, post pages with comment trees, user pages, about pages, 301 redirects from static paths). Phases 4–5 not started.
+**Last updated:** 2026-06-11
 
 **Goal:** Expand the Flask search server into a full application server that serves all page types from PostgreSQL, enabling the dynamic serving mode described in [README.md > Serving Modes](README.md#serving-modes).
 
@@ -72,6 +72,8 @@ See [README.md > Serving Modes](README.md#serving-modes) for a full comparison o
 
 ## Phase 2: Template adaptation (prerequisite for page routes)
 
+Implemented. The templates already took nearly all link targets from context (`url_*` keys, `include_path`), so the adaptation lives in the route layer, not the templates: dynamic routes supply URL-path values ("/", "/r/x/?sort=comments") for the same context keys static writers fill with relative paths. The pagination macro gained an optional `url_pattern` parameter (`?sort=score&page=__PAGE__`); user-content URL enrichment and comment-tree assembly moved to `html_modules/content_urls.py` parameterized by root prefix ("../../" static, "/" dynamic).
+
 - Current templates use relative paths (`../../index.html`) for navigation links
 - Dynamic mode needs either: (a) template conditionals checking a `dynamic_mode` context variable, or (b) a URL-building helper function passed to templates via Jinja2 globals
 - Option (b) is cleaner — a `url_for_page()` function registered as a Jinja2 global that returns the right URL based on serving mode
@@ -80,6 +82,8 @@ See [README.md > Serving Modes](README.md#serving-modes) for a full comparison o
 ---
 
 ## Phase 3: Core page routes
+
+Implemented in `dynamic_pages.py` (registered by `search_server.py` when `REDDARCHIVER_SERVE_MODE=dynamic`; the compose file passes the variable through). Routes: `/`, `/{r,v,g}/<sub>/` (with `?sort=score|comments|date&page=N`), post pages (Reddit/Voat `comments/`, Ruqqus `post/` shapes), `/user/<name>/`, `/{prefix}/<sub>/about/`, plus 301 redirects from every static-style file path. Platform prefixes are validated against the archived posts' platform. Dynamic title/flair/wiki browsing arrives with Phase 4.
 
 - Add route: `/r/<subreddit>/` — subreddit index (calls `postgres_database.get_posts_paginated_keyset()` + renders `pages/subreddit.html`)
 - Add route: `/r/<subreddit>/comments/<post_id>/<slug>/` — post page with comments (calls `postgres_database.rebuild_threads_keyset()` + renders `pages/link.html`)

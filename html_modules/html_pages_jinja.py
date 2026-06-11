@@ -1017,68 +1017,9 @@ def write_link_page_jinja2(
         url_prefix = get_url_prefix(platform)
 
         # Build comment tree structure for Jinja2 template
-        # OPTIMIZED: Single-pass algorithm with minimal string operations
-        #
-        # Performance improvements over original:
-        # - 2 loops instead of 3 (33% fewer iterations)
-        # - String prefix stripping only for reply comments (not all comments)
-        # - Single dict lookup per reply (vs in + [] pattern)
-        # - Build comments_by_id incrementally during first pass
+        from html_modules.content_urls import build_comment_tree
 
-        comments_by_id = {}
-        root_comments = []
-
-        # First pass: Build dict and initialize replies, identify root comments
-        for comment in comments_list:
-            comment_id = comment["id"]
-            comment["replies"] = []  # Initialize inline
-            comments_by_id[comment_id] = comment  # Build dict incrementally
-
-            parent_id = comment.get("parent_id", "")
-
-            # Fast path: Check if parent is post (most common case for root comments)
-            if isinstance(parent_id, str):
-                if parent_id.startswith("t3_"):
-                    # Top-level comment (parent is the post)
-                    root_comments.append(comment)
-                elif not parent_id.startswith("t1_"):
-                    # No valid parent - treat as top-level
-                    root_comments.append(comment)
-                # If starts with 't1_', it's a reply - handled in second pass
-            elif not parent_id:
-                # Empty parent_id
-                root_comments.append(comment)
-            else:
-                # Non-string parent_id (shouldn't happen, but handle gracefully)
-                root_comments.append(comment)
-
-        # Second pass: Attach replies to parents (processes reply comments)
-        for comment in comments_list:
-            parent_id = comment.get("parent_id", "")
-
-            if isinstance(parent_id, str):
-                # Reddit format: starts with 't1_'
-                if parent_id.startswith("t1_"):
-                    parent_id = parent_id[3:]  # Strip 't1_' prefix
-                    parent = comments_by_id.get(parent_id)
-                    if parent:
-                        parent["replies"].append(comment)
-                    else:
-                        # Orphaned comment (parent not in dataset)
-                        if comment not in root_comments:
-                            root_comments.append(comment)
-
-                # Multi-platform format: check if parent_id is another comment ID
-                elif parent_id in comments_by_id:
-                    parent = comments_by_id[parent_id]
-                    parent["replies"].append(comment)
-                    # Remove from root if it was added in first pass
-                    if comment in root_comments:
-                        root_comments.remove(comment)
-
-        # Sort root comments by score (recursive sort happens in render_comment macro)
-        root_comments.sort(key=lambda c: c.get("score", 0), reverse=True)
-
+        root_comments = build_comment_tree(comments_list)
         post["comments"] = root_comments  # Pass nested structure (not flat list)
 
     except Exception as e:
@@ -1282,91 +1223,9 @@ def write_user_page_jinja2(
     user_score_ranges = calculate_score_ranges(all_scores)
 
     # Enrich content with URL fields (critical for template rendering)
-    for item in all_content:
-        subreddit = item.get("subreddit", "")
+    from html_modules.content_urls import enrich_user_content
 
-        if item["type"] == "post":
-            # Add post URLs - preserve Reddit's original case for all path components
-            permalink = item.get("permalink", "")
-            if permalink:
-                # Reddit: /r/example/comments/abc123/Post_Title_Slug/
-                # Archive: ../../r/example/comments/abc123/Post_Title_Slug/
-                # Preserve exact case from Reddit permalinks
-                post_path = permalink.strip("/")
-                item["url_comments"] = f"../../{post_path}/"
-                item["url"] = item["url_comments"]
-            else:
-                item["url_comments"] = ""
-                item["url"] = ""
-
-            # Add domain HTML for external links
-            item["domain_html"] = generate_domain_display_and_hover(
-                item.get("url", ""), item.get("is_self", False), subreddit
-            )
-
-        elif item["type"] == "comment":
-            # Add comment URLs - handle all platforms (Reddit, Voat, Ruqqus)
-            permalink = item.get("permalink", "")
-            if permalink:
-                # Split permalink to detect platform and structure
-                # Reddit: /r/example/comments/id/Post_Title_Slug/comment_id/
-                # Voat: /v/example/comments/id#comment_id (anchor already included)
-                # Ruqqus: /g/example/post/id/slug/comment_id
-                parts = permalink.strip("/").split("/")
-                comment_id = item.get("id", "")
-
-                # Handle Reddit comments
-                if len(parts) >= 5 and parts[0] == "r" and parts[2] == "comments":
-                    # Extract post path: r/example/comments/id/slug (not comment_id)
-                    post_path = "/".join(parts[:5])
-                    item["url_comments"] = f"../../{post_path}/#comment-{comment_id}"
-
-                # Handle Voat comments
-                elif len(parts) >= 4 and parts[0] == "v" and parts[2] == "comments":
-                    # Voat permalinks have raw comment ID in anchor (e.g., #12944887)
-                    # But HTML anchors use prefixed format (e.g., id="comment-voat_12944887")
-                    if "#" in permalink:
-                        # Extract post path and discard raw comment ID from DB
-                        post_part, raw_comment_id = permalink.split("#", 1)
-                        post_path = post_part.strip("/")
-                        # Use prefixed comment_id to match HTML anchor format
-                        item["url_comments"] = f"../../{post_path}#comment-{comment_id}"
-                    else:
-                        # Add anchor if not present
-                        post_path = "/".join(parts[:4])
-                        item["url_comments"] = f"../../{post_path}#comment-{comment_id}"
-
-                # Handle Ruqqus comments
-                elif len(parts) >= 5 and parts[0] == "g" and parts[2] == "post":
-                    # Ruqqus permalinks have comment ID as last path segment
-                    # Format: /g/Guild/post/id/slug/comment_id
-                    # Need to remove comment_id from path and convert to anchor
-                    if len(parts) >= 6:
-                        # Last part is raw comment ID, exclude it from path
-                        post_path = "/".join(parts[:5])
-                    else:
-                        # Fallback for unexpected format (no comment ID in path)
-                        post_path = "/".join(parts[:5])
-                    item["url_comments"] = f"../../{post_path}#comment-{comment_id}"
-
-                else:
-                    # Fallback if permalink format unexpected
-                    item["url_comments"] = ""
-            else:
-                item["url_comments"] = ""
-
-            # Add parent_post_title as alias for link_title (template expects this)
-            item["parent_post_title"] = item.get("link_title", "Post Title")
-
-        # Add subreddit URL and platform prefix for all items (platform-aware)
-        if subreddit:
-            platform = item.get("platform", "reddit")
-            prefix = get_url_prefix(platform)
-            item["sub_url"] = f"../../{prefix}/{subreddit}/"
-            item["url_prefix"] = prefix  # For template display (r/, v/, g/)
-        else:
-            item["sub_url"] = ""
-            item["url_prefix"] = "r"  # Default fallback
+    enrich_user_content(all_content, root_prefix="../../")
 
     # Split into pages
     pages = list(chunks(all_content, links_per_page))
