@@ -18,7 +18,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | 1 | [Static Index & Search Improvements](01-static-index-improvements.md) | Title index, flair index, archive map | Implemented |
 | 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | In progress (Phase 1 implemented) |
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Planned |
-| 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Planned |
+| 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | In progress (Phase 1 implemented) |
 | 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | In progress (Phase 1 + truncation fix implemented) |
 | 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | Implemented (Phases 1–3; image archival deferred) |
 | 7 | [Voat Data Enrichment](07-voat-data-enrichment.md) | Subverse metadata, user profiles, thumbnails, flair (5 phases) | Planned |
@@ -190,6 +190,8 @@ Implemented — per-letter title index pages with overflow pagination, flair ind
 The full Feature 1 — title index, flair index, and archive map page. Medium scope, no dependencies, immediate value for static and hybrid mode users. The archive map page also replaces the non-functional search form in static-only deployments.
 
 ### Step 3: CSS Token Extraction (F4 Phase 1)
+
+Implemented — 184 design tokens with a single light-mode override block, cascade-simulation verified for zero visual change.
 
 Replace 478 hardcoded color overrides in `redd-archiver-universal.css` with CSS custom properties. Zero visual change. This is a prerequisite for Steps 4+ — new component styles (about pages, rules lists, dashboard enrichment) must use `var(--token)` from the start to avoid double-work when adding metadata UI.
 
