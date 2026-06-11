@@ -20,6 +20,31 @@ from utils.console_output import print_info, print_success, print_warning
 BATCH_SIZE = 10_000
 
 
+def discover_dump_pairs(directory: str) -> list[tuple[str | None, str | None]]:
+    """Find Arctic Shift dump pairs in a directory, oldest month first.
+
+    Returns [(rs_path, rc_path), ...] keyed by month. A month with only one
+    of the pair is still processed (the missing side is None) with a warning —
+    submissions-only or comments-only updates are valid.
+    """
+    months: dict[str, dict[str, str]] = {}
+    for name in sorted(os.listdir(directory)):
+        parsed = parse_dump_filename(name)
+        if parsed is None:
+            continue
+        kind, month = parsed
+        months.setdefault(month, {})[kind] = os.path.join(directory, name)
+    pairs: list[tuple[str | None, str | None]] = []
+    for month in sorted(months):
+        rs = months[month].get("RS")
+        rc = months[month].get("RC")
+        if not (rs and rc):
+            missing = "RC" if rs else "RS"
+            print_warning(f"Month {month}: no {missing}_{month}.zst — processing the available file only")
+        pairs.append((rs, rc))
+    return pairs
+
+
 def sha256_file(path: str, chunk_size: int = 1 << 20) -> str:
     """Streaming SHA256 of a file (dumps can be tens of GB)."""
     h = hashlib.sha256()
