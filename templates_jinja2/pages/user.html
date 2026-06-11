@@ -69,7 +69,7 @@
 </div>
 
 {# Top pagination #}
-{{ pagination(page_num, total_pages) }}
+{{ pagination(page_num, total_pages, url_pattern=pagination_url_pattern|default('')) }}
 
 {# User content (posts and comments mixed) #}
 <div class="links">
@@ -83,7 +83,7 @@
 </div>
 
 {# Bottom pagination #}
-{{ pagination(page_num, total_pages) }}
+{{ pagination(page_num, total_pages, url_pattern=pagination_url_pattern|default('')) }}
 {% endblock content %}
 
 {% block footer %}

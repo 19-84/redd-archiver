@@ -23,7 +23,10 @@ from utils.search_operators import format_search_breadcrumb, parse_search_operat
 # FLASK APPLICATION SETUP
 # ============================================================================
 
-app = Flask(__name__)
+# Templates live at templates_jinja2/ in the repo but are copied to /app/templates
+# in the Docker image — prefer the repo layout when it exists (local dev, tests).
+_repo_templates = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates_jinja2")
+app = Flask(__name__, template_folder=_repo_templates if os.path.isdir(_repo_templates) else "templates")
 
 # Security configuration
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
@@ -64,6 +67,22 @@ register_api(app)
 
 # Exempt API from CSRF protection (API uses CORS and rate limiting instead)
 csrf.exempt(api_v1)
+
+# ============================================================================
+# DYNAMIC SERVING MODE (Feature 2)
+# ============================================================================
+
+# REDDARCHIVER_SERVE_MODE=dynamic serves all archive pages (dashboard,
+# subreddit indexes, posts, users, about) straight from PostgreSQL. The
+# default "hybrid" mode keeps the server search+API-only with static files
+# served by nginx.
+SERVE_MODE = os.environ.get("REDDARCHIVER_SERVE_MODE", "hybrid").strip().lower()
+
+if SERVE_MODE == "dynamic":
+    from dynamic_pages import pages as pages_blueprint
+
+    app.register_blueprint(pages_blueprint)
+    print_info("Dynamic serving mode enabled: archive pages served from PostgreSQL")
 
 # ============================================================================
 # GLOBAL SEARCH ENGINE (reused across all requests)
@@ -196,7 +215,11 @@ def get_score_badge_class(score: int) -> str:
 
 @app.route("/")
 def index():
-    """Redirect to search page."""
+    """Search form (hybrid mode) or archive dashboard (dynamic mode)."""
+    if SERVE_MODE == "dynamic":
+        from dynamic_pages import dashboard
+
+        return dashboard()
     return render_template("pages/search_form.html", site_name=SITE_NAME, url_project=PROJECT_URL)
 
 
@@ -421,7 +444,12 @@ def health():
 
         if health_ok:
             return jsonify(
-                {"status": "healthy", "database": "connected", "timestamp": datetime.utcnow().isoformat()}
+                {
+                    "status": "healthy",
+                    "database": "connected",
+                    "serve_mode": SERVE_MODE,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
             ), 200
         else:
             return jsonify(

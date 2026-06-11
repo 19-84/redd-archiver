@@ -148,6 +148,10 @@ services:
       FLASK_DEBUG: ${FLASK_DEBUG:-False}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-}
 
+      # Serving mode: hybrid (default, search+API only) or dynamic
+      # (all archive pages rendered from PostgreSQL — Feature 2)
+      REDDARCHIVER_SERVE_MODE: ${REDDARCHIVER_SERVE_MODE:-hybrid}
+
       # Application settings
       PYTHONUNBUFFERED: 1
 
