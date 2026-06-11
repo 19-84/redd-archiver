@@ -1171,7 +1171,8 @@ def process_enrich_voat(args: argparse.Namespace) -> None:
         counts = voat_mod.enrich_voat(db, args.enrich_voat, tracked)
         print_success(
             f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s), "
-            f"{counts.get('users', 0)} user profile(s)"
+            f"{counts.get('users', 0)} user profile(s), {counts.get('moderators', 0)} moderator list(s), "
+            f"{counts.get('flair', 0)} post(s) flaired"
         )
     finally:
         db.cleanup()
