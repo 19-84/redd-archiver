@@ -4035,6 +4035,112 @@ class PostgresDatabase:
             print_error(f"Failed to load tracked subreddits: {e}")
         return tracked
 
+    # =========================================================================
+    # INCREMENTAL UPDATE TRACKING (Feature 3)
+    # =========================================================================
+
+    def create_update_history_table(self) -> bool:
+        """Idempotently create the update_history table (migration 010)."""
+        try:
+            migrations_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sql", "migrations"
+            )
+            path = os.path.join(migrations_dir, "010_update_history.sql")
+            with open(path) as f:
+                sql_text = f.read()
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql_text)
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to create update_history table: {e}")
+            return False
+
+    def is_dump_already_imported(self, file_hash: str) -> bool:
+        """True when a completed update_history row exists for this file hash."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM update_history WHERE file_hash = %s AND status = 'completed' LIMIT 1",
+                        (file_hash,),
+                    )
+                    return cur.fetchone() is not None
+        except Exception:
+            return False
+
+    def record_update_start(self, source_file: str, file_hash: str | None, month_period: str | None) -> int | None:
+        """Insert an in_progress update_history row; returns its id."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO update_history (source_file, file_hash, month_period) "
+                        "VALUES (%s, %s, %s) RETURNING id",
+                        (source_file, file_hash, month_period),
+                    )
+                    update_id = cur.fetchone()["id"]
+                conn.commit()
+                return update_id
+        except Exception as e:
+            print_error(f"Failed to record update start for {source_file}: {e}")
+            return None
+
+    def record_update_complete(
+        self,
+        update_id: int,
+        posts_matched: int = 0,
+        posts_failed: int = 0,
+        comments_matched: int = 0,
+        comments_failed: int = 0,
+        affected_subreddits: list[str] | None = None,
+        affected_users: list[str] | None = None,
+        status: str = "completed",
+    ) -> bool:
+        """Finalize an update_history row with counts and affected entities."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE update_history
+                        SET posts_matched = %s, posts_failed = %s,
+                            comments_matched = %s, comments_failed = %s,
+                            affected_subreddits = %s, affected_users = %s,
+                            completed_at = NOW(), status = %s
+                        WHERE id = %s
+                        """,
+                        (
+                            posts_matched,
+                            posts_failed,
+                            comments_matched,
+                            comments_failed,
+                            Jsonb(sorted(affected_subreddits or [])),
+                            Jsonb(sorted(affected_users or [])),
+                            status,
+                            update_id,
+                        ),
+                    )
+                conn.commit()
+                return True
+        except Exception as e:
+            print_error(f"Failed to finalize update {update_id}: {e}")
+            return False
+
+    def get_update_history(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Recent update_history rows, newest first. [] if the table is missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM update_history ORDER BY started_at DESC LIMIT %s",
+                        (limit,),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception:
+            return []
+
     def get_archived_subreddit_names(self, platform: str) -> dict[str, str]:
         """Return {lowercased_name: exact_name} for communities archived on one platform.
 
