@@ -724,6 +724,20 @@ Examples:
         "file itself. Composes with --export-from-database.",
     )
 
+    # Incremental updates from monthly Arctic Shift dumps (Feature 3)
+    parser.add_argument(
+        "--update",
+        metavar="RS_FILE",
+        help="Import a monthly Arctic Shift submissions dump (RS_YYYY-MM.zst) into the existing "
+        "archive, filtered to tracked subreddits. Pair with --comments-file for the matching "
+        "RC_YYYY-MM.zst. Upserts refresh scores; original content is preserved.",
+    )
+    parser.add_argument(
+        "--update-status",
+        action="store_true",
+        help="Show recent incremental update history and exit",
+    )
+
     # Performance Override Arguments (for debugging/testing only)
     parser.add_argument(
         "--force-parallel-users",
@@ -816,6 +830,16 @@ Examples:
 
     # Print performance analysis
     print_performance_analysis()
+
+    # Feature 3: incremental updates dispatch before community-mode validation —
+    # --update reuses --comments-file without requiring --subreddit
+    if args.update_status:
+        process_update_status(args)
+        return
+
+    if args.update:
+        process_update(args)
+        return
 
     # Validate single community mode arguments (subreddit/subverse/guild)
     community_filter = args.subreddit or args.subverses or args.guilds
@@ -1140,6 +1164,87 @@ def process_enrich_voat(args: argparse.Namespace) -> None:
 
         counts = voat_mod.enrich_voat(db, args.enrich_voat, tracked)
         print_success(f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s)")
+    finally:
+        db.cleanup()
+
+
+def process_update(args: argparse.Namespace) -> None:
+    """Incremental update from a monthly Arctic Shift dump pair (Feature 3).
+
+    Streams RS_/RC_YYYY-MM.zst files, importing only records for subreddits
+    already in the archive. Safe to re-run: processed files are skipped by
+    SHA256 hash, and upserts refresh scores without duplicating records.
+    """
+    print_section("Incremental Update: Importing Arctic Shift monthly dump")
+
+    connection_string = get_postgres_connection_string()
+    if not connection_string or "postgresql://" not in connection_string:
+        print_error("Incremental updates require PostgreSQL to be configured")
+        print_info("Set DATABASE_URL environment variable to PostgreSQL connection string", indent=1)
+        return
+
+    if not os.path.isfile(args.update):
+        print_error(f"Submissions dump not found: {args.update}")
+        return
+    if args.comments_file and not os.path.isfile(args.comments_file):
+        print_error(f"Comments dump not found: {args.comments_file}")
+        return
+
+    try:
+        db = PostgresDatabase(connection_string, workload_type="default")
+        print_success("Connected to PostgreSQL database")
+    except Exception as e:
+        print_error(f"Failed to connect to PostgreSQL: {e}")
+        return
+
+    try:
+        from core.incremental_update import run_update
+
+        summary = run_update(db, submissions_file=args.update, comments_file=args.comments_file)
+        print_success(
+            f"Update complete: {summary['posts']:,} posts, {summary['comments']:,} comments upserted "
+            f"across {len(summary['affected_subreddits'])} subreddit(s)"
+        )
+        if summary["skipped_files"]:
+            print_info(f"{summary['skipped_files']} file(s) skipped (already imported)", indent=1)
+        if summary["affected_subreddits"]:
+            print_info("Affected subreddits: " + ", ".join(summary["affected_subreddits"]), indent=1)
+            print_warning(
+                "Static/hybrid archives need a re-export to surface the new content "
+                "(--export-from-database); dynamic mode serves it immediately",
+                indent=1,
+            )
+    finally:
+        db.cleanup()
+
+
+def process_update_status(args: argparse.Namespace) -> None:
+    """Print recent incremental update history (Feature 3)."""
+    print_section("Incremental Update History")
+
+    connection_string = get_postgres_connection_string()
+    if not connection_string or "postgresql://" not in connection_string:
+        print_error("Update status requires PostgreSQL to be configured")
+        return
+
+    try:
+        db = PostgresDatabase(connection_string, workload_type="default")
+    except Exception as e:
+        print_error(f"Failed to connect to PostgreSQL: {e}")
+        return
+
+    try:
+        rows = db.get_update_history()
+        if not rows:
+            print_info("No incremental updates recorded yet (run --update first)")
+            return
+        for row in rows:
+            when = row["started_at"].strftime("%Y-%m-%d %H:%M") if row.get("started_at") else "?"
+            subs = len(row.get("affected_subreddits") or [])
+            print_info(
+                f"[{row['status']:<11}] {when}  {row['source_file']:<22} "
+                f"posts={row['posts_matched']:,} comments={row['comments_matched']:,} subs={subs}"
+            )
     finally:
         db.cleanup()
 

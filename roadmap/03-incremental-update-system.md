@@ -1,7 +1,7 @@
 # Feature 3: Incremental Update System
 
-**Status:** Planned
-**Last updated:** 2026-02-11
+**Status:** In progress — Phases 1+2 implemented (`ArcticShiftImporter` yielding legacy-compatible raw records, `update_history` tracking with SHA256 dedup via migration 010, `--update`/`--update-status` CLI, statistics refresh for affected subreddits). Phases 3 (selective re-export) and 4 (`--update-all` discovery) not started.
+**Last updated:** 2026-06-11
 
 **Goal:** Keep archives current by importing new data from monthly Arctic Shift torrent releases without requiring full re-imports.
 
