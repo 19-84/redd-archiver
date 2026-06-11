@@ -733,6 +733,12 @@ Examples:
         "RC_YYYY-MM.zst. Upserts refresh scores; original content is preserved.",
     )
     parser.add_argument(
+        "--update-all",
+        metavar="DIR",
+        help="Import all unprocessed Arctic Shift dump pairs (RS_/RC_YYYY-MM.zst) from DIR in "
+        "chronological order, then selectively re-export affected pages (unless --import-only)",
+    )
+    parser.add_argument(
         "--update-status",
         action="store_true",
         help="Show recent incremental update history and exit",
@@ -837,7 +843,7 @@ Examples:
         process_update_status(args)
         return
 
-    if args.update:
+    if args.update or args.update_all:
         process_update(args)
         return
 
@@ -1183,8 +1189,11 @@ def process_update(args: argparse.Namespace) -> None:
         print_info("Set DATABASE_URL environment variable to PostgreSQL connection string", indent=1)
         return
 
-    if not os.path.isfile(args.update):
+    if args.update and not os.path.isfile(args.update):
         print_error(f"Submissions dump not found: {args.update}")
+        return
+    if args.update_all and not os.path.isdir(args.update_all):
+        print_error(f"Dump directory not found: {args.update_all}")
         return
     if args.comments_file and not os.path.isfile(args.comments_file):
         print_error(f"Comments dump not found: {args.comments_file}")
@@ -1198,22 +1207,46 @@ def process_update(args: argparse.Namespace) -> None:
         return
 
     try:
-        from core.incremental_update import run_update
+        from core.incremental_update import discover_dump_pairs, run_update
 
-        summary = run_update(db, submissions_file=args.update, comments_file=args.comments_file)
+        if args.update_all:
+            pairs = discover_dump_pairs(args.update_all)
+            if not pairs:
+                print_warning(f"No Arctic Shift dump pairs (RS_/RC_YYYY-MM.zst) found in {args.update_all}")
+                return
+            print_info(f"Found {len(pairs)} dump pair(s) to process (chronological)")
+        else:
+            pairs = [(args.update, args.comments_file)]
+
+        total_posts = total_comments = total_skipped = 0
+        affected_subs: set[str] = set()
+        affected_users: set[str] = set()
+        for rs_file, rc_file in pairs:
+            summary = run_update(db, submissions_file=rs_file, comments_file=rc_file)
+            total_posts += summary["posts"]
+            total_comments += summary["comments"]
+            total_skipped += summary["skipped_files"]
+            affected_subs.update(summary["affected_subreddits"])
+            affected_users.update(summary["affected_users"])
+
         print_success(
-            f"Update complete: {summary['posts']:,} posts, {summary['comments']:,} comments upserted "
-            f"across {len(summary['affected_subreddits'])} subreddit(s)"
+            f"Update complete: {total_posts:,} posts, {total_comments:,} comments upserted "
+            f"across {len(affected_subs)} subreddit(s)"
         )
-        if summary["skipped_files"]:
-            print_info(f"{summary['skipped_files']} file(s) skipped (already imported)", indent=1)
-        if summary["affected_subreddits"]:
-            print_info("Affected subreddits: " + ", ".join(summary["affected_subreddits"]), indent=1)
-            print_warning(
-                "Static/hybrid archives need a re-export to surface the new content "
-                "(--export-from-database); dynamic mode serves it immediately",
-                indent=1,
-            )
+        if total_skipped:
+            print_info(f"{total_skipped} file(s) skipped (already imported)", indent=1)
+
+        if not affected_subs:
+            return
+        print_info("Affected subreddits: " + ", ".join(sorted(affected_subs)), indent=1)
+
+        if args.import_only:
+            print_info("Import-only mode: skipping re-export (dynamic mode serves new content live)", indent=1)
+            return
+
+        from core.selective_export import selective_reexport
+
+        selective_reexport(db, args.output, sorted(affected_subs), sorted(affected_users), args)
     finally:
         db.cleanup()
 

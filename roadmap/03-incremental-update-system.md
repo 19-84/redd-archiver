@@ -1,6 +1,6 @@
 # Feature 3: Incremental Update System
 
-**Status:** In progress — Phases 1+2 implemented (`ArcticShiftImporter` yielding legacy-compatible raw records, `update_history` tracking with SHA256 dedup via migration 010, `--update`/`--update-status` CLI, statistics refresh for affected subreddits). Phases 3 (selective re-export) and 4 (`--update-all` discovery) not started.
+**Status:** Implemented (all phases) — `ArcticShiftImporter`, `update_history` tracking with SHA256 dedup, `--update`/`--update-all`/`--update-status` CLI, and selective re-export of affected pages (`core/selective_export.py`): listing/title/flair pages of affected subreddits are dropped and regenerated, new post pages are written via the writers' skip-if-exists behavior, affected user pages are rebuilt from the database, and the dashboard/archive map/sitemaps are refreshed. Dynamic mode skips re-export entirely.
 **Last updated:** 2026-06-11
 
 **Goal:** Keep archives current by importing new data from monthly Arctic Shift torrent releases without requiring full re-imports.
