@@ -4328,6 +4328,54 @@ class PostgresDatabase:
             # Table may not exist yet (enrichment never run) — treat as no metadata.
             return None
 
+    def update_moderators_json(self, subreddit: str, platform: str, moderators: list[dict[str, Any]]) -> bool:
+        """Replace the structured moderator list on an existing subreddit_metadata row."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE subreddit_metadata SET moderators_json = %s, updated_at = NOW() "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s",
+                        (Jsonb(moderators), subreddit, platform),
+                    )
+                    updated = cur.rowcount > 0
+                conn.commit()
+                return updated
+        except Exception as e:
+            print_error(f"Failed to update moderators for {subreddit}: {e}")
+            return False
+
+    def get_post_ids_for_platform(self, platform: str) -> set[str]:
+        """All post IDs archived for a platform (e.g. 'voat_12345' for Voat)."""
+        ids: set[str] = set()
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM posts WHERE platform = %s", (platform,))
+                    for row in cur:
+                        ids.add(row["id"])
+        except Exception as e:
+            print_error(f"Failed to load {platform} post IDs: {e}")
+        return ids
+
+    def update_post_flair_batch(self, flair_by_post_id: dict[str, str]) -> int:
+        """Set json_data.link_flair_text on many posts; returns rows updated."""
+        if not flair_by_post_id:
+            return 0
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        "UPDATE posts SET json_data = jsonb_set(json_data, '{link_flair_text}', to_jsonb(%s::text)) "
+                        "WHERE id = %s",
+                        [(flair, post_id) for post_id, flair in flair_by_post_id.items()],
+                    )
+                conn.commit()
+        except Exception as e:
+            print_error(f"Failed to update post flair batch: {e}")
+            return 0
+        return len(flair_by_post_id)
+
     def get_archived_author_names(self, platform: str) -> dict[str, str]:
         """{lowercased_author: exact_author} for authors with archived content on a platform."""
         names: dict[str, str] = {}
