@@ -75,6 +75,55 @@ def _sort_arg() -> str:
     return sort if sort in _SORTS else "score"
 
 
+def _date_arg(name: str) -> int | None:
+    """Parse a ?from=/&to= date (YYYY-MM-DD) to a UTC Unix timestamp, or None."""
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        return None
+    from datetime import datetime, timezone
+
+    try:
+        return int(datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return None
+
+
+def _filter_args() -> dict[str, Any]:
+    """Dynamic-only filters from query params (F2 Phase 4)."""
+    try:
+        min_score = max(0, int(request.args.get("min_score", "0")))
+    except ValueError:
+        min_score = 0
+    date_to = _date_arg("to")
+    if date_to is not None:
+        date_to += 86399  # inclusive end of day
+    return {
+        "flair": request.args.get("flair", "").strip() or None,
+        "domain": request.args.get("domain", "").strip() or None,
+        "date_from": _date_arg("from"),
+        "date_to": date_to,
+        "min_score": min_score,
+    }
+
+
+def _filter_query_suffix(filters: dict[str, Any], sort: str) -> str:
+    """Reconstruct the current sort+filter query string with a __PAGE__ slot."""
+    from urllib.parse import urlencode
+
+    params: dict[str, str] = {"sort": sort}
+    if filters["flair"]:
+        params["flair"] = filters["flair"]
+    if filters["domain"]:
+        params["domain"] = filters["domain"]
+    if filters["min_score"]:
+        params["min_score"] = str(filters["min_score"])
+    if request.args.get("from"):
+        params["from"] = request.args["from"]
+    if request.args.get("to"):
+        params["to"] = request.args["to"]
+    return "?" + urlencode(params) + "&page=__PAGE__"
+
+
 def _check_platform(prefix: str, subreddit: str) -> str:
     """404 unless `prefix` exists and matches the archived posts' platform."""
     platform = _PREFIX_PLATFORMS.get(prefix)
@@ -112,7 +161,7 @@ def _nav_context(subreddit: str | None = None, prefix: str = "r") -> dict[str, A
                 "url_sub_cmnt": base + "?sort=comments",
                 "url_sub_date": base + "?sort=date",
                 "url_idx_about": base + "about/",
-                "url_idx_titles": None,  # dynamic title browsing arrives with F2 Phase 4
+                "url_idx_titles": base + "titles/",
             }
         )
     return ctx
@@ -152,38 +201,43 @@ def dashboard():
 # ---------------------------------------------------------------------------
 
 
-@pages.route("/<prefix>/<subreddit>/")
-def subreddit_index(prefix: str, subreddit: str):
-    platform = _check_platform(prefix, subreddit)
+def _render_listing(prefix: str, subreddit: str | None, platform: str):
+    """Shared listing renderer for subreddit indexes and /all/ (F2 Phases 3+4)."""
     db = get_db()
     sort = _sort_arg()
     page_num = _page_arg()
     sort_key, order_by = _SORTS[sort]
+    filters = _filter_args()
 
-    stats = db.get_subreddit_statistics_from_db(subreddit) or {}
-    total_posts = stats.get("total_posts") or 0
+    total_posts = db.count_posts_filtered(subreddit=subreddit, **filters)
     total_pages = max(1, (total_posts + links_per_page - 1) // links_per_page)
 
-    posts = list(
-        db.get_posts_paginated(
-            subreddit, limit=links_per_page, offset=(page_num - 1) * links_per_page, order_by=order_by
-        )
+    posts = db.query_posts_filtered(
+        subreddit=subreddit,
+        order_by=order_by,
+        limit=links_per_page,
+        offset=(page_num - 1) * links_per_page,
+        **filters,
     )
     if not posts and page_num > 1:
         abort(404)
 
     try:
-        sample = list(db.get_posts_paginated(subreddit, limit=100, order_by="score DESC"))
+        sample = db.query_posts_filtered(subreddit=subreddit, limit=100, **filters)
         score_ranges = calculate_subreddit_score_ranges(sample)
     except Exception:
         score_ranges = {"very_high": 100, "high": 50, "medium": 10}
 
     url_prefix = get_url_prefix(platform)
-    has_about = db.get_subreddit_metadata(subreddit, platform) is not None
+    display_name = subreddit or "all"
+    base = f"/{prefix}/{subreddit}/" if subreddit else "/all/"
+    has_about = bool(subreddit) and db.get_subreddit_metadata(subreddit, platform) is not None
+
+    stats = db.get_subreddit_statistics_from_db(subreddit) if subreddit else None
 
     context = {
         **_nav_context(subreddit, prefix),
-        "subreddit": subreddit,
+        "subreddit": display_name,
         "platform": platform,
         "url_prefix": url_prefix,
         "posts": _prepare_posts(posts, platform),
@@ -192,18 +246,122 @@ def subreddit_index(prefix: str, subreddit: str):
         "score_ranges": score_ranges,
         "base_path": "/",
         "has_about": has_about,
+        "url_idx_score": base,
+        "url_idx_cmnt": base + "?sort=comments",
+        "url_idx_date": base + "?sort=date",
         "url_idx_score_css": "active" if sort == "score" else "",
         "url_idx_cmnt_css": "active" if sort == "comments" else "",
         "url_idx_date_css": "active" if sort == "date" else "",
-        "arch_num_posts": total_posts,
-        "arch_num_comments": stats.get("total_comments") or 0,
-        "pagination_url_pattern": f"/{prefix}/{subreddit}/?sort={sort}&page=__PAGE__",
-        "seo_title": f"{url_prefix}/{subreddit} - sorted by {sort_indexes[sort_key]['slug']} - page {page_num}",
-        "meta_description": f"Archived posts from {url_prefix}/{subreddit}",
-        "keywords": f"{subreddit}, {platform}, archive, posts",
-        "og_title": f"{url_prefix}/{subreddit} archive",
+        "arch_num_posts": (stats or {}).get("total_posts") or total_posts,
+        "arch_num_comments": (stats or {}).get("total_comments") or 0,
+        "pagination_url_pattern": base + _filter_query_suffix(filters, sort),
+        "seo_title": f"{url_prefix}/{display_name} - sorted by {sort_indexes[sort_key]['slug']} - page {page_num}",
+        "meta_description": f"Archived posts from {url_prefix}/{display_name}",
+        "keywords": f"{display_name}, {platform}, archive, posts",
+        "og_title": f"{url_prefix}/{display_name} archive",
     }
     return render_template("pages/subreddit.html", **context)
+
+
+@pages.route("/<prefix>/<subreddit>/")
+def subreddit_index(prefix: str, subreddit: str):
+    platform = _check_platform(prefix, subreddit)
+    return _render_listing(prefix, subreddit, platform)
+
+
+@pages.route("/all/")
+def all_posts():
+    """Cross-subreddit combined view — dynamic mode only (F2 Phase 4)."""
+    return _render_listing("r", None, "reddit")
+
+
+# ---------------------------------------------------------------------------
+# Title browsing (dynamic equivalent of the Feature 1 static title index)
+# ---------------------------------------------------------------------------
+
+_LETTERS = [*"abcdefghijklmnopqrstuvwxyz", "0-9"]
+TITLES_PER_PAGE = 500
+
+
+def _letter_tabs(prefix: str, subreddit: str, counts: dict[str, int], active: str | None = None):
+    return [
+        {
+            "letter": letter,
+            "label": letter.upper() if letter != "0-9" else "0-9",
+            "href": f"/{prefix}/{subreddit}/titles/{letter}/",
+            "count": counts.get(letter, 0),
+            "active": letter == active,
+        }
+        for letter in _LETTERS
+        if counts.get(letter, 0)
+    ]
+
+
+@pages.route("/<prefix>/<subreddit>/titles/")
+def title_directory(prefix: str, subreddit: str):
+    platform = _check_platform(prefix, subreddit)
+    counts = get_db().get_title_letter_counts(subreddit)
+    if not counts:
+        abort(404)
+    context = {
+        **_nav_context(subreddit, prefix),
+        "subreddit": subreddit,
+        "platform": platform,
+        "url_prefix": get_url_prefix(platform),
+        "letters": _letter_tabs(prefix, subreddit, counts),
+        "total_titles": sum(counts.values()),
+        "seo_title": f"{get_url_prefix(platform)}/{subreddit} - Title index",
+        "meta_description": f"Alphabetical title index for {subreddit}",
+        "keywords": f"{subreddit}, titles, index, archive",
+        "og_title": f"{get_url_prefix(platform)}/{subreddit} - Title index",
+    }
+    return render_template("pages/title_directory.html", **context)
+
+
+@pages.route("/<prefix>/<subreddit>/titles/<letter>/")
+def title_letter(prefix: str, subreddit: str, letter: str):
+    if letter not in _LETTERS:
+        abort(404)
+    platform = _check_platform(prefix, subreddit)
+    db = get_db()
+    counts = db.get_title_letter_counts(subreddit)
+    total = counts.get(letter, 0)
+    if not total:
+        abort(404)
+
+    page_num = _page_arg()
+    total_pages = max(1, (total + TITLES_PER_PAGE - 1) // TITLES_PER_PAGE)
+    if page_num > total_pages:
+        abort(404)
+    rows = db.get_titles_by_letter(subreddit, letter, limit=TITLES_PER_PAGE, offset=(page_num - 1) * TITLES_PER_PAGE)
+
+    base = f"/{prefix}/{subreddit}/titles/{letter}/"
+    titles = [{**row, "href": "/" + str(row.get("permalink", "")).strip("/") + "/"} for row in rows]
+    context = {
+        **_nav_context(subreddit, prefix),
+        "subreddit": subreddit,
+        "platform": platform,
+        "url_prefix": get_url_prefix(platform),
+        "letters": _letter_tabs(prefix, subreddit, counts, active=letter),
+        "letter_label": letter.upper() if letter != "0-9" else "0-9",
+        "titles": titles,
+        "page_num": page_num,
+        "total_pages": total_pages,
+        "prev_href": f"{base}?page={page_num - 1}" if page_num > 1 else None,
+        "next_href": f"{base}?page={page_num + 1}" if page_num < total_pages else None,
+        "url_titles_dir": f"/{prefix}/{subreddit}/titles/",
+        "seo_title": f"{get_url_prefix(platform)}/{subreddit} - Titles: {letter.upper()}",
+        "meta_description": f"Post titles starting with {letter} in {subreddit}",
+        "keywords": f"{subreddit}, titles, {letter}, archive",
+        "og_title": f"{get_url_prefix(platform)}/{subreddit} - Titles: {letter.upper()}",
+    }
+    return render_template("pages/title_index.html", **context)
+
+
+@pages.route("/<prefix>/<subreddit>/titles/<letter>/<int:n>/")
+def redirect_title_overflow(prefix: str, subreddit: str, letter: str, n: int):
+    """Static overflow pages (titles/a/2/) map to ?page=N."""
+    return redirect(f"/{prefix}/{subreddit}/titles/{letter}/?page={n}", code=301)
 
 
 # ---------------------------------------------------------------------------

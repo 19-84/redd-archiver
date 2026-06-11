@@ -1,6 +1,6 @@
 # Feature 2: Dynamic Serving Mode
 
-**Status:** In progress — Phases 1–3 implemented (shared filters; URL adaptation via context-driven links + pagination URL patterns; core page routes behind `REDDARCHIVER_SERVE_MODE=dynamic`: dashboard, subreddit indexes with sort/page params, post pages with comment trees, user pages, about pages, 301 redirects from static paths). Phases 4–5 not started.
+**Status:** In progress — Phases 1–4 implemented (shared filters; URL adaptation; core page routes behind `REDDARCHIVER_SERVE_MODE=dynamic`; dynamic-only filters `?flair=&domain=&min_score=&from=&to=`, `/all/` cross-subreddit view, and on-the-fly title browsing at the static title-index URLs). Phase 5 (caching) not started.
 **Last updated:** 2026-06-11
 
 **Goal:** Expand the Flask search server into a full application server that serves all page types from PostgreSQL, enabling the dynamic serving mode described in [README.md > Serving Modes](README.md#serving-modes).
@@ -95,6 +95,8 @@ Implemented in `dynamic_pages.py` (registered by `search_server.py` when `REDDAR
 ---
 
 ## Phase 4: Dynamic-only features
+
+Implemented. `query_posts_filtered`/`count_posts_filtered` build all filters as bound WHERE clauses (flair uses the Feature 1 expression index; domain matches the URL host; dates are inclusive YYYY-MM-DD ranges). `/all/` reuses the subreddit listing renderer with no subreddit constraint. Title browsing serves the Feature 1 templates from `get_titles_by_letter` (the SQL bucket expression mirrors `letter_bucket()`, including the multi-char-lowercase edge case); static overflow paths (`titles/a/2/`) 301 to `?page=N`. Pagination links preserve active filters.
 
 - Query parameter support: `?sort=comments&page=2&flair=Discussion&min_score=100&from=2024-01-01`
 - All filtering happens via PostgreSQL WHERE clauses — no pre-computation
