@@ -1,7 +1,7 @@
 # Feature 4: Visual Themes
 
-**Status:** Planned
-**Last updated:** 2026-06-09
+**Status:** In progress (Phase 1 implemented)
+**Last updated:** 2026-06-11
 
 **Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system where each theme provides both dark and light palettes, supports system preference detection, and allows operator customization — all without JavaScript (except for optional persistence in static mode).
 
@@ -67,6 +67,8 @@ The main CSS file (`redd-archiver-universal.css`) uses only `var()` references f
 ---
 
 ## Phase 1: Design Token Extraction
+
+Implemented. 184 design tokens in a `:root` block with a single light-mode token-override block; 478 toggle-selector occurrences reduced to 194. The remaining toggle rules are light-only declarations with no base counterpart (their dark value comes from inheritance), specificity-contested pairs, `!important` mismatches, and media-scoped overrides — tokenizing those would require inventing dark-mode values and risk visual drift; they can be hand-curated in Phase 3. Equivalence was machine-verified by simulating the cascade (importance, specificity, source order) for every (selector, property) pair in both modes against the pre-refactor stylesheet. `tests/test_css_tokens.py` enforces dark/light token parity going forward.
 
 Replace all hardcoded colors in `redd-archiver-universal.css` with CSS custom properties. Collapse the 478 `#dark-theme-toggle:checked` selector overrides into a single variable-override block.
 
