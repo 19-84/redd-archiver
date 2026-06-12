@@ -222,6 +222,24 @@ class TestRunUpdate:
         assert _post_row(update_db, "incrupd2") is not None
         assert _post_row(update_db, "incrupd3") is None
 
+    def test_orphan_comments_skipped_cleanly(self, update_db, tmp_path):
+        """Comments on posts the archive never had (removed posts, coverage
+        gaps) are dropped before insert — no FK retry churn — and counted as
+        failed in update_history so totals reconcile."""
+        rc = _write_zst(
+            tmp_path / "RC_2026-01.zst",
+            [
+                _comment(1, 1),  # parent exists (seeded)
+                {**_comment(2, 1), "link_id": "t3_no_such_post"},  # orphan
+            ],
+        )
+        summary = run_update(update_db, comments_file=rc)
+        assert summary["comments"] == 1
+
+        rows = update_db.get_update_history()
+        assert rows[0]["comments_matched"] == 1
+        assert rows[0]["comments_failed"] == 1
+
     def test_rerun_skipped_by_hash(self, update_db, tmp_path):
         rs = _write_zst(tmp_path / "RS_2026-01.zst", [_submission(2)])
         first = run_update(update_db, submissions_file=rs)
