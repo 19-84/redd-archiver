@@ -109,6 +109,59 @@ def _hue_to(band: tuple[float, float], target_hue: float) -> ColorFn:
     return fn
 
 
+def _restyle(
+    band: tuple[float, float],
+    hue: float,
+    *,
+    sat_scale: float = 1.0,
+    sat_floor: float = 0.0,
+    light_scale: float = 1.0,
+) -> ColorFn:
+    """Single-hue theme factory: rotate in-band colors to ``hue`` with optional
+    saturation scaling/floor and lightness scaling. The default palette's
+    lightness ladders (surface depth, hover states) carry the structure."""
+
+    def fn(r: int, g: int, b: int) -> tuple[int, int, int]:
+        h, lightness, s = _hsl(r, g, b)
+        if not _in_band(h, s, band):
+            return r, g, b
+        return _rgb(hue, min(1.0, lightness * light_scale), min(1.0, max(s * sat_scale, sat_floor)))
+
+    return fn
+
+
+def _restyle_split(
+    band: tuple[float, float],
+    surface_hue: float,
+    accent_hue: float,
+    *,
+    threshold: float = 0.45,
+    surface_sat: float = 1.0,
+    accent_sat_floor: float = 0.0,
+) -> ColorFn:
+    """Dual-hue theme factory: dark in-band colors (surfaces) go to one hue,
+    bright ones (accents, links, light text) to another."""
+
+    def fn(r: int, g: int, b: int) -> tuple[int, int, int]:
+        h, lightness, s = _hsl(r, g, b)
+        if not _in_band(h, s, band):
+            return r, g, b
+        if lightness < threshold:
+            return _rgb(surface_hue, lightness, min(1.0, s * surface_sat))
+        return _rgb(accent_hue, lightness, min(1.0, max(s, accent_sat_floor)))
+
+    return fn
+
+
+def _midnight_dark(r: int, g: int, b: int) -> tuple[int, int, int]:
+    """OLED midnight: crush the dark surface ladder toward true black, keep the
+    blue accents untouched (only colors darker than the threshold change)."""
+    h, lightness, s = _hsl(r, g, b)
+    if not _in_band(h, s, (185, 300)) or lightness >= 0.35:
+        return r, g, b
+    return _rgb(h, lightness * 0.25, s * 0.6)
+
+
 # Per-theme recipe: color transforms applied to the default palette, explicit
 # anchor pins (spec values from roadmap/04-visual-themes.md), and the hue band
 # the --accent-color override re-targets AFTER the theme transform ran.
@@ -142,6 +195,115 @@ _THEME_BUILDERS: dict[str, dict] = {
         "pins_light": {"--body-bg": "#ffffff", "--body-text": "#000000"},
         "accent_band_dark": (45, 75),
         "accent_band_light": (220, 260),
+    },
+    # Arctic blue-gray (nordtheme.com): desaturated frost accents on polar-night
+    # surfaces. Closest relative of the default palette.
+    "nord": {
+        "dark_fn": _restyle((185, 300), 213, sat_scale=0.55),
+        "light_fn": _restyle((185, 300), 213, sat_scale=0.6),
+        "pins_dark": {
+            "--body-bg": "linear-gradient(135deg, #2e3440 0%, #3b4252 50%, #343c4a 100%)",
+            "--body-text": "#d8dee9",
+        },
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #eceff4 0%, #e5e9f0 100%)",
+            "--body-text": "#2e3440",
+        },
+        "accent_band_dark": (195, 230),
+        "accent_band_light": (195, 230),
+    },
+    # Precision palette (ethanschoonover.com/solarized): teal-leaning dark base,
+    # warm paper light base, measured blue accents.
+    "solarized": {
+        "dark_fn": _restyle((185, 300), 203, sat_scale=0.9),
+        "light_fn": _restyle((185, 300), 203, sat_scale=0.95),
+        "pins_dark": {
+            "--body-bg": "linear-gradient(135deg, #002b36 0%, #073642 50%, #032f3a 100%)",
+            "--body-text": "#93a1a1",
+        },
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #fdf6e3 0%, #eee8d5 100%)",
+            "--body-text": "#657b83",
+        },
+        "accent_band_dark": (190, 215),
+        "accent_band_light": (190, 215),
+    },
+    # draculatheme.com: purple/pink accents on dark slate.
+    "dracula": {
+        "dark_fn": _restyle((185, 300), 265, sat_scale=1.0),
+        "light_fn": _restyle((185, 300), 263, sat_scale=0.9),
+        "pins_dark": {
+            "--body-bg": "linear-gradient(135deg, #282a36 0%, #1e1f29 50%, #24262f 100%)",
+            "--body-text": "#f8f8f2",
+        },
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #f8f8f2 0%, #efeff6 100%)",
+            "--body-text": "#282a36",
+        },
+        "accent_band_dark": (240, 290),
+        "accent_band_light": (240, 290),
+    },
+    # github.com/morhetz/gruvbox: amber/orange retro on gray-brown. Differs from
+    # sepia via the neutral gray-brown base and hotter orange accents.
+    "gruvbox": {
+        "dark_fn": _restyle((185, 300), 24, sat_scale=0.95),
+        "light_fn": _restyle((185, 300), 24, sat_scale=0.9),
+        "pins_dark": {
+            "--body-bg": "linear-gradient(135deg, #1d2021 0%, #282828 50%, #232627 100%)",
+            "--body-text": "#ebdbb2",
+        },
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #fbf1c7 0%, #f2e5bc 100%)",
+            "--body-text": "#3c3836",
+        },
+        "accent_band_dark": (10, 50),
+        "accent_band_light": (10, 50),
+    },
+    # Neon magenta accents over deep violet surfaces; icy text.
+    "cyberpunk": {
+        "dark_fn": _restyle_split((185, 300), 255, 318, threshold=0.45, surface_sat=1.2, accent_sat_floor=0.85),
+        "light_fn": _restyle((185, 300), 318, sat_scale=1.0, sat_floor=0.6),
+        "pins_dark": {
+            "--body-bg": "linear-gradient(135deg, #0a0a14 0%, #14102a 50%, #0e0b1d 100%)",
+            "--body-text": "#d6f6ff",
+        },
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #fdfbff 0%, #f5ecfa 100%)",
+            "--body-text": "#1a1025",
+        },
+        "accent_band_dark": (280, 340),
+        "accent_band_light": (280, 340),
+    },
+    # True-black surfaces for OLED displays; default blue accents untouched.
+    "midnight": {
+        "dark_fn": _midnight_dark,
+        "light_fn": None,
+        "pins_dark": {"--body-bg": "#000000", "--body-text": "#d4d4d8"},
+        "pins_light": {},
+        "accent_band_dark": (185, 300),
+        "accent_band_light": (185, 300),
+    },
+    # Nostalgic old.reddit look: classic link blue, flat white cards (light),
+    # old night-mode grays (dark).
+    "old-reddit": {
+        "dark_fn": _restyle((185, 300), 203, sat_scale=0.5),
+        "light_fn": _restyle((185, 300), 207, sat_scale=0.9),
+        "pins_dark": {"--body-bg": "#1a1a1b", "--body-text": "#d7dadc"},
+        "pins_light": {"--body-bg": "#ffffff", "--body-text": "#1a1a1b"},
+        "accent_band_dark": (190, 220),
+        "accent_band_light": (190, 220),
+    },
+    # Green-on-black CRT phosphor (dark) / green-on-paper (light).
+    "phosphor": {
+        "dark_fn": _restyle((185, 300), 120, sat_scale=1.0, sat_floor=0.5),
+        "light_fn": _restyle((185, 300), 130, sat_scale=0.9),
+        "pins_dark": {"--body-bg": "#000000", "--body-text": "#33ff33"},
+        "pins_light": {
+            "--body-bg": "linear-gradient(135deg, #f2fbf2 0%, #e4f5e4 100%)",
+            "--body-text": "#0a5c0a",
+        },
+        "accent_band_dark": (90, 150),
+        "accent_band_light": (90, 150),
     },
 }
 
