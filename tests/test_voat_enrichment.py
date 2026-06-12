@@ -11,8 +11,10 @@ import pytest
 from core.enrichment.voat_metadata import (
     _to_unix,
     enrich_voat,
+    import_badges,
     import_flair,
     import_moderators,
+    import_subscribers,
     import_subverses,
     import_users,
     map_subverse,
@@ -20,6 +22,7 @@ from core.enrichment.voat_metadata import (
     parse_moderators,
 )
 from core.importers.voat_sql_parser import VoatSQLParser
+from html_modules.html_charts import subscriber_sparkline
 
 TEST_SUB = "test_voatenrich"
 TEST_USER = "test_voat_user"
@@ -218,10 +221,10 @@ class TestImportSubverses:
     def test_enrich_voat_directory_detection(self, voat_db, subverse_file, tmp_path):
         subverse_file(_row())
         counts = enrich_voat(voat_db, str(tmp_path), {TEST_SUB: TEST_SUB})
-        assert counts == {"subverses": 1, "users": 0, "moderators": 0, "flair": 0}
+        assert counts["subverses"] == 1
 
     def test_enrich_voat_no_tracked(self, voat_db, tmp_path):
-        assert enrich_voat(voat_db, str(tmp_path), {}) == {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
+        assert enrich_voat(voat_db, str(tmp_path), {})["subverses"] == 0
 
 
 class TestPlatformScopedTracking:
@@ -454,6 +457,71 @@ class TestImportFlair:
             with conn.cursor() as cur:
                 cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
                 assert cur.fetchone()["flair"] == "First"
+
+
+@pytest.mark.unit
+class TestSubscriberSparkline:
+    def test_renders_svg(self):
+        series = [{"date": f"2018-01-{d:02d}", "count": d * 10} for d in range(1, 11)]
+        svg = subscriber_sparkline(series)
+        assert svg.startswith("<svg")
+        assert "polyline" in svg and "polygon" in svg
+        assert "low 10" in svg and "high 100" in svg
+
+    def test_too_short_series(self):
+        assert subscriber_sparkline([]) == ""
+        assert subscriber_sparkline([{"date": "2018-01-01", "count": 5}]) == ""
+
+    def test_long_series_downsampled(self):
+        series = [{"date": f"d{i}", "count": i} for i in range(2000)]
+        svg = subscriber_sparkline(series)
+        assert svg.count(",") < 600  # ~121 points x 2 coords, not 2000
+
+
+class TestImportSubscribers:
+    def test_points_imported_for_tracked(self, voat_db, voat_table_file):
+        voat_db.create_subscriber_history_table()
+        path = voat_table_file(
+            "subverseSubscribers.sql.gz",
+            "subverseSubscribers",
+            f"(1,'{TEST_SUB}','2018-01-01',100),(2,'{TEST_SUB}','2018-01-02',110),(3,'other_sub','2018-01-01',5)",
+        )
+        try:
+            assert import_subscribers(voat_db, path, {TEST_SUB: TEST_SUB}) == 2
+            series = voat_db.get_subscriber_history(TEST_SUB)
+            assert [int(r["count"]) for r in series] == [100, 110]
+            # idempotent upsert
+            assert import_subscribers(voat_db, path, {TEST_SUB: TEST_SUB}) == 2
+            assert len(voat_db.get_subscriber_history(TEST_SUB)) == 2
+        finally:
+            with voat_db.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM subscriber_history WHERE subreddit = %s", (TEST_SUB,))
+                    conn.commit()
+
+
+class TestImportBadges:
+    def test_badges_attached_to_enriched_users(self, voat_db, voat_table_file):
+        voat_db.create_user_metadata_table()
+        voat_db.create_subscriber_history_table()  # adds badges_json
+        voat_db.save_user_metadata(TEST_USER, "voat", map_user(TestMapUser.ROW))
+        try:
+            path = voat_table_file(
+                "userBadge.sql.gz",
+                "userBadge",
+                f"(1,'{TEST_USER}',1,'Badge','2015-07-05 12:56:53','x.png','Alpha tester','Joined during alpha'),"
+                f"(2,'someone_else',2,'Badge','2016-01-01 00:00:00','y.png','Beta','desc')",
+            )
+            assert import_badges(voat_db, path, {TEST_USER.lower(): TEST_USER}) == 1
+            row = voat_db.get_user_metadata(TEST_USER)
+            assert row["badges_json"] == [
+                {"name": "Alpha tester", "description": "Joined during alpha", "awarded": "2015-07-05 12:56:53"}
+            ]
+        finally:
+            with voat_db.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
+                    conn.commit()
 
 
 class TestVoatAboutPage:

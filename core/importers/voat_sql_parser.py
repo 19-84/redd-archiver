@@ -150,6 +150,24 @@ class VoatSQLParser:
             "firstDate",
             "lastDate",
         ],
+        # Daily subscriber counts per subverse (Feature 7 Phase 5)
+        "subverseSubscribers": [
+            "id",
+            "subverse",
+            "date",
+            "count",
+        ],
+        # User achievement badges (Feature 7 Phase 5)
+        "userBadge": [
+            "id",
+            "username",
+            "badgeid",
+            "type",
+            "creationdate",
+            "graphic",
+            "name",
+            "description",
+        ],
         # Post attributes (Feature 7 Phase 3). Rows with type='Flair' carry the
         # user-visible link flair in `name`; type='Data' rows are system labels
         # (Anon/NSFW/Archived) and are not flair.
