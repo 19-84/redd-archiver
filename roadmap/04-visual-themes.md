@@ -1,6 +1,6 @@
 # Feature 4: Visual Themes
 
-**Status:** In progress (Phase 1 implemented)
+**Status:** In progress (Phases 1–2 implemented)
 **Last updated:** 2026-06-11
 
 **Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system where each theme provides both dark and light palettes, supports system preference detection, and allows operator customization — all without JavaScript (except for optional persistence in static mode).
@@ -102,6 +102,8 @@ Replace all hardcoded colors in `redd-archiver-universal.css` with CSS custom pr
 ---
 
 ## Phase 2: System Preference Support
+
+Implemented (with the orphan-rule curation as prerequisite): the ~40 surviving per-selector light overrides were folded into tokens — 7 were dead rules (beaten by `!important` bases or netting to no-ops), the rest gained explicit dark values discovered from the cascade; intentional unifications: deep-comment light styling now covers depths 16–50 consistently (was 16–30 with dark leftovers above), and collapse markers cover 15–50 (was 15–23). A `@media (prefers-color-scheme: light)` block mirrors the toggle's token set plus the four light-structural rules (global `a` colors, navbar link flattening) that have no dark counterpart. The checkbox toggle still forces light for dark-scheme users; `tests/test_css_tokens.py` enforces media/toggle parity.
 
 Replace the checkbox toggle with a `@media (prefers-color-scheme)` approach. Users see their OS preference on first load, with a manual override toggle.
 
