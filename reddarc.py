@@ -394,15 +394,28 @@ def copy_global_asset(src_path: str, asset_name: str, output_dir: str) -> str | 
         return None
 
 
-def copy_static_assets(output_dir: str, minify_css: bool = True) -> None:
+THEME_CSS_FILENAME = "redd-archiver-universal.css"
+
+
+def copy_static_assets(
+    output_dir: str,
+    minify_css: bool = True,
+    theme: str = "default",
+    accent_color: str | None = None,
+    custom_css: str | None = None,
+) -> None:
     """
     Copy static CSS/JS assets to output directory with optional CSS minification.
 
     Args:
         output_dir: Output directory path
         minify_css: Whether to minify CSS files during copy (default: True)
+        theme: Theme palette baked into the main stylesheet (default, sepia, high-contrast)
+        accent_color: Optional accent color override (hex), applied to both modes
+        custom_css: Optional path to operator CSS appended after the main stylesheet
     """
-    from html_modules.css_minifier import minify_css_file, should_minify_css
+    from html_modules.css_minifier import minify_css_file, minify_css_text, should_minify_css
+    from html_modules.themes import apply_theme_to_css
 
     static_src = "static"
     static_dst = os.path.join(output_dir, "static")
@@ -435,8 +448,24 @@ def copy_static_assets(output_dir: str, minify_css: bool = True) -> None:
                 src_file = os.path.join(root, filename)
                 dst_file = os.path.join(dst_dir, filename)
 
+                # Theme tokens (and optional custom CSS) are baked into the main stylesheet
+                if filename == THEME_CSS_FILENAME:
+                    with open(src_file, encoding="utf-8") as f:
+                        css_text = f.read()
+                    original_size = len(css_text)
+                    css_text = apply_theme_to_css(css_text, theme, accent_color)
+                    if minify_css:
+                        css_text = minify_css_text(css_text)
+                    if custom_css:
+                        with open(custom_css, encoding="utf-8") as f:
+                            css_text += "\n/* ===== Operator overrides (--custom-css) ===== */\n" + f.read()
+                    with open(dst_file, "w", encoding="utf-8") as f:
+                        f.write(css_text)
+                    css_stats["files"] += 1
+                    css_stats["original_size"] += original_size
+                    css_stats["minified_size"] += len(css_text)
                 # Minify CSS files if enabled
-                if minify_css and should_minify_css(filename):
+                elif minify_css and should_minify_css(filename):
                     try:
                         original_size, minified_size = minify_css_file(src_file, dst_file)
                         css_stats["files"] += 1
@@ -635,6 +664,22 @@ Examples:
     parser.add_argument("--favicon", help="Path to favicon file (will be copied to output)")
     parser.add_argument("--og-image", help="Path to Open Graph image (will be copied to output)")
 
+    # Theme Arguments (Feature 4 Phases 3-4)
+    parser.add_argument(
+        "--theme",
+        default="default",
+        choices=["default", "sepia", "high-contrast"],
+        help="Theme palette baked into the exported CSS (default: default)",
+    )
+    parser.add_argument(
+        "--accent-color",
+        help="Override the theme's accent color (hex, e.g. '#8b6914'), applied to both dark and light modes",
+    )
+    parser.add_argument(
+        "--custom-css",
+        help="Path to additional CSS appended after the main stylesheet",
+    )
+
     # Processing Arguments
     parser.add_argument("--min-score", type=int, default=0, help="Minimum post score")
     parser.add_argument("--min-comments", type=int, default=0, help="Minimum comment count")
@@ -789,6 +834,21 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # Validate theme arguments (--theme values are enforced by argparse choices)
+    if args.accent_color is not None:
+        from html_modules.themes import validate_accent_color
+
+        try:
+            args.accent_color = validate_accent_color(args.accent_color)
+        except ValueError as e:
+            print_error(f"Invalid --accent-color: {e}")
+            return
+    if args.custom_css is not None:
+        if not os.path.isfile(args.custom_css):
+            print_error(f"--custom-css file not found: {args.custom_css}")
+            return
+        args.custom_css = os.path.abspath(args.custom_css)
 
     # Validate PostgreSQL is configured (REQUIRED for all operations)
     if not os.environ.get("DATABASE_URL"):
@@ -1598,7 +1658,7 @@ def process_export_only(
     os.makedirs(output_dir, exist_ok=True)
 
     # Copy static assets
-    copy_static_assets(output_dir)
+    copy_static_assets(output_dir, theme=args.theme, accent_color=args.accent_color, custom_css=args.custom_css)
 
     # Change to output directory for file operations
     original_cwd = os.getcwd()
@@ -1866,7 +1926,7 @@ def process_archive_incremental(
 
     # Copy static assets BEFORE changing directory
     with timing.time_phase("Copy Static Assets", silent=True):
-        copy_static_assets(output_dir)
+        copy_static_assets(output_dir, theme=args.theme, accent_color=args.accent_color, custom_css=args.custom_css)
 
     # Change working directory to output directory for file operations
     original_cwd = os.getcwd()

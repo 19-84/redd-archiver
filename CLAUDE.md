@@ -113,6 +113,9 @@ make clean          # Remove caches and temp files
 | `--resume` | Resume interrupted processing (auto-detected) |
 | `--dry-run` | Show discovered files without processing |
 | `--base-url URL` | Base URL for canonical links and sitemaps |
+| `--theme NAME` | Theme palette: `default\|sepia\|high-contrast` |
+| `--accent-color HEX` | Override theme accent color (both modes) |
+| `--custom-css PATH` | Append operator CSS after the main stylesheet |
 
 Run `reddarc --help` for the full flag reference including SEO metadata, debug tuning, and logging options.
 
@@ -265,6 +268,12 @@ REDDARCHIVER_TEAM_ID="team-id"
 REDDARCHIVER_DONATION_ADDRESS="..."
 ```
 
+### Theming (dynamic serving mode)
+```bash
+REDDARCHIVER_THEME=sepia              # default | sepia | high-contrast
+REDDARCHIVER_ACCENT_COLOR="#8b6914"   # Accent override (hex), both modes
+```
+
 ### Performance Tuning
 ```bash
 REDDARCHIVER_MAX_DB_CONNECTIONS=8
@@ -337,6 +346,10 @@ sort:score | sort:date   # Sort order
 
 ### Adding SEO features
 - `html_modules/html_seo.py` - SEO/sitemap generation
+
+### Adding or adjusting themes
+- `html_modules/themes.py` - Palette transforms, accent override, CSS injection
+- `html_modules/theme_data.py` - Default token values (kept in sync with the CSS by tests)
 
 ### Modifying search behavior
 - `core/postgres_search.py` - PostgreSQL FTS queries
