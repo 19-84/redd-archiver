@@ -3331,8 +3331,10 @@ class PostgresDatabase:
         try:
             start_time = time.time()
 
-            # Read indexes.sql file
-            indexes_file = os.path.join(os.path.dirname(__file__), "sql", "indexes.sql")
+            # Read indexes.sql file (sql/ lives one level up from core/)
+            indexes_file = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sql", "indexes.sql"
+            )
             if not os.path.exists(indexes_file):
                 print_error(f"Indexes file not found: {indexes_file}")
                 return False
