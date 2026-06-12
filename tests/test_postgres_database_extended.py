@@ -271,14 +271,19 @@ class TestIndexManagement:
         # Some implementations may return True/False, others may not return
 
     def test_create_indexes_after_bulk_load(self, postgres_db):
-        """Test indexes can be recreated after bulk loading."""
-        # Drop first, then recreate
+        """Test indexes are actually recreated after bulk loading.
+
+        Regression: the indexes.sql path resolved to core/sql/, so recreation
+        silently failed (returned False) and the old assertion accepted it.
+        """
         postgres_db.drop_indexes_for_bulk_load()
 
-        # This should not raise an exception
         result = postgres_db.create_indexes_after_bulk_load()
 
-        assert result is True or result is None or result is False
+        assert result is True
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_indexes WHERE indexname = 'idx_posts_subreddit_score'")
+            assert cur.fetchone() is not None
 
     def test_analyze_tables(self, postgres_db):
         """Test ANALYZE can be run on tables."""

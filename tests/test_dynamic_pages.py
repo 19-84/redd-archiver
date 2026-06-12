@@ -9,7 +9,7 @@ from typing import ClassVar
 
 import pytest
 
-from html_modules.content_urls import build_comment_tree, enrich_user_content
+from html_modules.content_urls import MAX_NESTING_DEPTH, build_comment_tree, enrich_user_content
 
 TEST_SUB = "test_dynpages"
 
@@ -43,6 +43,55 @@ class TestBuildCommentTree:
     def test_orphaned_reply_becomes_root(self):
         roots = build_comment_tree([{"id": "c9", "parent_id": "t1_missing", "score": 0}])
         assert [c["id"] for c in roots] == ["c9"]
+
+    @staticmethod
+    def _chain(length):
+        """A single reply chain c0 → c1 → ... nested one level per comment."""
+        comments = [{"id": "c0", "parent_id": "t3_post1", "score": 0, "author": "u0", "body": "b", "created_utc": 1}]
+        comments += [
+            {"id": f"c{i}", "parent_id": f"t1_c{i - 1}", "score": 0, "author": f"u{i}", "body": "b", "created_utc": 1}
+            for i in range(1, length)
+        ]
+        return comments
+
+    def test_deep_chain_flattened_at_cap(self):
+        roots = build_comment_tree(self._chain(300))
+        assert len(roots) == 1
+
+        seen, max_depth = [], 0
+        stack = [(roots[0], 0)]
+        while stack:
+            comment, depth = stack.pop()
+            seen.append(comment["id"])
+            max_depth = max(max_depth, depth)
+            stack.extend((reply, depth + 1) for reply in reversed(comment["replies"]))
+
+        assert max_depth == MAX_NESTING_DEPTH + 1
+        # All comments preserved, pre-order matches the original chain order
+        assert seen == [f"c{i}" for i in range(300)]
+
+    def test_chain_at_cap_not_flattened(self):
+        roots = build_comment_tree(self._chain(MAX_NESTING_DEPTH + 1))
+        depth, comment = 0, roots[0]
+        while comment["replies"]:
+            assert len(comment["replies"]) == 1
+            comment = comment["replies"][0]
+            depth += 1
+        assert depth == MAX_NESTING_DEPTH
+
+    def test_deep_chain_renders_without_recursion_error(self):
+        """Regression: depth-274 threads overflowed the recursion limit in render_comment."""
+        from html_modules.jinja_env import jinja_env
+
+        roots = build_comment_tree(self._chain(600))
+        template = jinja_env.from_string(
+            "{% from 'macros/comment_macros.html' import render_comment %}"
+            "{% for c in comments %}{{ render_comment(c, 0, 'op', '../../', score_ranges) }}{% endfor %}"
+        )
+        html = template.render(comments=roots, score_ranges={"very_high": 100, "high": 50, "medium": 10})
+        assert html.count("data-depth=") == 600
+        assert f'data-depth="{MAX_NESTING_DEPTH + 1}"' in html
+        assert f'data-depth="{MAX_NESTING_DEPTH + 2}"' not in html
 
 
 @pytest.mark.unit
