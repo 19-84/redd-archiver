@@ -3,7 +3,7 @@
 
 [project]
 name = "reddarchiver-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP (Model Context Protocol) server for Redd-Archiver API - exposes 30+ archive endpoints (Reddit, Voat, Ruqqus) as AI-accessible tools with MCP resources"
 readme = "README.md"
 requires-python = ">=3.10"
