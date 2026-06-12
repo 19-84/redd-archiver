@@ -724,6 +724,14 @@ Examples:
         "file itself. Composes with --export-from-database.",
     )
 
+    parser.add_argument(
+        "--voat-thumbnails",
+        metavar="DIR",
+        help="Copy archived Voat post thumbnails (the extracted thumbnails/ directory from "
+        "thumbnails.tgz) into OUTPUT/assets/thumbnails/ for posts in this archive, and record "
+        "their paths for post-card display. Composes with --enrich-voat.",
+    )
+
     # Incremental updates from monthly Arctic Shift dumps (Feature 3)
     parser.add_argument(
         "--update",
@@ -874,11 +882,20 @@ Examples:
     # discovery — it filters the Arctic Shift dumps down to already-tracked
     # subreddits. Runs standalone, or chains into export when --export-from-database
     # is also given.
-    if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis or args.enrich_voat:
+    if (
+        args.enrich
+        or args.enrich_metadata
+        or args.enrich_rules
+        or args.enrich_wikis
+        or args.enrich_voat
+        or args.voat_thumbnails
+    ):
         if args.enrich or args.enrich_metadata or args.enrich_rules or args.enrich_wikis:
             process_enrich(args)
         if args.enrich_voat:
             process_enrich_voat(args)
+        if args.voat_thumbnails:
+            process_voat_thumbnails(args)
         if args.export_from_database:
             process_export_only(args.input_dir or ".", args.output, {}, args)
         return
@@ -1173,6 +1190,32 @@ def process_enrich_voat(args: argparse.Namespace) -> None:
             f"Voat enrichment complete: {counts['subverses']} subverse metadata record(s), "
             f"{counts.get('users', 0)} user profile(s), {counts.get('moderators', 0)} moderator list(s), "
             f"{counts.get('flair', 0)} post(s) flaired"
+        )
+    finally:
+        db.cleanup()
+
+
+def process_voat_thumbnails(args: argparse.Namespace) -> None:
+    """Selective Voat thumbnail copy + post linking (Feature 7 Phase 4)."""
+    print_section("Voat Thumbnails: Copying archived post thumbnails")
+
+    connection_string = get_postgres_connection_string()
+    if not connection_string or "postgresql://" not in connection_string:
+        print_error("Thumbnail enrichment requires PostgreSQL to be configured")
+        return
+
+    try:
+        db = PostgresDatabase(connection_string, workload_type="default")
+    except Exception as e:
+        print_error(f"Failed to connect to PostgreSQL: {e}")
+        return
+
+    try:
+        from core.enrichment.voat_thumbnails import enrich_thumbnails
+
+        counts = enrich_thumbnails(db, args.voat_thumbnails, args.output)
+        print_success(
+            f"Thumbnail enrichment complete: {counts['posts']} post(s) linked, {counts['copied']} file(s) copied"
         )
     finally:
         db.cleanup()
