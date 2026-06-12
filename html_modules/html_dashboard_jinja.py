@@ -47,9 +47,7 @@ def build_index_context(
 
         # Detect suspicious stats (likely stale/incomplete data)
         needs_recalc = False
-        if unique_users < 10:  # Unrealistically low for most subreddits
-            needs_recalc = True
-        elif earliest == latest and earliest > 0:  # Same date for earliest and latest
+        if unique_users < 10 or (earliest == latest and earliest > 0):  # Unrealistically low for most subreddits
             needs_recalc = True
 
         if needs_recalc:
@@ -91,70 +89,69 @@ def build_index_context(
     if global_override_active:
         print_info(f"Global override filters active (score≥{min_score}, comments≥{min_comments})")
         # Apply global override to all subreddits
-        for subreddit_name in all_subreddit_filters.keys():
+        for subreddit_name in all_subreddit_filters:
             all_subreddit_filters[subreddit_name] = {"min_score": min_score, "min_comments": min_comments}
 
     # Query filtered counts using per-subreddit stored filters
     filtered_counts = {}
     any_filters_active = False
 
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            for sub in subs:
-                subreddit = sub["name"]
-                platform = sub.get("platform", "reddit")
-                url_prefix = get_url_prefix(platform)
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        for sub in subs:
+            subreddit = sub["name"]
+            platform = sub.get("platform", "reddit")
+            url_prefix = get_url_prefix(platform)
 
-                # Get per-subreddit filters (or defaults)
-                sub_filters = all_subreddit_filters.get(subreddit, {"min_score": 0, "min_comments": 0})
-                sub_min_score = sub_filters["min_score"]
-                sub_min_comments = sub_filters["min_comments"]
+            # Get per-subreddit filters (or defaults)
+            sub_filters = all_subreddit_filters.get(subreddit, {"min_score": 0, "min_comments": 0})
+            sub_min_score = sub_filters["min_score"]
+            sub_min_comments = sub_filters["min_comments"]
 
-                # Track if any subreddit has filters
-                if sub_min_score > 0 or sub_min_comments > 0:
-                    any_filters_active = True
+            # Track if any subreddit has filters
+            if sub_min_score > 0 or sub_min_comments > 0:
+                any_filters_active = True
 
-                    print_info(
-                        f"Applying filters to {url_prefix}/{subreddit} (score≥{sub_min_score}, comments≥{sub_min_comments})",
-                        indent=1,
-                    )
+                print_info(
+                    f"Applying filters to {url_prefix}/{subreddit} (score≥{sub_min_score}, comments≥{sub_min_comments})",
+                    indent=1,
+                )
 
-                    cur.execute(
-                        """
-                        SELECT COUNT(*) as post_count FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
-                    """,
-                        (subreddit, sub_min_score, sub_min_comments),
-                    )
-                    post_result = cur.fetchone()
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as post_count FROM posts
+                    WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                """,
+                    (subreddit, sub_min_score, sub_min_comments),
+                )
+                post_result = cur.fetchone()
 
-                    cur.execute(
-                        """
-                        SELECT COUNT(*) as comment_count
-                        FROM comments c
-                        INNER JOIN posts p ON c.post_id = p.id
-                        WHERE LOWER(p.subreddit) = LOWER(%s)
-                        AND p.score >= %s
-                        AND p.num_comments >= %s
-                    """,
-                        (subreddit, sub_min_score, sub_min_comments),
-                    )
-                    comment_result = cur.fetchone()
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as comment_count
+                    FROM comments c
+                    INNER JOIN posts p ON c.post_id = p.id
+                    WHERE LOWER(p.subreddit) = LOWER(%s)
+                    AND p.score >= %s
+                    AND p.num_comments >= %s
+                """,
+                    (subreddit, sub_min_score, sub_min_comments),
+                )
+                comment_result = cur.fetchone()
 
-                    filtered_counts[subreddit] = {
-                        "filtered_posts": post_result["post_count"] if post_result else 0,
-                        "filtered_comments": comment_result["comment_count"] if comment_result else 0,
-                        "min_score": sub_min_score,
-                        "min_comments": sub_min_comments,
-                    }
-                else:
-                    # No filters for this subreddit - use totals
-                    filtered_counts[subreddit] = {
-                        "filtered_posts": sub["stats"].get("total_posts", 0),
-                        "filtered_comments": sub["stats"].get("total_comments", 0),
-                        "min_score": 0,
-                        "min_comments": 0,
-                    }
+                filtered_counts[subreddit] = {
+                    "filtered_posts": post_result["post_count"] if post_result else 0,
+                    "filtered_comments": comment_result["comment_count"] if comment_result else 0,
+                    "min_score": sub_min_score,
+                    "min_comments": sub_min_comments,
+                }
+            else:
+                # No filters for this subreddit - use totals
+                filtered_counts[subreddit] = {
+                    "filtered_posts": sub["stats"].get("total_posts", 0),
+                    "filtered_comments": sub["stats"].get("total_comments", 0),
+                    "min_score": 0,
+                    "min_comments": 0,
+                }
 
     # Calculate actual total displayed posts across all subreddits
     if any_filters_active:

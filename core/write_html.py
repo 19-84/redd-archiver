@@ -78,27 +78,26 @@ def write_link_pages_jinja2(
 
     try:
         # Get total count AND comment count for adaptive batch sizing
-        with reddit_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with reddit_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT COUNT(*) as count FROM posts
                     WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
                 """,
-                    (subreddit, min_score, min_comments),
-                )
-                count_result = cur.fetchone()
-                total_posts = count_result["count"] if count_result else 0
+                (subreddit, min_score, min_comments),
+            )
+            count_result = cur.fetchone()
+            total_posts = count_result["count"] if count_result else 0
 
-                cur.execute(
-                    """
+            cur.execute(
+                """
                     SELECT COUNT(*) as count FROM comments
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
-                count_result = cur.fetchone()
-                count_result["count"] if count_result else 0
+                (subreddit,),
+            )
+            count_result = cur.fetchone()
+            count_result["count"] if count_result else 0
 
         if total_posts == 0:
             return {"posts_processed": 0, "comments_processed": 0, "failed_posts": 0}
@@ -574,10 +573,9 @@ def write_link_pages_from_database(
 
                     # Ensure all string fields are actually strings
                     for field in string_fields:
-                        if field in post_data:
-                            if not isinstance(post_data[field], str):
-                                # Convert non-string fields to strings for template compatibility
-                                post_data[field] = str(post_data[field])
+                        if field in post_data and not isinstance(post_data[field], str):
+                            # Convert non-string fields to strings for template compatibility
+                            post_data[field] = str(post_data[field])
 
                     # Convert numeric fields from float to int
                     for field in numeric_fields:
@@ -608,10 +606,9 @@ def write_link_pages_from_database(
 
                             # Ensure all string fields are actually strings
                             for field in string_fields:
-                                if field in comment_data:
-                                    if not isinstance(comment_data[field], str):
-                                        # Convert non-string fields to strings for template compatibility
-                                        comment_data[field] = str(comment_data[field])
+                                # Convert non-string fields to strings for template compatibility
+                                if field in comment_data and not isinstance(comment_data[field], str):
+                                    comment_data[field] = str(comment_data[field])
 
                             # Convert numeric fields from float to int
                             for field in ["score", "created_utc"]:

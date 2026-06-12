@@ -1,6 +1,6 @@
 # Feature 9: Enable SIM and RUF Ruff Rules
 
-**Status:** Planned
+**Status:** ✅ Done (2026-06-11) — SIM + RUF enabled; ~420 violations resolved (374 auto-fixed incl. 157 nested-with merges, rest manual); 9 per-file-ignore entries with documented rationale
 **Last updated:** 2026-02-11
 
 **Goal:** Add `SIM` (flake8-simplify) and `RUF` (Ruff-specific) rule sets to the ruff configuration, aligning with the global tooling standard.

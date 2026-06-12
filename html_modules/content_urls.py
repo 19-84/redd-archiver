@@ -34,9 +34,7 @@ def build_comment_tree(comments_list: list[dict[str, Any]]) -> list[dict[str, An
 
         parent_id = comment.get("parent_id", "")
         if isinstance(parent_id, str):
-            if parent_id.startswith("t3_"):
-                root_comments.append(comment)
-            elif not parent_id.startswith("t1_"):
+            if parent_id.startswith("t3_") or not parent_id.startswith("t1_"):
                 root_comments.append(comment)
             # 't1_' replies are attached in the second pass
         elif not parent_id:

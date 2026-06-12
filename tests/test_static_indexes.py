@@ -91,11 +91,10 @@ def indexed_db(postgres_db):
     """Test DB with a known set of posts for index generation, cleaned around each test."""
 
     def cleanup():
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                cur.execute("DELETE FROM subreddit_statistics WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            cur.execute("DELETE FROM subreddit_statistics WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
 
     cleanup()
     posts = [
@@ -139,10 +138,9 @@ class TestTitleIndexGeneration:
         assert not (tmp_path / "r/test_staticidx_absent").exists()
 
     def test_overflow_pagination(self, postgres_db, tmp_path, monkeypatch):
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
         bulk = [_post(1000 + i, f"big title {i:04d}") for i in range(TITLES_PER_PAGE + 10)]
         postgres_db.insert_posts_batch(bulk)
         try:
@@ -159,10 +157,9 @@ class TestTitleIndexGeneration:
             # Overflow page is one level deeper — post links gain one more ../
             assert f'href="../../../../../r/{TEST_SUB}/comments/' in page2
         finally:
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                    conn.commit()
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+                conn.commit()
 
 
 class TestFlairIndexGeneration:
@@ -182,20 +179,18 @@ class TestFlairIndexGeneration:
         assert f'href="../../../../r/{TEST_SUB}/comments/staticidx_1/slug/"' in discussion
 
     def test_no_flair_is_noop(self, postgres_db, tmp_path, monkeypatch):
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
         postgres_db.insert_posts_batch([_post(1, "No flair here")])
         try:
             monkeypatch.chdir(tmp_path)
             assert write_flair_index_jinja2(TEST_SUB, None, postgres_db) == 0
             assert not (tmp_path / f"r/{TEST_SUB}/flair").exists()
         finally:
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                    conn.commit()
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+                conn.commit()
 
 
 class TestArchiveMapGeneration:

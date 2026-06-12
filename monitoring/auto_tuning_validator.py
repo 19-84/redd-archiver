@@ -53,7 +53,7 @@ class ValidationSession:
 class AutoTuningValidator:
     """Advanced auto-tuning effectiveness validation and performance comparison engine."""
 
-    def __init__(self, output_dir: str = None, enable_detailed_logging: bool = True):
+    def __init__(self, output_dir: str | None = None, enable_detailed_logging: bool = True):
         """Initialize auto-tuning validator.
 
         Args:
@@ -69,7 +69,7 @@ class AutoTuningValidator:
         # Ensure validation directory exists
         os.makedirs(os.path.join(self.output_dir, "auto_tuning_validation"), exist_ok=True)
 
-    def start_validation_session(self, session_id: str = None) -> str:
+    def start_validation_session(self, session_id: str | None = None) -> str:
         """Start a new validation session.
 
         Args:
@@ -134,10 +134,10 @@ class AutoTuningValidator:
 
     def set_current_metrics(
         self,
-        batch_size: int = None,
-        records_per_second: float = None,
-        pool_utilization: float = None,
-        auto_adjustments: int = None,
+        batch_size: int | None = None,
+        records_per_second: float | None = None,
+        pool_utilization: float | None = None,
+        auto_adjustments: int | None = None,
     ):
         """Update current metrics for the next snapshot.
 
@@ -261,11 +261,8 @@ class AutoTuningValidator:
             "memory_optimization": 0.9,
         }.get(adjustment_type, 1.0)
 
-        # Stability penalty for large changes
-        if abs(speed_improvement) > 50:  # Very large changes are less stable
-            stability_penalty = 10
-        else:
-            stability_penalty = 0
+        # Stability penalty: very large changes are less stable
+        stability_penalty = 10 if abs(speed_improvement) > 50 else 0
 
         final_score = (speed_score + memory_score) * type_modifier - stability_penalty
         return max(0, min(100, final_score))
@@ -445,7 +442,7 @@ class AutoTuningValidator:
 
         return recommendations
 
-    def save_session_report(self, report: dict[str, Any] = None) -> str:
+    def save_session_report(self, report: dict[str, Any] | None = None) -> str:
         """Save session report to file.
 
         Args:
@@ -502,7 +499,7 @@ class AutoTuningValidator:
 
         return report
 
-    def get_historical_effectiveness(self, operation_type: str = None) -> dict[str, Any]:
+    def get_historical_effectiveness(self, operation_type: str | None = None) -> dict[str, Any]:
         """Get historical auto-tuning effectiveness across all sessions.
 
         Args:

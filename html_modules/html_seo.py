@@ -727,7 +727,7 @@ def extract_keywords(title: str, content: str, subreddit: str) -> str:
     common_keywords = [word for word, count in Counter(keywords).most_common(10)]
 
     # Always include subreddit
-    final_keywords = [subreddit] + common_keywords[:9]
+    final_keywords = [subreddit, *common_keywords[:9]]
 
     return ", ".join(final_keywords)
 
@@ -1002,7 +1002,7 @@ def generate_main_sitemap(processed_subs: list[dict[str, Any]], base_url: str, c
         platform = sub_data.get("platform", "reddit")
         url_prefix = get_url_prefix(platform)
 
-        for sort in sort_indexes.keys():
+        for sort in sort_indexes:
             sort_slug = sort_indexes[sort]["slug"]
 
             url_elem = ET.SubElement(urlset, "url")
@@ -1064,7 +1064,7 @@ def generate_subreddit_sitemaps(
     total_pages = max(1, (num_posts + links_per_page - 1) // links_per_page)
 
     # Collect all URLs for this subreddit (excluding main pages already in main sitemap)
-    for sort in sort_indexes.keys():
+    for sort in sort_indexes:
         sort_slug = sort_indexes[sort]["slug"]
 
         # Skip first page (already in main sitemap)
@@ -1131,7 +1131,7 @@ def generate_users_sitemaps(user_index: dict[str, Any], base_url: str, current_d
     urls_collected = []
 
     # Collect all user URLs
-    for username in user_index.keys():
+    for username in user_index:
         loc = f"{base_url}/user/{username}/" if base_url else f"user/{username}/"
         urls_collected.append({"loc": loc, "lastmod": current_date, "changefreq": "monthly", "priority": "0.5"})
 
@@ -1153,10 +1153,7 @@ def generate_users_sitemaps(user_index: dict[str, Any], base_url: str, current_d
             ET.SubElement(url_elem, "priority").text = url_data["priority"]
 
         # Write chunked sitemap
-        if len(chunks) == 1:
-            filename = "sitemap-users.xml"
-        else:
-            filename = f"sitemap-users-{chunk_num}.xml"
+        filename = "sitemap-users.xml" if len(chunks) == 1 else f"sitemap-users-{chunk_num}.xml"
 
         tree = ET.ElementTree(urlset)
         ET.indent(tree, space="  ", level=0)
@@ -1328,7 +1325,7 @@ def generate_index_keywords(subreddits_data: list[dict[str, Any]]) -> str:
 
     # Get top subreddit names
     top_subs = [sub.get("name", "") for sub in subreddits_data[:8] if sub.get("name")]
-    keywords = ["reddit", "archive", "discussions", "posts", "comments"] + top_subs
+    keywords = ["reddit", "archive", "discussions", "posts", "comments", *top_subs]
 
     return ", ".join(keywords)
 
@@ -1372,10 +1369,7 @@ def generate_pagination_tags(page_num: int, total_pages: int, base_url: str, sor
 
     if page_num > 1:
         # Previous page
-        if page_num == 2:
-            prev_url = f"{base_url}index.html"
-        else:
-            prev_url = f"{base_url}index-{page_num - 1}.html"
+        prev_url = f"{base_url}index.html" if page_num == 2 else f"{base_url}index-{page_num - 1}.html"
         tags.append(f'<link rel="prev" href="{prev_url}">')
 
     if page_num < total_pages:
@@ -1669,7 +1663,7 @@ def generate_main_sitemap_from_database(
         for sub_data in processed_subs:
             subreddit = sub_data["name"]
 
-            for sort in sort_indexes.keys():
+            for sort in sort_indexes:
                 sort_slug = sort_indexes[sort]["slug"]
 
                 url_elem = ET.SubElement(urlset, "url")

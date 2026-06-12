@@ -160,12 +160,11 @@ class TestSubredditsEndpoint:
 
     @staticmethod
     def _unenrich(clean_database, subreddit):
-        with clean_database.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
-                cur.execute("DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
-                cur.execute("DELETE FROM subreddit_wiki_pages WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
-                conn.commit()
+        with clean_database.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+            cur.execute("DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+            cur.execute("DELETE FROM subreddit_wiki_pages WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+            conn.commit()
 
     def test_subreddit_detail_includes_enrichment_fields(self, api_client, clean_database, sample_post_data):
         """Test /api/v1/subreddits/{name} merges enrichment metadata (Feature 6)"""

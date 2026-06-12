@@ -230,7 +230,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Export curated Voat collections")
-    parser.add_argument("--collection", choices=list(COLLECTIONS.keys()) + ["all"], help="Collection to export")
+    parser.add_argument("--collection", choices=[*list(COLLECTIONS.keys()), "all"], help="Collection to export")
     parser.add_argument("--list", action="store_true", help="List available collections")
     parser.add_argument("--stats", action="store_true", help="Generate statistics for all collections")
     parser.add_argument("--format", choices=["sql", "html"], default="sql", help="Export format (default: sql)")

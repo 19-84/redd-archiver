@@ -28,13 +28,12 @@ def postgres_db():
 def clean_database(postgres_db):
     """Clean database before each test"""
     # Clear test data
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM processing_metadata WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM users WHERE username LIKE 'test_%'")
-            conn.commit()
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM processing_metadata WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM users WHERE username LIKE 'test_%'")
+        conn.commit()
 
     yield postgres_db
 
@@ -140,10 +139,9 @@ class TestPostgresResume:
 
         try:
             # Clear any existing test data
-            with db1.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM processing_metadata WHERE subreddit = %s", (test_subreddit,))
-                    conn.commit()
+            with db1.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM processing_metadata WHERE subreddit = %s", (test_subreddit,))
+                conn.commit()
 
             # Save progress
             db1.update_progress_status(

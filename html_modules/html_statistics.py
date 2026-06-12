@@ -4,6 +4,7 @@ Statistics and analytics module for red-arch.
 Handles subreddit statistics, user metrics, and engagement analysis.
 """
 
+import contextlib
 import os
 from datetime import datetime
 from statistics import mean, median
@@ -254,10 +255,9 @@ def calculate_subreddit_statistics(
 
             for file_path in [posts_file, comments_file]:
                 if file_path and os.path.exists(file_path):
-                    try:
+                    # Skip files we can't read
+                    with contextlib.suppress(OSError):
                         stats["raw_data_size"] += os.path.getsize(file_path)
-                    except OSError:
-                        pass  # Skip files we can't read
 
             # Parse archive date from config
             archive_date_str = config_data.get("archive_date", "")
@@ -485,9 +485,10 @@ def calculate_global_statistics(subs: list[dict[str, Any]]) -> dict[str, Any]:
                 latest_date = stats["latest_date"]
                 if isinstance(latest_date, str):
                     latest_date = datetime.fromisoformat(latest_date)
-                if latest_date.year > 1970:
-                    if most_recent_archive_date is None or latest_date > most_recent_archive_date:
-                        most_recent_archive_date = latest_date
+                if latest_date.year > 1970 and (
+                    most_recent_archive_date is None or latest_date > most_recent_archive_date
+                ):
+                    most_recent_archive_date = latest_date
 
             # Track earliest and latest content dates for global span
             if stats.get("earliest_date"):

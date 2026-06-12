@@ -5,6 +5,7 @@ ABOUTME: Covers SQL parsing, normalization, sanitization, DB roundtrip, and abou
 """
 
 import gzip
+from typing import ClassVar
 
 import pytest
 
@@ -93,7 +94,7 @@ class TestToUnix:
 
 @pytest.mark.unit
 class TestMapSubverse:
-    ROW = {
+    ROW: ClassVar[dict] = {
         "id": 7,
         "name": TEST_SUB,
         "createdBy": "founder_user",
@@ -160,11 +161,10 @@ def voat_db(postgres_db):
     postgres_db.create_enrichment_tables()
 
     def cleanup():
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (TEST_SUB,))
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (TEST_SUB,))
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
 
     cleanup()
     yield postgres_db
@@ -280,7 +280,7 @@ def user_file(tmp_path):
 
 @pytest.mark.unit
 class TestMapUser:
-    ROW = {
+    ROW: ClassVar[dict] = {
         "id": 5,
         "userName": TEST_USER,
         "bio": "hello voat",
@@ -315,10 +315,9 @@ class TestImportUsers:
         voat_db.create_user_metadata_table()
 
         def cleanup():
-            with voat_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
-                    conn.commit()
+            with voat_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
+                conn.commit()
 
         cleanup()
         yield voat_db
@@ -441,10 +440,9 @@ class TestImportFlair:
             "(3,999999,-1,'news','Flair','news','news')",  # not archived
         )
         assert import_flair(flair_db, path) == 1
-        with flair_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
-                assert cur.fetchone()["flair"] == "Article/News"
+        with flair_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
+            assert cur.fetchone()["flair"] == "Article/News"
 
     def test_first_flair_wins(self, flair_db, voat_table_file):
         path = voat_table_file(
@@ -453,10 +451,9 @@ class TestImportFlair:
             "(1,777001,-1,'a','Flair','First','d'),(2,777001,-1,'b','Flair','Second','d')",
         )
         assert import_flair(flair_db, path) == 1
-        with flair_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
-                assert cur.fetchone()["flair"] == "First"
+        with flair_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT json_data->>'link_flair_text' AS flair FROM posts WHERE id='voat_777001'")
+            assert cur.fetchone()["flair"] == "First"
 
 
 @pytest.mark.unit
@@ -494,10 +491,9 @@ class TestImportSubscribers:
             assert import_subscribers(voat_db, path, {TEST_SUB: TEST_SUB}) == 2
             assert len(voat_db.get_subscriber_history(TEST_SUB)) == 2
         finally:
-            with voat_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM subscriber_history WHERE subreddit = %s", (TEST_SUB,))
-                    conn.commit()
+            with voat_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM subscriber_history WHERE subreddit = %s", (TEST_SUB,))
+                conn.commit()
 
 
 class TestImportBadges:
@@ -518,10 +514,9 @@ class TestImportBadges:
                 {"name": "Alpha tester", "description": "Joined during alpha", "awarded": "2015-07-05 12:56:53"}
             ]
         finally:
-            with voat_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
-                    conn.commit()
+            with voat_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM user_metadata WHERE LOWER(username) = LOWER(%s)", (TEST_USER,))
+                conn.commit()
 
 
 class TestVoatAboutPage:

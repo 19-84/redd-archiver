@@ -164,7 +164,7 @@ class BatchPerformanceTracker:
         self.last_update_time = self.start_time
         self.batch_times = []
 
-    def record_batch(self, batch_size: int, batch_duration: float = None):
+    def record_batch(self, batch_size: int, batch_duration: float | None = None):
         """Record completion of a batch"""
         if batch_duration is None:
             current_time = time.time()

@@ -119,10 +119,9 @@ def main():
     # Verify database contents
     logger.info("\n=== Database Verification ===")
     try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Total Voat comments
-                cur.execute("""
+        with db.get_connection() as conn, conn.cursor() as cur:
+            # Total Voat comments
+            cur.execute("""
                     SELECT
                         'Comments' as type,
                         COUNT(*) as count,
@@ -131,14 +130,14 @@ def main():
                     FROM comments
                     WHERE platform = 'voat'
                 """)
-                result = cur.fetchone()
-                if result:
-                    logger.info(f"Voat comments in database: {result[1]:,}")
-                    logger.info(f"Communities: {result[2]:,}")
-                    logger.info(f"Authors: {result[3]:,}")
+            result = cur.fetchone()
+            if result:
+                logger.info(f"Voat comments in database: {result[1]:,}")
+                logger.info(f"Communities: {result[2]:,}")
+                logger.info(f"Authors: {result[3]:,}")
 
-                # Orphaned comments (no matching post)
-                cur.execute("""
+            # Orphaned comments (no matching post)
+            cur.execute("""
                     SELECT COUNT(*)
                     FROM comments c
                     WHERE c.platform = 'voat'
@@ -147,9 +146,9 @@ def main():
                           WHERE p.id = c.post_id
                       )
                 """)
-                orphaned = cur.fetchone()[0]
-                if orphaned > 0:
-                    logger.info(f"Orphaned comments (no matching post): {orphaned:,}")
+            orphaned = cur.fetchone()[0]
+            if orphaned > 0:
+                logger.info(f"Orphaned comments (no matching post): {orphaned:,}")
 
     except Exception as e:
         logger.error(f"Verification query failed: {e}")
@@ -157,11 +156,10 @@ def main():
     # Re-enable foreign key constraint (optional, for data integrity)
     logger.info("\n=== Re-enabling Foreign Key Constraint ===")
     try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Note: We don't re-add the constraint because many comments
-                # reference deleted/missing posts, which is expected in archives
-                logger.info("Skipping FK constraint re-enable (archived data with deletions)")
+        with db.get_connection() as conn, conn.cursor() as cur:
+            # Note: We don't re-add the constraint because many comments
+            # reference deleted/missing posts, which is expected in archives
+            logger.info("Skipping FK constraint re-enable (archived data with deletions)")
     except Exception as e:
         logger.warning(f"Could not re-enable FK constraint: {e}")
 

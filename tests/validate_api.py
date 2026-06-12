@@ -22,7 +22,7 @@ class APITester:
         name: str,
         path: str,
         method: str = "GET",
-        data: dict = None,
+        data: dict | None = None,
         expected_code: int = 200,
         check_json: bool = True,
     ) -> bool:

@@ -64,13 +64,13 @@ def main():
         for post in importer.stream_posts(file_path, filter_communities=FILTER_SUBVERSES):
             batch.append(post)
             if len(batch) >= batch_size:
-                success, errors = db.insert_posts_batch(batch)
+                success, _errors = db.insert_posts_batch(batch)
                 total_posts += success
                 logger.info(f"  Posts imported: {total_posts:,}")
                 batch = []
 
         if batch:
-            success, errors = db.insert_posts_batch(batch)
+            success, _errors = db.insert_posts_batch(batch)
             total_posts += success
 
     post_elapsed = time.time() - start_time
@@ -89,13 +89,13 @@ def main():
         for comment in importer.stream_comments(file_path, filter_communities=FILTER_SUBVERSES):
             batch.append(comment)
             if len(batch) >= batch_size:
-                success, errors = db.insert_comments_batch(batch)
+                success, _errors = db.insert_comments_batch(batch)
                 total_comments += success
                 logger.info(f"  Comments imported: {total_comments:,}")
                 batch = []
 
         if batch:
-            success, errors = db.insert_comments_batch(batch)
+            success, _errors = db.insert_comments_batch(batch)
             total_comments += success
 
     comment_elapsed = time.time() - start_time

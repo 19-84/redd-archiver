@@ -53,7 +53,7 @@ def get_thread_meta(thread: dict) -> dict:
         "flair_css": thread.get("link_flair_css_class", ""),
         "author_flair": thread.get("author_flair_text", ""),
         "edited": thread.get("edited", False),
-        "distinguished": thread.get("distinguished", None),
+        "distinguished": thread.get("distinguished"),
         "stickied": thread.get("stickied", False),
         "locked": thread.get("locked", False),
         "gilded": thread.get("gilded", 0),
@@ -64,12 +64,12 @@ def get_thread_meta(thread: dict) -> dict:
         # Additional enhanced fields
         "subreddit_subscribers": thread.get("subreddit_subscribers", 0),
         "num_crossposts": thread.get("num_crossposts", 0),
-        "author_created_utc": thread.get("author_created_utc", None),
+        "author_created_utc": thread.get("author_created_utc"),
         # Award display fields
-        "upvote_ratio": thread.get("upvote_ratio", None),
+        "upvote_ratio": thread.get("upvote_ratio"),
         "total_awards_received": thread.get("total_awards_received", 0),
         # Deleted user tracking
-        "author_fullname": thread.get("author_fullname", None),
+        "author_fullname": thread.get("author_fullname"),
     }
 
 
@@ -89,16 +89,16 @@ def get_comment_meta(comment: dict) -> dict:
         "author_flair": comment.get("author_flair_text", ""),
         "author_flair_css": comment.get("author_flair_css_class", ""),
         "edited": comment.get("edited", False),
-        "distinguished": comment.get("distinguished", None),
+        "distinguished": comment.get("distinguished"),
         "stickied": comment.get("stickied", False),
         "gilded": comment.get("gilded", 0),
         "controversiality": comment.get("controversiality", 0),
         # Additional enhanced fields
         "ups": comment.get("ups", 0),
         "downs": comment.get("downs", 0),
-        "author_created_utc": comment.get("author_created_utc", None),
+        "author_created_utc": comment.get("author_created_utc"),
         # Deleted user tracking
-        "author_fullname": comment.get("author_fullname", None),
+        "author_fullname": comment.get("author_fullname"),
     }
 
 
@@ -960,10 +960,8 @@ Examples:
             communities = set()
             for post_file in files.get("posts", []):
                 print_info(f"Scanning: {os.path.basename(post_file)}", indent=1)
-                count = 0
-                for post in importer.stream_posts(post_file):
+                for count, post in enumerate(importer.stream_posts(post_file), start=1):
                     communities.add(post["subreddit"])
-                    count += 1
                     if count >= 10000:  # Limit scan for large archives
                         break
 
@@ -977,7 +975,7 @@ Examples:
             elif args.platform == "voat":
                 print_info(f'  --subverse "{",".join(list(communities)[:3])}"', indent=1)
             else:
-                print_info(f"  --subreddit {list(communities)[0]}", indent=1)
+                print_info(f"  --subreddit {next(iter(communities))}", indent=1)
 
             return
         except Exception as e:
@@ -1415,12 +1413,12 @@ def process_import_only(
                         posts_batch.append(post)
                         posts_processed += 1
                         if len(posts_batch) >= 10000:
-                            successful, failed, failed_ids = db.insert_posts_batch(posts_batch)
+                            _successful, _failed, _failed_ids = db.insert_posts_batch(posts_batch)
                             posts_batch.clear()
 
                 # Insert remaining posts
                 if posts_batch:
-                    successful, failed, failed_ids = db.insert_posts_batch(posts_batch)
+                    _successful, _failed, _failed_ids = db.insert_posts_batch(posts_batch)
                     posts_batch.clear()
 
                 post_time = time.time() - post_start_time
@@ -1449,11 +1447,10 @@ def process_import_only(
                 # Query all posts (not filtered by subreddit) since we're processing one platform batch
                 print_info("Loading post IDs for orphan comment filtering...", indent=2)
                 valid_post_ids = set()
-                with db.pool.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        # Load all post IDs from database (platform-specific)
-                        cur.execute("SELECT id FROM posts WHERE platform = %s", (platform,))
-                        valid_post_ids = {row["id"] for row in cur}
+                with db.pool.get_connection() as conn, conn.cursor() as cur:
+                    # Load all post IDs from database (platform-specific)
+                    cur.execute("SELECT id FROM posts WHERE platform = %s", (platform,))
+                    valid_post_ids = {row["id"] for row in cur}
                 print_info(f"Loaded {len(valid_post_ids):,} post IDs for filtering", indent=2)
 
                 # Use importer for non-Reddit platforms with orphan filtering
@@ -1472,7 +1469,7 @@ def process_import_only(
                         comments_batch.append(comment)
                         comments_processed += 1
                         if len(comments_batch) >= 20000:
-                            successful, failed = db.insert_comments_batch(comments_batch)
+                            _successful, _failed = db.insert_comments_batch(comments_batch)
                             if orphaned_count > 0:
                                 print_info(f"Filtered {orphaned_count:,} orphaned comments", indent=2)
                                 orphaned_count = 0
@@ -1480,7 +1477,7 @@ def process_import_only(
 
                 # Insert remaining comments
                 if comments_batch:
-                    successful, failed = db.insert_comments_batch(comments_batch)
+                    _successful, _failed = db.insert_comments_batch(comments_batch)
                     comments_batch.clear()
 
                 if orphaned_count > 0:
@@ -1648,19 +1645,18 @@ def process_export_only(
                 subreddit_stats = db.calculate_subreddit_statistics(subreddit)
 
                 # Query actual filtered/archived counts (what was actually generated with filters)
-                with db.pool.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """
+                with db.pool.get_connection() as conn, conn.cursor() as cur:
+                    cur.execute(
+                        """
                             SELECT COUNT(*) as filtered_count
                             FROM posts
                             WHERE LOWER(subreddit) = LOWER(%s)
                             AND score >= %s
                             AND num_comments >= %s
                         """,
-                            (subreddit, args.min_score, args.min_comments),
-                        )
-                        filtered_posts = cur.fetchone()["filtered_count"]
+                        (subreddit, args.min_score, args.min_comments),
+                    )
+                    filtered_posts = cur.fetchone()["filtered_count"]
 
                 # Update stats with actual archived count (posts that met filter criteria)
                 subreddit_stats["archived_posts"] = filtered_posts
@@ -1744,23 +1740,22 @@ def process_export_only(
                 # Load subreddit statistics for user page footers
                 subs_with_stats = []
                 try:
-                    with db.pool.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                    with db.pool.get_connection() as conn, conn.cursor() as cur:
+                        cur.execute(
+                            "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                        )
+                        for row in cur.fetchall():
+                            subs_with_stats.append(
+                                {
+                                    "name": row["subreddit"],
+                                    "stats": {
+                                        "total_posts": row["total_posts"],
+                                        "archived_posts": row["archived_posts"],
+                                        "total_comments": row["total_comments"],
+                                        "archived_comments": row["archived_comments"],
+                                    },
+                                }
                             )
-                            for row in cur.fetchall():
-                                subs_with_stats.append(
-                                    {
-                                        "name": row["subreddit"],
-                                        "stats": {
-                                            "total_posts": row["total_posts"],
-                                            "archived_posts": row["archived_posts"],
-                                            "total_comments": row["total_comments"],
-                                            "archived_comments": row["archived_comments"],
-                                        },
-                                    }
-                                )
                     print_info(f"✅ Loaded stats for {len(subs_with_stats)} subreddits (user page footers)", indent=2)
                 except Exception as e:
                     print_warning(f"Failed to load subreddit stats for footer: {e}", indent=2)
@@ -2487,23 +2482,22 @@ def process_archive_incremental(
                         # Load subreddit statistics for user page footers
                         subs_with_stats = []
                         try:
-                            with reddit_db.pool.get_connection() as conn:
-                                with conn.cursor() as cur:
-                                    cur.execute(
-                                        "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                            with reddit_db.pool.get_connection() as conn, conn.cursor() as cur:
+                                cur.execute(
+                                    "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                                )
+                                for row in cur.fetchall():
+                                    subs_with_stats.append(
+                                        {
+                                            "name": row["subreddit"],
+                                            "stats": {
+                                                "total_posts": row["total_posts"],
+                                                "archived_posts": row["archived_posts"],
+                                                "total_comments": row["total_comments"],
+                                                "archived_comments": row["archived_comments"],
+                                            },
+                                        }
                                     )
-                                    for row in cur.fetchall():
-                                        subs_with_stats.append(
-                                            {
-                                                "name": row["subreddit"],
-                                                "stats": {
-                                                    "total_posts": row["total_posts"],
-                                                    "archived_posts": row["archived_posts"],
-                                                    "total_comments": row["total_comments"],
-                                                    "archived_comments": row["archived_comments"],
-                                                },
-                                            }
-                                        )
                             print_info(
                                 f"✅ Loaded stats for {len(subs_with_stats)} subreddits (user page footers)", indent=2
                             )
@@ -2546,23 +2540,22 @@ def process_archive_incremental(
                         # Load subreddit statistics for user page footers
                         subs_with_stats = []
                         try:
-                            with reddit_db.pool.get_connection() as conn:
-                                with conn.cursor() as cur:
-                                    cur.execute(
-                                        "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                            with reddit_db.pool.get_connection() as conn, conn.cursor() as cur:
+                                cur.execute(
+                                    "SELECT subreddit, total_posts, archived_posts, total_comments, archived_comments FROM subreddit_statistics"
+                                )
+                                for row in cur.fetchall():
+                                    subs_with_stats.append(
+                                        {
+                                            "name": row["subreddit"],
+                                            "stats": {
+                                                "total_posts": row["total_posts"],
+                                                "archived_posts": row["archived_posts"],
+                                                "total_comments": row["total_comments"],
+                                                "archived_comments": row["archived_comments"],
+                                            },
+                                        }
                                     )
-                                    for row in cur.fetchall():
-                                        subs_with_stats.append(
-                                            {
-                                                "name": row["subreddit"],
-                                                "stats": {
-                                                    "total_posts": row["total_posts"],
-                                                    "archived_posts": row["archived_posts"],
-                                                    "total_comments": row["total_comments"],
-                                                    "archived_comments": row["archived_comments"],
-                                                },
-                                            }
-                                        )
                             print_info(
                                 f"✅ Loaded stats for {len(subs_with_stats)} subreddits (user page footers)", indent=2
                             )
@@ -2825,7 +2818,7 @@ def update_homepage_incremental(
             # Try with minimal data
             try:
                 minimal_subs = []
-                for name in processed_subreddits.keys():
+                for name in processed_subreddits:
                     minimal_subs.append(
                         {
                             "name": name,
@@ -2980,43 +2973,41 @@ def finalize_archive_with_stats(
                 if not imported_subreddits:
                     # Last resort: query posts table directly for subreddit list
                     print_info("No metadata found - querying posts table directly", indent=2)
-                    with postgres_db.pool.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute("""
+                    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                        cur.execute("""
                                 SELECT DISTINCT subreddit
                                 FROM posts
                                 ORDER BY subreddit
                             """)
-                            imported_subreddits = [row[0] for row in cur.fetchall()]
+                        imported_subreddits = [row[0] for row in cur.fetchall()]
 
                 # Build statistics from database for each subreddit
                 all_subreddit_stats = []
                 for subreddit in imported_subreddits:
-                    with postgres_db.pool.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            # Get post and comment counts
-                            cur.execute(
-                                """
+                    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                        # Get post and comment counts
+                        cur.execute(
+                            """
                                 SELECT
                                     COUNT(*) as post_count,
                                     COALESCE(SUM((json_data->>'num_comments')::int), 0) as comment_count
                                 FROM posts
                                 WHERE subreddit = %s
                             """,
-                                (subreddit,),
-                            )
-                            post_count, comment_count = cur.fetchone()
+                            (subreddit,),
+                        )
+                        post_count, comment_count = cur.fetchone()
 
-                            all_subreddit_stats.append(
-                                {
-                                    "name": subreddit,
-                                    "stats": {
-                                        "archived_posts": post_count,
-                                        "archived_comments": comment_count,
-                                        "output_size": 0,  # Unknown, but not critical
-                                    },
-                                }
-                            )
+                        all_subreddit_stats.append(
+                            {
+                                "name": subreddit,
+                                "stats": {
+                                    "archived_posts": post_count,
+                                    "archived_comments": comment_count,
+                                    "output_size": 0,  # Unknown, but not critical
+                                },
+                            }
+                        )
 
                 print_success(f"Loaded statistics for {len(all_subreddit_stats)} subreddits from database", indent=2)
 
