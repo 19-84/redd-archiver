@@ -15,6 +15,38 @@ from typing import Any
 from html_modules.html_url import generate_domain_display_and_hover
 from html_modules.platform_utils import get_url_prefix
 
+# The render_comment Jinja macro recurses once per nesting level, consuming
+# several Python stack frames each — real threads (depth 274 observed) overflow
+# the interpreter's default recursion limit. Replies nested deeper than this
+# are reparented as a flat list under the comment at the cap. CSS indentation
+# is already visually flat past ~depth 26, so the cap has no visible effect.
+MAX_NESTING_DEPTH = 50
+
+
+def _flatten_subtree(comment: dict[str, Any]) -> list[dict[str, Any]]:
+    """Collect all descendants of ``comment`` in pre-order, emptying their reply lists."""
+    flat: list[dict[str, Any]] = []
+    stack = list(reversed(comment["replies"]))
+    while stack:
+        c = stack.pop()
+        flat.append(c)
+        stack.extend(reversed(c["replies"]))
+        c["replies"] = []
+    return flat
+
+
+def _cap_nesting_depth(root_comments: list[dict[str, Any]], max_depth: int) -> None:
+    """Flatten reply chains so no comment nests deeper than ``max_depth + 1``."""
+    stack = [(c, 0) for c in root_comments]
+    while stack:
+        comment, depth = stack.pop()
+        if depth >= max_depth:
+            if comment["replies"]:
+                comment["replies"] = _flatten_subtree(comment)
+            # flattened replies are leaves — nothing deeper to walk
+        else:
+            stack.extend((reply, depth + 1) for reply in comment["replies"])
+
 
 def build_comment_tree(comments_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Assemble a flat comment list into a nested tree, returning root comments.
@@ -23,6 +55,8 @@ def build_comment_tree(comments_list: list[dict[str, Any]]) -> list[dict[str, An
     adding a ``replies`` list. Handles Reddit's ``t1_``/``t3_`` prefixes and
     the bare parent IDs used by Voat/Ruqqus. Root comments are sorted by score
     descending (recursive sorting happens in the render_comment macro).
+    Chains deeper than MAX_NESTING_DEPTH are flattened to keep the recursive
+    render macro within the interpreter's recursion limit.
     """
     comments_by_id: dict[Any, dict[str, Any]] = {}
     root_comments: list[dict[str, Any]] = []
@@ -58,6 +92,7 @@ def build_comment_tree(comments_list: list[dict[str, Any]]) -> list[dict[str, An
                     root_comments.remove(comment)
 
     root_comments.sort(key=lambda c: c.get("score", 0), reverse=True)
+    _cap_nesting_depth(root_comments, MAX_NESTING_DEPTH)
     return root_comments
 
 

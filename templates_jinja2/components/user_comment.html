@@ -2,11 +2,12 @@
 {% from 'macros/reddit_macros.html' import user_link, distinguished_badge, edit_indicator %}
 
 <div class="link mt-3">
-    <h6 class="comment-context mb-1">
+    {# A context byline, not a section heading — a real h-tag here skips levels (h2 → h6) and fails accessibility heading-order checks #}
+    <div class="comment-context mb-1">
         <small class="text-muted">
             Comment on: <a href="{{ item.url_comments }}">{{ item.parent_post_title }}</a>
         </small>
-    </h6>
+    </div>
     <div class="comment-body mb-2 p-2 bg-light rounded">{{ item.body|safe }}</div>
     <a href="{{ item.url_comments }}">
         <span class="badge {{ item.score|score_class(score_ranges) }}"
