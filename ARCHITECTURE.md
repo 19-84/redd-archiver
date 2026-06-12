@@ -4,7 +4,7 @@
 
 # Redd-Archiver Architecture
 
-> **TL;DR:** Streaming architecture with PostgreSQL backend. Constant memory usage regardless of dataset size. Database handles all queries/aggregations, generates static HTML for offline browsing + optional Flask search server. Multi-platform support (Reddit/Voat/Ruqqus). 18 specialized modules.
+> **TL;DR:** Streaming architecture with PostgreSQL backend. Constant memory usage regardless of dataset size. Database handles all queries/aggregations. Three serving modes: static HTML for offline browsing, hybrid (static + Flask search server, default), and fully dynamic (Flask renders every page from PostgreSQL). Multi-platform support (Reddit/Voat/Ruqqus). 24 specialized modules.
 >
 > **New here?** Start with [QUICKSTART.md](QUICKSTART.md) for practical deployment, then return here for technical details.
 
@@ -15,7 +15,7 @@ This document describes the technical architecture of Redd-Archiver v1.0.0, a Po
 ## Table of Contents
 
 - [System Overview](#system-overview)
-- [Hybrid Architecture](#hybrid-architecture)
+- [Serving Modes](#serving-modes)
 - [Core Components](#core-components)
 - [Data Flow](#data-flow)
 - [Module Organization](#module-organization)
@@ -46,13 +46,21 @@ Redd-Archiver follows a **streaming architecture** with PostgreSQL as the centra
 
 1. **Streaming Processing**: Constant memory usage regardless of dataset size
 2. **Database-Centric**: PostgreSQL handles aggregations, search, and state management
-3. **Modular Design**: 18 specialized modules for maintainability
+3. **Modular Design**: 24 specialized modules for maintainability
 4. **Resume Capability**: Database-backed progress tracking enables graceful recovery
 5. **Separation of Concerns**: Import/export workflow separation for large-scale operations
 
-## Hybrid Architecture
+## Serving Modes
 
-Redd-Archiver uses a **hybrid architecture** that separates static HTML generation from dynamic search functionality:
+Redd-Archiver supports three serving modes:
+
+| Mode | How It Works | Search | Export Step |
+|------|--------------|--------|-------------|
+| **Static** | Export HTML, host anywhere (USB drive, GitHub Pages, any web server) | ❌ No | ✅ Required |
+| **Hybrid** (default) | nginx serves exported HTML; Flask provides search + REST API | ✅ Yes | ✅ Required |
+| **Dynamic** | `REDDARCHIVER_SERVE_MODE=dynamic` — Flask serves ALL pages directly from PostgreSQL | ✅ Yes | ❌ None |
+
+The static and hybrid modes share the same exported HTML; dynamic mode renders pages on demand:
 
 ### Static Components (Offline Browsing)
 
@@ -111,12 +119,29 @@ Redd-Archiver uses a **hybrid architecture** that separates static HTML generati
 - Result highlighting with `ts_headline()`
 - Rate limiting and security features
 
+### Dynamic Mode (Full Server Rendering)
+
+Setting `REDDARCHIVER_SERVE_MODE=dynamic` makes the Flask search server serve **every** archive page directly from PostgreSQL — no export step. `search_server.py` registers the `dynamic_pages.py` blueprint, which renders dashboards, subreddit listings, post pages, and user pages on demand using the same Jinja2 templates as the exporter.
+
+**Extra features only available in dynamic mode**:
+- Listing filters: `?flair=`, `?domain=`, `?min_score=`, `?from=`, `?to=`
+- `/all/` cross-subreddit view
+- On-the-fly title browsing
+- Case-insensitive URLs: `/r/SubName/` and `/user/Name/` resolve regardless of case
+- Static-style URLs (e.g. `index-2.html`) 301-redirect to clean URLs
+- Theming via environment variables (`REDDARCHIVER_THEME`, `REDDARCHIVER_ACCENT_COLOR`)
+
+**Measured latency**: listings 1–23ms, post pages ~22ms, user pages ~12ms. Listing counts/stats are cached in-process (`REDDARCHIVER_LISTING_CACHE_TTL`, default 300s), and all GET responses carry `Cache-Control`/ETag headers (`REDDARCHIVER_HTTP_CACHE_MAX_AGE`, default 300s).
+
+Because new data is visible as soon as it is imported, dynamic mode pairs well with the [incremental update system](#incremental-update-system-monthly-dumps--upserts).
+
 **Deployment Options**:
 1. **Offline Browsing**: No server, sorted indexes only
 2. **Static Hosting** (GitHub Pages): No server, browse-only
 3. **Docker Local**: Full stack on localhost (search enabled)
 4. **Docker + Tor**: .onion hidden service (search enabled)
 5. **Docker + HTTPS**: Production public deployment (search enabled)
+6. **Dynamic Serving**: Flask renders all pages from PostgreSQL (no export step)
 
 **Why This Design?**
 
@@ -140,27 +165,29 @@ Redd-Archiver uses a functional organization with specialized directories:
 
 ```
 redd-archiver/
-├── reddarc.py              # Main CLI entry point (2,355 lines)
-├── search_server.py        # Flask search API server (532 lines)
+├── reddarc.py              # Main CLI entry point
+├── search_server.py        # Flask search API server
+├── dynamic_pages.py        # Dynamic serving blueprint (REDDARCHIVER_SERVE_MODE=dynamic)
 ├── version.py              # Version metadata
 │
 ├── core/                   # Core processing & database
-│   ├── postgres_database.py    (3,491 lines)
-│   ├── postgres_search.py      (653 lines)
-│   ├── write_html.py           (979 lines)
-│   ├── watchful.py             (336 lines)
-│   ├── incremental_processor.py (588 lines)
+│   ├── postgres_database.py    (PostgreSQL backend)
+│   ├── postgres_search.py      (Full-text search queries)
+│   ├── write_html.py           (HTML generation coordinator)
+│   ├── watchful.py             (.zst streaming utilities)
+│   ├── incremental_processor.py (State/memory management)
+│   ├── incremental_update.py   (Monthly dump updates, update_history)
 │   └── importers/              # Multi-platform importers
 │       ├── __init__.py             (Platform registry)
 │       ├── base_importer.py        (Abstract base class)
-│       ├── reddit_importer.py      (.zst JSON Lines, 248 lines)
-│       ├── voat_importer.py        (SQL dump coordinator, 560 lines)
+│       ├── reddit_importer.py      (.zst JSON Lines)
+│       ├── voat_importer.py        (SQL dump coordinator)
 │       ├── voat_sql_parser.py      (SQL INSERT statement parser)
-│       └── ruqqus_importer.py      (.7z JSON Lines, 348 lines)
+│       └── ruqqus_importer.py      (.7z JSON Lines)
 │
 ├── api/                    # REST API v1 (30+ endpoints)
 │   ├── __init__.py             (Blueprint registration)
-│   └── routes.py               (4,372 lines)
+│   └── routes.py               (All API endpoints)
 │
 ├── mcp_server/             # MCP Server for AI integration
 │   ├── server.py               (FastMCP server, 29 tools)
@@ -178,25 +205,25 @@ redd-archiver/
 ├── processing/             # Data processing modules
 │   ├── parallel_user_processing.py
 │   ├── batch_processing_utils.py
-│   └── incremental_statistics.py (796 lines)
+│   └── incremental_statistics.py
 │
 ├── monitoring/             # Performance & monitoring
 │   ├── performance_monitor.py
 │   ├── performance_phases.py
 │   ├── performance_timing.py
 │   ├── auto_tuning_validator.py
-│   ├── streaming_config.py (181 lines)
+│   ├── streaming_config.py
 │   └── system_optimizer.py
 │
-├── html_modules/           # HTML generation (18 modules)
-├── templates_jinja2/       # Jinja2 templates (15 files)
+├── html_modules/           # HTML generation (24 modules)
+├── templates_jinja2/       # Jinja2 templates (27 files)
 ├── sql/                    # Database schema & migrations
 ├── docker/                 # Docker deployment files
 ├── tests/                  # Test suite
 └── static/                 # Static assets (CSS, JS, fonts)
 ```
 
-### Entry Point: reddarc.py (2,202 lines)
+### Entry Point: reddarc.py
 **Location**: Root
 **Purpose**: Main orchestrator and CLI interface
 
@@ -214,7 +241,7 @@ redd-archiver/
 - `import_data()`: Stream .zst → PostgreSQL
 - `export_html()`: Generate HTML from database
 
-### Database Layer: core/postgres_database.py (3,301 lines)
+### Database Layer: core/postgres_database.py
 **Location**: core/
 **Purpose**: PostgreSQL backend abstraction
 
@@ -241,7 +268,7 @@ redd-archiver/
 - Server-side cursors for streaming
 - Prepared statements for query optimization
 
-### HTML Generation: core/write_html.py (1,024 lines)
+### HTML Generation: core/write_html.py
 **Location**: core/
 **Purpose**: HTML generation coordinator
 
@@ -259,7 +286,7 @@ redd-archiver/
 - `generate_user_pages()`: User profile pages (streaming)
 - `generate_seo_assets()`: SEO meta files
 
-### Streaming Utilities: core/watchful.py (336 lines)
+### Streaming Utilities: core/watchful.py
 **Location**: core/
 **Purpose**: .zst file streaming and decompression
 
@@ -273,7 +300,7 @@ redd-archiver/
 - `stream_zst_file()`: Generator for streaming decompression
 - `parse_json_line()`: Safe JSON parsing with error handling
 
-### Search Server: search_server.py (442 lines)
+### Search Server: search_server.py
 **Location**: Root
 **Purpose**: Flask-based web API for PostgreSQL FTS
 
@@ -289,7 +316,7 @@ redd-archiver/
 - `GET /search`: Full-text search with filters
 - `GET /suggestions`: Search suggestions (future)
 
-### Configuration: monitoring/streaming_config.py (181 lines)
+### Configuration: monitoring/streaming_config.py
 **Location**: monitoring/
 **Purpose**: Auto-detecting system configuration
 
@@ -422,6 +449,22 @@ CREATE INDEX idx_posts_subreddit_platform ON posts(subreddit, platform);
    ├─ Create search indexes (GIN indexes)
    └─ Mark import complete
 ```
+
+### Incremental Update System (Monthly Dumps → Upserts)
+
+`core/incremental_update.py` keeps an existing archive current by applying monthly dumps (`RS_YYYY-MM.zst` / `RC_YYYY-MM.zst`) via `--update`, `--update-all`, and `--update-status`:
+
+```
+1. Stream monthly dump (constant memory)
+   └─ Filter to tracked subreddits (everything else is skipped)
+2. Upsert posts/comments
+   ├─ Refresh scores and metadata
+   └─ Preserve original content
+3. Record file SHA256 in update_history
+   └─ Deduplication: re-running the same file is a no-op
+```
+
+See [docs/INCREMENTAL_UPDATES.md](docs/INCREMENTAL_UPDATES.md) for the full guide.
 
 ### Export Workflow (PostgreSQL → HTML)
 
@@ -597,33 +640,39 @@ See [MCP Server Documentation](mcp_server/README.md) for complete setup and tool
 
 ## Module Organization
 
-### html_modules/ (18 Specialized Modules)
+### html_modules/ (24 Specialized Modules)
 
 #### High-Level Modules
-- **html_seo.py** (1,336 lines): SEO, meta tags, XML sitemaps, robots.txt
-- **html_pages_jinja.py** (978 lines): Jinja2-based page generation
-- **html_statistics.py** (830 lines): Analytics and metrics aggregation
-- **dashboard_helpers.py** (535 lines): Dashboard utility functions
-- **html_field_generation.py** (489 lines): Dynamic field generation
+- **html_seo.py**: SEO, meta tags, XML sitemaps, robots.txt
+- **html_pages_jinja.py**: Jinja2-based page generation
+- **html_statistics.py**: Analytics and metrics aggregation
+- **html_static_indexes.py**: Per-letter title indexes, flair indexes, archive map
+- **html_charts.py**: CSS-only chart rendering
+- **dashboard_helpers.py**: Dashboard utility functions
+- **html_field_generation.py**: Dynamic field generation
 
 #### Rendering & Templating
-- **jinja_filters.py** (365 lines): Custom Jinja2 filters (11 filters)
-- **html_pages.py** (366 lines): Core page generation logic
-- **html_comments.py** (305 lines): Comment threading system
-- **jinja_env.py** (208 lines): Jinja2 environment configuration
-- **html_dashboard_jinja.py** (165 lines): Jinja2 dashboard rendering
+- **jinja_filters.py**: Custom Jinja2 filters
+- **html_pages.py**: Core page generation logic
+- **html_comments.py**: Comment threading system
+- **jinja_env.py**: Jinja2 environment configuration
+- **html_dashboard_jinja.py**: Jinja2 dashboard rendering
+- **themes.py**: Theme palette transforms, accent override, CSS injection
+- **theme_data.py**: Default theme token values
 
 #### Utilities
-- **html_utils.py** (175 lines): File operations, asset management
-- **css_minifier.py** (154 lines): CSS minification
-- **html_scoring.py** (113 lines): Dynamic score badges
-- **html_templates.py** (100 lines): Template loading and management
-- **html_url.py** (65 lines): URL processing, domain extraction
-- **html_dashboard.py** (53 lines): Dashboard generation coordinator
-- **html_constants.py** (43 lines): Configuration constants
-- **__init__.py** (227 lines): Public API exports
+- **html_utils.py**: File operations, asset management
+- **css_minifier.py**: CSS minification
+- **html_scoring.py**: Dynamic score badges
+- **html_templates.py**: Template loading and management
+- **html_url.py**: URL processing, domain extraction
+- **content_urls.py**: Content URL helpers
+- **platform_utils.py**: Platform prefix/name helpers
+- **html_dashboard.py**: Dashboard generation coordinator
+- **html_constants.py**: Configuration constants
+- **__init__.py**: Public API exports
 
-### templates_jinja2/ (15 Templates)
+### templates_jinja2/ (27 Templates)
 
 **Template Hierarchy**:
 ```
@@ -641,14 +690,26 @@ components/
 
 macros/
 ├── comment_macros.html (comment rendering macros)
+├── platform_macros.html (platform prefix/name macros)
 └── reddit_macros.html (Reddit-specific macros)
 
 pages/
+├── archive_map.html (archive map overview)
+├── flair_directory.html (flair directory)
+├── flair_index.html (per-flair post listing)
 ├── global_search.html (search results page)
 ├── index.html (dashboard homepage)
 ├── link.html (individual post page)
+├── search_error.html (search error page)
+├── search_form.html (search form page)
+├── search_results.html (search results rendering)
 ├── subreddit.html (subreddit listing)
-└── user.html (user profile page)
+├── subreddit_about.html (subreddit about page)
+├── title_directory.html (per-letter title directory)
+├── title_index.html (title index listing)
+├── user.html (user profile page)
+├── wiki_index.html (subreddit wiki index)
+└── wiki_page.html (subreddit wiki page)
 ```
 
 **Template Inheritance**:
@@ -1196,5 +1257,5 @@ def process_with_checkpoint():
 ---
 
 **Document Version**: 1.0.0
-**Last Updated**: 2025-12-27
+**Last Updated**: 2026-06-12
 **Maintainer**: Redd-Archiver Development Team

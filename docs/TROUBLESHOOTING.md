@@ -25,7 +25,7 @@ This guide covers common issues and solutions for Redd-Archiver.
 
 **Solution**:
 ```bash
-# Check Python version (requires 3.7+)
+# Check Python version (requires 3.10+)
 python --version
 
 # If too old, use pyenv or install newer Python
@@ -159,7 +159,7 @@ psql $DATABASE_URL -c "SELECT * FROM pg_stat_activity;"
 export REDDARCHIVER_MAX_DB_CONNECTIONS=16
 ```
 
-2. **Tune PostgreSQL** (edit postgresql.conf):
+2. **Tune PostgreSQL** (local installs: edit postgresql.conf; Docker: edit `postgres.conf` in the repo root, which is mounted into the container):
 ```ini
 shared_buffers = 4GB              # 25% of RAM
 work_mem = 256MB                  # Per operation
@@ -531,5 +531,5 @@ WHERE schemaname = 'public';
 
 ---
 
-**Last Updated**: 2025-12-27
+**Last Updated**: 2026-06-12
 **Version**: 1.0.0

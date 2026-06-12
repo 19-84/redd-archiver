@@ -1,7 +1,7 @@
 # Redd-Archiver
 
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PostgreSQL Required](https://img.shields.io/badge/PostgreSQL-required-blue.svg)](https://www.postgresql.org/)
 [![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)]()
 [![Multi-Platform](https://img.shields.io/badge/platforms-Reddit%20%7C%20Voat%20%7C%20Ruqqus-orange.svg)]()
@@ -11,7 +11,7 @@
 
 > **⭐ If you find this project useful, please star the repo!** It helps others discover the tool and motivates continued development.
 
-Transform compressed data dumps into browsable HTML archives with flexible deployment options. Redd-Archiver supports offline browsing via sorted index pages OR full-text search with Docker deployment. Features mobile-first design, multi-platform support, and enterprise-grade performance with PostgreSQL full-text indexing.
+Transform compressed data dumps into browsable HTML archives with flexible deployment options. Redd-Archiver supports offline browsing via sorted index pages, full-text search with Docker deployment, or fully dynamic serving straight from PostgreSQL. Archives stay current with monthly incremental updates from Arctic Shift dumps. Features mobile-first design, multi-platform support, operator-selectable themes, and PostgreSQL full-text indexing.
 
 **Supported Platforms**:
 | Platform | Format | Status | Available Posts | Data |
@@ -22,7 +22,45 @@ Transform compressed data dumps into browsable HTML archives with flexible deplo
 
 *Tracked content: **2.384 billion posts across 68,883 communities** (Reddit full Pushshift dataset through Dec 31 2025, Voat/Ruqqus complete archives)*
 
-**Version 1.0** features multi-platform archiving, REST API with 30+ endpoints, MCP server for AI integration, and PostgreSQL-backed architecture for large-scale processing.
+**Version 1.0** features multi-platform archiving, REST API with 30+ endpoints, MCP server for AI integration, and PostgreSQL-backed architecture for large-scale processing. Since 1.0 the project has added three serving modes, incremental monthly updates, theme palettes, and subreddit metadata/wiki enrichment (see below).
+
+## 🧭 Serving Modes
+
+One archive, three ways to serve it — the database is the canonical store, switch modes anytime:
+
+| | **Static** | **Hybrid** (default) | **Dynamic** |
+|---|---|---|---|
+| Runtime requirements | Any web host | nginx + Flask + PostgreSQL | Flask + PostgreSQL |
+| Full-text search / REST API | — | ✅ | ✅ |
+| Dynamic filtering (`?flair=&min_score=&from=`) & `/all/` view | — | — | ✅ |
+| Content live immediately after import | export step | export step | ✅ instantly |
+| GitHub Pages / USB-stick / offline | ✅ | pages only | — |
+
+```bash
+# Static: export once, host anywhere
+reddarc.py /data --subreddit privacy ... --output /var/www/html/
+
+# Hybrid (current default): static pages + search server
+docker compose up -d
+
+# Dynamic: no export step, Flask renders pages from PostgreSQL
+reddarc.py --import-only /data --subreddit privacy ...
+REDDARCHIVER_SERVE_MODE=dynamic python search_server.py
+```
+
+## 🔄 Keep Archives Current (Incremental Updates)
+
+Apply monthly [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) dumps to an existing archive — only tracked subreddits are imported, re-runs are skipped by checksum, and scores refresh without altering preserved content:
+
+```bash
+# One month
+reddarc.py --update RS_2026-01.zst --comments-file RC_2026-01.zst
+
+# Or point at a downloaded monthly torrent (comments/ + submissions/ layout
+# is auto-discovered) and apply every unprocessed month in order:
+reddarc.py --update-all /data/monthly/reddit/
+reddarc.py --update-status   # audit what has been applied
+```
 
 ## 🚀 Quick Start
 
@@ -105,9 +143,11 @@ See [MCP Server Documentation](mcp_server/README.md) for complete setup guide.
 - **📱 Mobile-First Design**: Responsive layout optimized for all devices with touch-friendly navigation
 - **🔍 Advanced Search System (Server Required)**: PostgreSQL full-text search optimized for Tor network. Search by keywords, subreddit, author, date, score. *Requires Docker deployment - offline browsing uses sorted index pages.*
 - **⚡ JavaScript Free**: Complete functionality without JS, pure CSS interactions
-- **🎨 Theme Support**: Built-in light/dark theme toggle with CSS-only implementation
-- **♿ Accessibility**: WCAG compliant with keyboard navigation and screen reader support
-- **🚄 Performance**: Optimized CSS (29KB), designed for low-bandwidth networks
+- **🎨 Themes**: CSS-only dark/light mode (follows system preference, manual toggle), plus operator palettes — `--theme default|sepia|high-contrast` and `--accent-color` at export time, or `REDDARCHIVER_THEME` in dynamic mode, with `--custom-css` for full control
+- **📇 Offline Browsing Aids**: Per-letter title indexes (Ctrl+F-friendly), flair indexes, and an archive map page — search-like navigation with zero server
+- **📖 Community Metadata**: Subreddit descriptions, rules, and wikis imported from Arctic Shift dumps; Voat subverse metadata, user profiles, and flair
+- **♿ Accessibility**: WCAG compliant — Lighthouse 100 accessibility score across page types
+- **🚄 Performance**: ~13KB gzipped CSS, 3–32KB gzipped pages, Lighthouse 94–100, designed for low-bandwidth networks
 
 ### Technical Excellence
 - **🏗️ Modular Architecture**: 18 specialized modules for maintainability and extensibility
@@ -167,7 +207,7 @@ Search results with highlighted excerpts using PostgreSQL `ts_headline()`. Sub-s
 
 ## 🛠️ Installation
 
-**Prerequisites**: Python 3.7+, PostgreSQL 12+, 4GB+ RAM
+**Prerequisites**: Python 3.10+, PostgreSQL 14+, 4GB+ RAM
 
 **Quick Install** (Docker):
 ```bash
@@ -231,6 +271,14 @@ docker compose up -d
 # Required
 DATABASE_URL=postgresql://user:pass@host:5432/reddarchiver
 
+# Serving (search server)
+REDDARCHIVER_SERVE_MODE=dynamic         # hybrid (default) | dynamic
+REDDARCHIVER_THEME=sepia                # default | sepia | high-contrast
+REDDARCHIVER_ACCENT_COLOR="#8b6914"     # Accent override (hex), both modes
+REDDARCHIVER_HTTP_CACHE_MAX_AGE=300     # Cache-Control/ETag for GET responses (0 disables)
+REDDARCHIVER_LISTING_CACHE_TTL=300      # Listing count/stats cache (dynamic mode)
+GUNICORN_WORKERS=8                      # Override CPU-scaled worker count (Docker)
+
 # Optional Performance Tuning (auto-detected if not set)
 REDDARCHIVER_MAX_DB_CONNECTIONS=8       # Connection pool size
 REDDARCHIVER_MAX_PARALLEL_WORKERS=4     # Parallel processing workers
@@ -242,15 +290,16 @@ REDDARCHIVER_USER_PAGE_WORKERS=4        # User page generation workers
 
 ## 🏗️ Architecture
 
-**Modular PostgreSQL-backed design** with 18 specialized HTML modules and multi-platform import support:
+**Modular PostgreSQL-backed design** with specialized HTML modules and multi-platform import support:
 
 **Core Components:**
 - `reddarc.py` - Main CLI entry point with platform auto-detection
-- `core/` - PostgreSQL backend, streaming importers (Reddit/Voat/Ruqqus), HTML generation
+- `core/` - PostgreSQL backend, streaming importers (Reddit/Voat/Ruqqus), incremental updates, HTML generation
 - `api/` - REST API v1 with 30+ endpoints
 - `mcp_server/` - MCP server for AI integration (29 tools)
-- `html_modules/` - 18 specialized modules (Jinja2 rendering, SEO, statistics, CSS minification)
-- `templates_jinja2/` - 15 Jinja2 templates with inheritance system
+- `dynamic_pages.py` - Flask page routes for dynamic serving mode
+- `html_modules/` - 24 specialized modules (Jinja2 rendering, SEO, themes, statistics, CSS minification)
+- `templates_jinja2/` - 27 Jinja2 templates with inheritance system
 - `processing/` - Parallel user processing, batch optimization, statistics
 - `monitoring/` - Performance tracking, auto-tuning, system optimization
 
@@ -365,6 +414,7 @@ Internet content disappears every day. Communities get banned, platforms shut do
 
 ### Technical Guides
 - **[Installation Guide](docs/INSTALLATION.md)** - Detailed installation procedures (Docker, Ubuntu/Debian, macOS, Windows WSL2)
+- **[Incremental Updates](docs/INCREMENTAL_UPDATES.md)** - Keep archives current with monthly Arctic Shift dumps
 - **[Search Setup](docs/SEARCH.md)** - PostgreSQL full-text search configuration and usage
 - **[Performance Guide](docs/PERFORMANCE.md)** - Memory usage, storage calculations, and tuning
 - **[Scaling Guide](docs/SCALING.md)** - Horizontal scaling for large archives (multi-instance deployments)
