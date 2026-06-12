@@ -52,6 +52,46 @@
 
 ---
 
+## Dynamic Serving Performance
+
+Measured on real data (26K-post community, `REDDARCHIVER_SERVE_MODE=dynamic`):
+
+| Route | Latency (p50) |
+|---|---|
+| Subreddit index (any page/sort) | 1–23ms |
+| Cross-subreddit `/all/` | ~24ms |
+| Filtered listing (`?min_score=&from=`) | ~1ms |
+| Post page (300+ comments) | ~22ms |
+| User page | ~12ms |
+| API endpoints / FTS search | 1–6ms |
+
+What makes it fast:
+- **Exact-match queries + canonical-name resolution**: user-facing input
+  (URLs, API params, search operators) is case-normalized once at the
+  boundary, so every query hits composite B-tree indexes directly.
+- **Listing cache**: pagination counts, score-range samples, and subreddit
+  stats are cached in-process (`REDDARCHIVER_LISTING_CACHE_TTL`, default 300s).
+- **HTTP caching**: all GET responses carry `Cache-Control: public, max-age`
+  plus ETags — repeat visits revalidate with 304s
+  (`REDDARCHIVER_HTTP_CACHE_MAX_AGE`, default 300s, `0` disables).
+- **Trimmed payloads**: listing queries strip `selftext` server-side (index
+  rows never render it).
+
+---
+
+## Static Output Performance
+
+Lighthouse (simulated slow 4G): **94–100 performance, 100 accessibility,
+100 best-practices, ~0 CLS, 0ms blocking time** (the output contains no
+JavaScript). Typical page weight is 3–32KB gzipped plus ~13KB gzipped CSS.
+
+For high-traffic static deployments, export with `--precompress` to write
+`.gz` siblings next to every page — the bundled nginx configs have
+`gzip_static on`, serving precompressed responses with zero per-request
+compression CPU.
+
+---
+
 ## Search Performance
 
 **PostgreSQL FTS Performance**:
@@ -107,17 +147,24 @@ REDDARCHIVER_MEMORY_LIMIT=8.0
 
 ### PostgreSQL Tuning
 
-For large archives, tune PostgreSQL settings:
-```sql
--- Increase shared buffers (25% of RAM)
-shared_buffers = 2GB
+The Docker deployment ships a tuned `postgres.conf` (memory sizing, WAL/
+checkpoint spreading for bulk COPY imports, `random_page_cost = 1.1` so the
+planner favors index scans on SSD-class storage). For bigger dedicated hosts,
+scale the memory settings proportionally:
 
--- Increase work memory
-work_mem = 256MB
-
--- Increase maintenance work memory
+```ini
+# postgres.conf — scale up for a dedicated 16GB+ host
+shared_buffers = 4GB              # ~25% of RAM
+effective_cache_size = 12GB       # ~75% of RAM
+work_mem = 64MB
 maintenance_work_mem = 1GB
+max_wal_size = 8GB                # bulk imports generate WAL quickly
 ```
+
+The import path additionally sets `synchronous_commit = off` and
+`maintenance_work_mem = 4GB` per session during bulk loading, and the
+user-statistics aggregation raises its own `work_mem` — no manual steps
+needed.
 
 ---
 
@@ -130,4 +177,4 @@ maintenance_work_mem = 1GB
 
 ---
 
-**Last Updated**: 2026-01-26
+**Last Updated**: 2026-06-12

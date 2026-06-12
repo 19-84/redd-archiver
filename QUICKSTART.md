@@ -31,9 +31,10 @@ sudo lsof -i :5432 # Should be empty
 
 ## Choose Your Deployment
 
-> **📌 Important Note**: Redd-Archiver supports two modes:
-> - **Offline Browsing**: Generated HTML files work without a server (browse via sorted index pages, no search)
-> - **Server Deployment** (below): Required for full-text search functionality (PostgreSQL FTS)
+> **📌 Important Note**: Redd-Archiver supports three serving modes:
+> - **Static**: Generated HTML files work without a server (browse via sorted index pages, no search)
+> - **Hybrid** (default, below): nginx serves static HTML + Flask provides full-text search (PostgreSQL FTS)
+> - **Dynamic**: Set `REDDARCHIVER_SERVE_MODE=dynamic` and Flask serves all pages straight from the database — no export step needed. New imports are visible immediately.
 
 | Mode | Time | Prerequisites | Use Case | Search |
 |------|------|---------------|----------|--------|
@@ -525,6 +526,23 @@ After processing:
 
 ---
 
+## Keeping the Archive Current
+
+Monthly dumps (`RS_YYYY-MM.zst` / `RC_YYYY-MM.zst`) can be applied incrementally — no full rebuild:
+
+```bash
+# Discovers RS_/RC_ pairs in a directory and applies them oldest-first
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --update-all /data/monthly/ \
+  --output /output/
+```
+
+Already-applied files are skipped automatically (SHA256 deduplication), and only subreddits already in your archive are imported. Check progress with `--update-status`.
+
+See [docs/INCREMENTAL_UPDATES.md](docs/INCREMENTAL_UPDATES.md) for the complete guide.
+
+---
+
 ## Troubleshooting
 
 ### Container Won't Start
@@ -688,6 +706,24 @@ For users who need more control over the archive generation process.
 --force-rebuild          # Ignore resume state and rebuild from scratch
 
 --force-parallel-users   # Override auto-detection for parallel processing
+
+```
+
+
+
+### Appearance & Output
+
+
+
+```bash
+
+--theme NAME             # Theme palette: default | sepia | high-contrast
+
+--accent-color HEX       # Override theme accent color (both light/dark modes)
+
+--custom-css PATH        # Append operator CSS after the main stylesheet
+
+--precompress            # Write .gz siblings for HTML/CSS/XML (served via nginx gzip_static)
 
 ```
 

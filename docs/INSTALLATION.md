@@ -19,7 +19,7 @@ This guide provides detailed installation instructions for both Docker and local
 ### System Requirements
 
 **Minimum**:
-- **Python 3.7 or higher**
+- **Python 3.10 or higher** (Docker images use 3.12)
 - **PostgreSQL 12+** (required for v1.0+)
 - 4GB+ RAM (PostgreSQL uses constant memory)
 - Disk space: ~1.5-2x your input .zst file size for PostgreSQL database
@@ -80,6 +80,20 @@ DATABASE_URL=postgresql://reddarchiver:YOUR_SECURE_PASSWORD@/reddarchiver?host=/
 ```
 
 **Important**: The password must match in both `POSTGRES_PASSWORD` and `DATABASE_URL`!
+
+**Optional environment variables** (set in `.env` as needed):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `REDDARCHIVER_SERVE_MODE` | `hybrid` | `dynamic` serves all pages from PostgreSQL (no export step) |
+| `REDDARCHIVER_THEME` | `default` | Theme palette in dynamic mode: `default` \| `sepia` \| `high-contrast` |
+| `REDDARCHIVER_ACCENT_COLOR` | unset | Accent color override (hex) in dynamic mode |
+| `REDDARCHIVER_HTTP_CACHE_MAX_AGE` | `300` | `Cache-Control: max-age` for search-server GET responses (0 disables) |
+| `REDDARCHIVER_LISTING_CACHE_TTL` | `300` | In-process cache TTL (seconds) for dynamic listing counts/stats |
+| `GUNICORN_WORKERS` | CPU-scaled | Search-server worker count override (default: `min(8, cpus+1)`) |
+| `REDDARCHIVER_MAX_DB_CONNECTIONS` | auto | Database connection pool size |
+| `REDDARCHIVER_MAX_PARALLEL_WORKERS` | auto | Parallel processing workers |
+| `REDDARCHIVER_USER_BATCH_SIZE` | `2000` | Streaming batch size for user pages |
 
 ### Step 4: Start Services
 
@@ -321,7 +335,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#database-connection-problems) for mo
 
 **Problem**: `SyntaxError` or incompatibility warnings
 
-**Solution**: Ensure Python 3.7+
+**Solution**: Ensure Python 3.10+
 ```bash
 python --version
 # or
@@ -472,4 +486,4 @@ psql -U redd-archiver -d redd-archiver -f sql/migrations/003_add_total_activity_
 
 ---
 
-**Last Updated**: 2026-01-26
+**Last Updated**: 2026-06-12

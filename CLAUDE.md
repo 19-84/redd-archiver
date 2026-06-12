@@ -116,6 +116,10 @@ make clean          # Remove caches and temp files
 | `--theme NAME` | Theme palette: `default\|sepia\|high-contrast` |
 | `--accent-color HEX` | Override theme accent color (both modes) |
 | `--custom-css PATH` | Append operator CSS after the main stylesheet |
+| `--precompress` | Write .gz siblings for HTML/CSS/XML (nginx gzip_static) |
+| `--update RS_FILE` | Import a monthly Arctic Shift dump into the existing archive |
+| `--update-all DIR` | Apply all unprocessed RS_/RC_ pairs (torrent layout supported) |
+| `--update-status` | Show applied incremental updates |
 
 Run `reddarc --help` for the full flag reference including SEO metadata, debug tuning, and logging options.
 
@@ -274,6 +278,14 @@ REDDARCHIVER_THEME=sepia              # default | sepia | high-contrast
 REDDARCHIVER_ACCENT_COLOR="#8b6914"   # Accent override (hex), both modes
 ```
 
+### Serving & Caching
+```bash
+REDDARCHIVER_SERVE_MODE=dynamic       # hybrid (default) | dynamic
+REDDARCHIVER_HTTP_CACHE_MAX_AGE=300   # Cache-Control/ETag on GETs (0 disables)
+REDDARCHIVER_LISTING_CACHE_TTL=300    # Dynamic listing count/stats cache
+GUNICORN_WORKERS=8                    # Override CPU-scaled worker count
+```
+
 ### Performance Tuning
 ```bash
 REDDARCHIVER_MAX_DB_CONNECTIONS=8
@@ -408,6 +420,7 @@ The `mcp_server/` has its own test suite under `mcp_server/tests/`.
 - `mcp_server/README.md` - MCP Server setup and tools
 
 ### Operations
+- `docs/INCREMENTAL_UPDATES.md` - Monthly Arctic Shift update flow
 - `docs/PERFORMANCE.md` - Performance tuning
 - `docs/SCALING.md` - Scaling guide
 - `docs/STATIC_DEPLOYMENT.md` - GitHub/Codeberg Pages deployment

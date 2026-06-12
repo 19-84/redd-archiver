@@ -109,6 +109,16 @@ python reddarc.py /data --output archive/ \
 
 **Note**: Test filtering with `--dry-run` to preview post counts before full generation.
 
+### Precompressed Assets (Self-Hosted Static)
+
+If you serve the export from your own nginx (instead of GitHub/Codeberg Pages), add `--precompress` to the export:
+
+```bash
+python reddarc.py /data --output archive/ --precompress
+```
+
+This writes `.gz` siblings for HTML/CSS/XML/TXT/JSON/SVG/webmanifest files. The bundled nginx configs have `gzip_static on`, so nginx serves the precompressed files directly without on-the-fly compression. GitHub/Codeberg Pages handle compression themselves — `--precompress` is unnecessary there.
+
 ## Archive Size Recommendations
 
 ### Small Archives (<100MB HTML output)
@@ -517,6 +527,9 @@ Static hosting cannot run the Flask search server. Users must navigate via:
 - User profile pages (`/u/username/index.html`)
 - Date-sorted indexes (`/r/subreddit/index-date/index.html`)
 - Comment-sorted indexes (`/r/subreddit/index-comments/index.html`)
+- Per-letter title indexes (browse posts alphabetically by title)
+- Flair indexes (browse posts by flair)
+- Archive map page (overview of everything in the archive)
 
 **Missing features**:
 - Full-text search across all posts
@@ -852,6 +865,6 @@ See [docker/README.md](../docker/README.md) for Docker deployment guide.
 
 ---
 
-**Last Updated**: 2025-12-27
+**Last Updated**: 2026-06-12
 **Recommended Archive Size**: <500MB for static hosting
 **Search**: Not available on static deployments
