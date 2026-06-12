@@ -78,6 +78,14 @@
       </section>
       {% endif %}
 
+      {% if subscriber_sparkline_svg %}
+      <section class="about-subscribers">
+        <h2>Subscribers over time</h2>
+        <div class="sparkline-wrap">{{ subscriber_sparkline_svg|safe }}</div>
+        <p class="text-muted">Peak: {{ subscriber_peak|format_number }} subscribers</p>
+      </section>
+      {% endif %}
+
       {% if metadata.description_html %}
       <section class="about-description">
         <h2>Community description</h2>

@@ -493,6 +493,10 @@ def about_page(prefix: str, subreddit: str):
         abort(404)
     rules = db.get_subreddit_rules(subreddit, platform)
     wiki_count = len(db.get_wiki_pages(subreddit, platform))
+    from html_modules.html_charts import subscriber_sparkline
+
+    history = db.get_subscriber_history(subreddit, platform)
+    sparkline_svg = subscriber_sparkline(history)
 
     public_desc = (metadata.get("public_description") or "").strip()
     context = {
@@ -503,6 +507,8 @@ def about_page(prefix: str, subreddit: str):
         "metadata": metadata,
         "rules": rules,
         "wiki_count": wiki_count,
+        "subscriber_sparkline_svg": sparkline_svg,
+        "subscriber_peak": max((row["count"] for row in history), default=0),
         "url_wiki": None,  # dynamic wiki routes arrive with F2 Phase 4
         "url_idx_score": f"/{prefix}/{subreddit}/",
         "url_idx_cmnt": f"/{prefix}/{subreddit}/?sort=comments",
