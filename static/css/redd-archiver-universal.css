@@ -806,6 +806,16 @@ body {
   min-height: 100vh;
 }
 
+/* The light-mode toggle sets tokens on .site-content (a sibling combinator
+   from the checkbox can never reach body), so text and background must
+   resolve these vars at .site-content level — inheriting body's
+   :root-resolved values would keep dark-mode colors when toggled. */
+.site-content {
+  background: var(--body-bg);
+  color: var(--body-text);
+  min-height: 100vh;
+}
+
 .navbar {
   background: var(--navbar-bg) !important;
   border-bottom: none;
@@ -1169,6 +1179,12 @@ footer {
         word-wrap: break-word;
         max-width: 100%;
     }
+}
+
+/* User-page "Comment on:" byline (a div, not a heading — see user_comment.html);
+   bold to keep the look it had as an h6 */
+.comment-context {
+    font-weight: bold;
 }
 
 /* Small mobile - still very readable */
