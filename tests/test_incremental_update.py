@@ -164,15 +164,12 @@ def update_db(postgres_db):
     """DB seeded with one existing post in the tracked subreddit, cleaned around each test."""
 
     def cleanup():
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "DELETE FROM comments WHERE LOWER(subreddit) IN (LOWER(%s), LOWER(%s))", (TEST_SUB, OTHER_SUB)
-                )
-                cur.execute("DELETE FROM posts WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
-                cur.execute("DELETE FROM subreddit_statistics WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
-                cur.execute("DROP TABLE IF EXISTS update_history")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE LOWER(subreddit) IN (LOWER(%s), LOWER(%s))", (TEST_SUB, OTHER_SUB))
+            cur.execute("DELETE FROM posts WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
+            cur.execute("DELETE FROM subreddit_statistics WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
+            cur.execute("DROP TABLE IF EXISTS update_history")
+            conn.commit()
 
     cleanup()
     existing = {**_submission(1, score=5), "platform": "reddit"}
@@ -182,11 +179,10 @@ def update_db(postgres_db):
 
 
 def _post_row(db, post_id):
-    with db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id, title, score, selftext FROM posts WHERE id = %s", (post_id,))
-            row = cur.fetchone()
-            return dict(row) if row else None
+    with db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, title, score, selftext FROM posts WHERE id = %s", (post_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
 
 
 class TestRunUpdate:
@@ -243,10 +239,9 @@ class TestRunUpdate:
         assert stats and stats["total_posts"] == 3  # 1 existing + 2 new
 
     def test_no_tracked_subreddits_is_noop(self, postgres_db, tmp_path):
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit IN (%s, %s)", (TEST_SUB, OTHER_SUB))
+            conn.commit()
         rs = _write_zst(tmp_path / "RS_2026-01.zst", [_submission(9, subreddit="never_archived_xyz")])
         # tracked set is whatever reddit subs exist; the dump's sub is untracked either way
         run_update(postgres_db, submissions_file=rs)

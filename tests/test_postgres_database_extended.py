@@ -53,17 +53,15 @@ class TestBulkInsertPosts:
         assert len(failed_ids) == 0
 
         # Verify data was inserted
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM posts WHERE subreddit = 'test_bulk'")
-                count = cur.fetchone()["count"]
-                assert count == 2
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM posts WHERE subreddit = 'test_bulk'")
+            count = cur.fetchone()["count"]
+            assert count == 2
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_bulk'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_bulk'")
+            conn.commit()
 
     def test_insert_posts_batch_with_duplicates(self, postgres_db):
         """Test batch insertion handles duplicates gracefully."""
@@ -104,24 +102,22 @@ class TestBulkInsertPosts:
         ]
 
         # Should handle duplicate without crashing
-        successful, failed, failed_ids = postgres_db.insert_posts_batch(posts2)
+        _successful, _failed, _failed_ids = postgres_db.insert_posts_batch(posts2)
 
         # Verify only one record exists
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM posts WHERE id = 'dup_post_1'")
-                count = cur.fetchone()["count"]
-                assert count == 1
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM posts WHERE id = 'dup_post_1'")
+            count = cur.fetchone()["count"]
+            assert count == 1
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_dup'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_dup'")
+            conn.commit()
 
     def test_insert_posts_batch_empty_list(self, postgres_db):
         """Test empty batch insertion."""
-        successful, failed, failed_ids = postgres_db.insert_posts_batch([])
+        successful, failed, _failed_ids = postgres_db.insert_posts_batch([])
 
         assert successful == 0
         assert failed == 0
@@ -141,16 +137,15 @@ class TestBulkInsertPosts:
             }
         ]
 
-        successful, failed, failed_ids = postgres_db.insert_posts_batch(posts)
+        successful, failed, _failed_ids = postgres_db.insert_posts_batch(posts)
 
         assert successful == 1
         assert failed == 0
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_opt'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_opt'")
+            conn.commit()
 
 
 @pytest.mark.db
@@ -207,18 +202,16 @@ class TestBulkInsertComments:
         assert failed == 0
 
         # Verify data was inserted
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM comments WHERE subreddit = 'test_bulk_c'")
-                count = cur.fetchone()["count"]
-                assert count == 2
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM comments WHERE subreddit = 'test_bulk_c'")
+            count = cur.fetchone()["count"]
+            assert count == 2
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE subreddit = 'test_bulk_c'")
-                cur.execute("DELETE FROM posts WHERE id = 'comment_parent_post'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit = 'test_bulk_c'")
+            cur.execute("DELETE FROM posts WHERE id = 'comment_parent_post'")
+            conn.commit()
 
     def test_insert_comments_batch_empty_list(self, postgres_db):
         """Test empty comment batch insertion."""
@@ -313,25 +306,22 @@ class TestConnectionPool:
         """Test connections are properly reused from pool."""
         # Make multiple queries to test connection reuse
         for _ in range(5):
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                    result = cur.fetchone()
-                    assert result is not None
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                result = cur.fetchone()
+                assert result is not None
 
     def test_concurrent_connections(self, postgres_db):
         """Test multiple concurrent connections work."""
         # Open first connection
-        with postgres_db.pool.get_connection() as conn1:
-            with conn1.cursor() as cur1:
-                cur1.execute("SELECT 1")
+        with postgres_db.pool.get_connection() as conn1, conn1.cursor() as cur1:
+            cur1.execute("SELECT 1")
 
-                # Open second connection while first is open
-                with postgres_db.pool.get_connection() as conn2:
-                    with conn2.cursor() as cur2:
-                        cur2.execute("SELECT 2")
-                        result = cur2.fetchone()
-                        assert result is not None
+            # Open second connection while first is open
+            with postgres_db.pool.get_connection() as conn2, conn2.cursor() as cur2:
+                cur2.execute("SELECT 2")
+                result = cur2.fetchone()
+                assert result is not None
 
 
 # =============================================================================
@@ -386,23 +376,21 @@ class TestLargeBatches:
                 }
             )
 
-        successful, failed, failed_ids = postgres_db.insert_posts_batch(posts)
+        successful, failed, _failed_ids = postgres_db.insert_posts_batch(posts)
 
         assert successful == 100
         assert failed == 0
 
         # Verify count
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM posts WHERE subreddit = 'test_large_batch'")
-                count = cur.fetchone()["count"]
-                assert count == 100
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM posts WHERE subreddit = 'test_large_batch'")
+            count = cur.fetchone()["count"]
+            assert count == 100
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_batch'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_batch'")
+            conn.commit()
 
     def test_insert_large_comment_batch(self, postgres_db):
         """Test insertion of larger batch (100 comments)."""
@@ -447,8 +435,7 @@ class TestLargeBatches:
         assert failed == 0
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE subreddit = 'test_large_comments'")
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_comments'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit = 'test_large_comments'")
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_comments'")
+            conn.commit()

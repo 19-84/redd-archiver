@@ -1,0 +1,13 @@
+# Pre-commit hooks (Feature 10) — local fast feedback matching the CI lint
+# workflow (.github/workflows/lint.yml: ruff check + ruff format --check).
+#
+# Keep `rev` in sync with the ruff pin in pyproject.toml. Dependabot bumps
+# ruff via the uv ecosystem (pyproject.toml + uv.lock) and does NOT touch
+# this file — refresh the rev when accepting those bumps.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.10  # match pyproject.toml [project.optional-dependencies] dev ruff pin
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

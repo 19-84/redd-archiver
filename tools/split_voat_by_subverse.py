@@ -9,7 +9,7 @@ to archive a single subverse.
 
 Performance:
 - Input: 3.7 GB compressed (submission + comments)
-- Output: ~5.5 GB (612 subverses × 2 file types = 1,224 files)
+- Output: ~5.5 GB (612 subverses x 2 file types = 1,224 files)
 - Time: 5-6 hours (one-time operation)
 - Memory: <500 MB (streaming with LRU cache)
 - Future benefit: 1000x speedup for individual subverse archives
@@ -1320,11 +1320,10 @@ def check_disk_space(output_dir: Path, voat_dir: Path) -> bool:
             )
         return False
 
-    if available < estimated_output * 2:
-        if console:
-            console.print(
-                f"[yellow]WARNING: Low disk space. Recommended: {estimated_output * 2 / 1024 / 1024 / 1024:.2f} GB[/yellow]"
-            )
+    if available < estimated_output * 2 and console:
+        console.print(
+            f"[yellow]WARNING: Low disk space. Recommended: {estimated_output * 2 / 1024 / 1024 / 1024:.2f} GB[/yellow]"
+        )
 
     return True
 
@@ -1345,7 +1344,7 @@ Examples:
 
 Performance:
   - One-time operation: 5-6 hours
-  - Output: 1,224 files (612 subverses × 2 types)
+  - Output: 1,224 files (612 subverses x 2 types)
   - Future benefit: 2-5 minute imports vs 5-6 hours (1000x speedup)
         """,
     )

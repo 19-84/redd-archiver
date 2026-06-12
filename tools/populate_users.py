@@ -23,18 +23,17 @@ print("Updating user statistics...")
 db.update_user_statistics()
 
 print("\nVerifying users table...")
-with db.pool.get_connection() as conn:
-    with conn.cursor() as cur:
-        cur.execute("""
+with db.pool.get_connection() as conn, conn.cursor() as cur:
+    cur.execute("""
             SELECT platform, COUNT(*) as users, SUM(post_count) as posts, SUM(comment_count) as comments
             FROM users
             GROUP BY platform
             ORDER BY platform;
         """)
 
-        print(f"\n{'Platform':<10} {'Users':<10} {'Posts':<10} {'Comments':<10}")
-        print("=" * 40)
-        for row in cur.fetchall():
-            print(f"{row[0]:<10} {row[1]:<10} {row[2]:<10} {row[3]:<10}")
+    print(f"\n{'Platform':<10} {'Users':<10} {'Posts':<10} {'Comments':<10}")
+    print("=" * 40)
+    for row in cur.fetchall():
+        print(f"{row[0]:<10} {row[1]:<10} {row[2]:<10} {row[3]:<10}")
 
 print("\n✓ Users table populated!")

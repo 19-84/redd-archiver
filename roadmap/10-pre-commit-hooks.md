@@ -1,6 +1,6 @@
 # Feature 10: Activate Pre-Commit Hooks
 
-**Status:** Planned
+**Status:** ✅ Done (2026-06-11) — .pre-commit-config.yaml with ruff check+format hooks pinned to v0.15.10
 **Last updated:** 2026-06-09
 
 **Goal:** Create a `.pre-commit-config.yaml` and activate pre-commit hooks for local development, providing faster feedback than CI-only enforcement.

@@ -11,17 +11,16 @@ def test_connection(conn_str: str, name: str) -> bool:
     try:
         import psycopg
 
-        with psycopg.connect(conn_str, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1")
-                result = cur.fetchone()
+        with psycopg.connect(conn_str, connect_timeout=5) as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            result = cur.fetchone()
 
-                if result and result[0] == 1:
-                    print(f"✅ {name} connection successful")
-                    return True
-                else:
-                    print(f"❌ {name} connection returned unexpected result")
-                    return False
+            if result and result[0] == 1:
+                print(f"✅ {name} connection successful")
+                return True
+            else:
+                print(f"❌ {name} connection returned unexpected result")
+                return False
 
     except Exception as e:
         print(f"❌ {name} connection failed: {e}")

@@ -463,7 +463,7 @@ class PerformanceMonitor:
         except Exception as e:
             print_error(f"Failed to save performance metrics: {e}")
 
-    def start_session(self, processing_mode: str, subreddit: str = None) -> ProcessingMetrics:
+    def start_session(self, processing_mode: str, subreddit: str | None = None) -> ProcessingMetrics:
         """Start a new performance monitoring session"""
         self.current_session = ProcessingMetrics(start_time=time.time(), processing_mode=processing_mode)
         self.monitoring_active = True
@@ -933,7 +933,7 @@ class PerformanceMonitor:
         print_info(f"📊 Starting phase: {phase_name}")
         return phase_metrics
 
-    def end_phase(self, phase_name: str = None) -> PhaseMetrics | None:
+    def end_phase(self, phase_name: str | None = None) -> PhaseMetrics | None:
         """Step 4.1: End tracking a processing phase"""
         if phase_name is None:
             phase_name = self.current_phase
@@ -1107,7 +1107,7 @@ class PerformanceMonitor:
             self.auto_tuning_validator = None
             print_info("Auto-tuning validation disabled")
 
-    def start_auto_tuning_validation_session(self, session_id: str = None) -> str | None:
+    def start_auto_tuning_validation_session(self, session_id: str | None = None) -> str | None:
         """Step 4.2: Start auto-tuning validation session."""
         if not self.auto_tuning_validator:
             self.enable_auto_tuning_validation()

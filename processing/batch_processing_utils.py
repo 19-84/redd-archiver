@@ -1,6 +1,7 @@
 # ABOUTME: Database-agnostic batch processing system with advanced auto-tuning and transaction management
 # ABOUTME: Provides memory-efficient data processing with automatic optimization and monitoring for PostgreSQL
 
+import contextlib
 import threading
 import time
 from collections.abc import Callable
@@ -420,10 +421,8 @@ class BatchProcessor:
 
             except Exception as e:
                 if self.config.transaction_scope == "batch":
-                    try:
+                    with contextlib.suppress(BaseException):
                         connection.execute("ROLLBACK")
-                    except:
-                        pass
 
                 batch_processing_time = time.time() - batch_processing_start
                 self._update_performance_metrics(len(batch), batch_processing_time, 0, False)

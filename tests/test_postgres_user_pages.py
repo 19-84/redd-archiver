@@ -26,12 +26,11 @@ def postgres_db():
 def clean_database(postgres_db):
     """Clean database and seed test data before each test"""
     # Clear test data
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM comments WHERE subreddit = 'test_usergen'")
-            cur.execute("DELETE FROM posts WHERE subreddit = 'test_usergen'")
-            cur.execute("DELETE FROM users WHERE username LIKE 'test_user_%'")
-            conn.commit()
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM comments WHERE subreddit = 'test_usergen'")
+        cur.execute("DELETE FROM posts WHERE subreddit = 'test_usergen'")
+        cur.execute("DELETE FROM users WHERE username LIKE 'test_user_%'")
+        conn.commit()
 
     # Seed test data
     test_posts = [

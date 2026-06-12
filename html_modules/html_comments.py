@@ -92,7 +92,7 @@ def sort_comments(comments: list[dict[str, Any]], hide_deleted_comments: bool = 
 
     # add orphaned comments
     for c in comments:
-        if c["parent_id"] != link_id and str(c["parent_id"]).replace("t1_", "") not in id_map.keys():
+        if c["parent_id"] != link_id and str(c["parent_id"]).replace("t1_", "") not in id_map:
             if hide_deleted_comments and c["body"] in removed_content_identifiers:
                 continue
             sorted_linear_comments.append(c)

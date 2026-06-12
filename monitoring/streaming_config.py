@@ -154,10 +154,7 @@ def get_streaming_config(
     # Get batch_size (priority: param > env > auto-detect)
     if batch_size is None:
         batch_size_env = os.getenv("ARCHIVE_USER_BATCH_SIZE")
-        if batch_size_env:
-            batch_size = int(batch_size_env)
-        else:
-            batch_size = StreamingUserConfig._auto_detect_batch_size()
+        batch_size = int(batch_size_env) if batch_size_env else StreamingUserConfig._auto_detect_batch_size()
 
     # Get queue_max_batches (priority: param > env > default)
     if queue_max_batches is None:
@@ -170,10 +167,7 @@ def get_streaming_config(
     # Get max_workers (priority: param > env > auto-detect)
     if max_workers is None:
         workers_env = os.getenv("ARCHIVE_USER_PAGE_WORKERS")
-        if workers_env:
-            max_workers = int(workers_env)
-        else:
-            max_workers = StreamingUserConfig._auto_detect_workers()
+        max_workers = int(workers_env) if workers_env else StreamingUserConfig._auto_detect_workers()
 
     # Create and validate config
     config = StreamingUserConfig(

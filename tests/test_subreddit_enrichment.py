@@ -5,6 +5,7 @@ ABOUTME: Covers DB methods, dump importing with filtering, and about-page render
 """
 
 import json
+from typing import ClassVar
 
 import pytest
 import zstandard
@@ -24,14 +25,13 @@ def _write_zst(path, records):
 
 
 def _cleanup(db):
-    with db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            for sub in (TEST_SUB, OTHER_SUB):
-                cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
-                cur.execute("DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
-                cur.execute("DELETE FROM subreddit_wiki_pages WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (sub,))
-            conn.commit()
+    with db.pool.get_connection() as conn, conn.cursor() as cur:
+        for sub in (TEST_SUB, OTHER_SUB):
+            cur.execute("DELETE FROM subreddit_metadata WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
+            cur.execute("DELETE FROM subreddit_rules WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
+            cur.execute("DELETE FROM subreddit_wiki_pages WHERE LOWER(subreddit) = LOWER(%s)", (sub,))
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (sub,))
+        conn.commit()
 
 
 @pytest.fixture
@@ -45,15 +45,14 @@ def enriched_db(postgres_db):
 
 def _track(db, sub):
     """Insert a minimal posts row so `sub` counts as tracked."""
-    with db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO posts (id, subreddit, platform, author, title, permalink, created_utc, json_data) "
-                "VALUES (%s, %s, 'reddit', 'test_user', 'title', '/p', %s, '{}') "
-                "ON CONFLICT (id) DO NOTHING",
-                (f"test_enrich_{sub}_p1", sub, 1700000000),
-            )
-            conn.commit()
+    with db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO posts (id, subreddit, platform, author, title, permalink, created_utc, json_data) "
+            "VALUES (%s, %s, 'reddit', 'test_user', 'title', '/p', %s, '{}') "
+            "ON CONFLICT (id) DO NOTHING",
+            (f"test_enrich_{sub}_p1", sub, 1700000000),
+        )
+        conn.commit()
 
 
 class TestMetadataDbMethods:
@@ -428,7 +427,7 @@ class TestEnrichmentCounts:
 
 
 class TestDashboardCardEnrichment:
-    SUB = {
+    SUB: ClassVar[dict] = {
         "name": TEST_SUB,
         "platform": "reddit",
         "stats": {

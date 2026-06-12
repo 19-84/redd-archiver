@@ -52,10 +52,9 @@ def _voat_post(i, thumbnail=None):
 @pytest.fixture
 def thumb_db(postgres_db, tmp_path):
     def cleanup():
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
 
     cleanup()
     postgres_db.insert_posts_batch(
@@ -85,12 +84,11 @@ class TestEnrichThumbnails:
         assert counts["missing"] >= 1
         assert (out / "assets" / "thumbnails" / "fe" / "e1" / UUID_PNG).is_file()
 
-        with thumb_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT json_data->>'thumbnail_local' AS t FROM posts WHERE id = 'voat_900001'")
-                assert cur.fetchone()["t"] == f"assets/thumbnails/fe/e1/{UUID_PNG}"
-                cur.execute("SELECT json_data->>'thumbnail_local' AS t FROM posts WHERE id = 'voat_900002'")
-                assert cur.fetchone()["t"] is None
+        with thumb_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT json_data->>'thumbnail_local' AS t FROM posts WHERE id = 'voat_900001'")
+            assert cur.fetchone()["t"] == f"assets/thumbnails/fe/e1/{UUID_PNG}"
+            cur.execute("SELECT json_data->>'thumbnail_local' AS t FROM posts WHERE id = 'voat_900002'")
+            assert cur.fetchone()["t"] is None
 
     def test_idempotent_rerun(self, thumb_db, tmp_path):
         out = tmp_path / "out"
