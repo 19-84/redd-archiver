@@ -113,7 +113,7 @@ make clean          # Remove caches and temp files
 | `--resume` | Resume interrupted processing (auto-detected) |
 | `--dry-run` | Show discovered files without processing |
 | `--base-url URL` | Base URL for canonical links and sitemaps |
-| `--theme NAME` | Theme palette: `default\|sepia\|high-contrast` |
+| `--theme NAME` | Theme palette (11): `default`, `sepia`, `nord`, `solarized`, `dracula`, `gruvbox`, `cyberpunk`, `midnight`, `old-reddit`, `phosphor`, `high-contrast` |
 | `--accent-color HEX` | Override theme accent color (both modes) |
 | `--custom-css PATH` | Append operator CSS after the main stylesheet |
 | `--precompress` | Write .gz siblings for HTML/CSS/XML (nginx gzip_static) |
@@ -274,7 +274,7 @@ REDDARCHIVER_DONATION_ADDRESS="..."
 
 ### Theming (dynamic serving mode)
 ```bash
-REDDARCHIVER_THEME=sepia              # default | sepia | high-contrast
+REDDARCHIVER_THEME=nord               # 11 palettes (see --theme choices)
 REDDARCHIVER_ACCENT_COLOR="#8b6914"   # Accent override (hex), both modes
 ```
 

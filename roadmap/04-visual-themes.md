@@ -281,7 +281,7 @@ reddarc.py --output /var/www/html/ \
 
 | Flag | Default | Description |
 |---|---|---|
-| `--theme` | `default` | Theme palette (`default`, `sepia`, `high-contrast`) |
+| `--theme` | `default` | Theme palette (11 available; see html_modules/themes.py THEME_NAMES) |
 | `--accent-color` | (per theme) | Override primary accent color (hex value), applied to both dark and light modes |
 | `--custom-css` | None | Path to additional CSS file, appended after main stylesheet |
 

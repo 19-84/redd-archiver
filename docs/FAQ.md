@@ -676,7 +676,7 @@ docker compose exec reddarchiver-builder python reddarc.py /data \
   --custom-css /data/my-overrides.css
 ```
 
-- `--theme default|sepia|high-contrast` - Built-in palettes
+- `--theme NAME` - 11 built-in palettes: default | sepia | high-contrast | nord | solarized | dracula | gruvbox | cyberpunk | midnight | old-reddit | phosphor
 - `--accent-color HEX` - Override the accent color (both light/dark modes)
 - `--custom-css PATH` - Append your own CSS after the main stylesheet
 
