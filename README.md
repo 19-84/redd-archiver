@@ -16,11 +16,11 @@ Transform compressed data dumps into browsable HTML archives with flexible deplo
 **Supported Platforms**:
 | Platform | Format | Status | Available Posts | Data |
 |----------|--------|--------|----------------|------|
-| **Reddit** | .zst JSON Lines (Pushshift) | ✅ Full support | 2.38B posts (40,029 subreddits, through Dec 31 2025) | [Download](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) |
+| **Reddit** | .zst JSON Lines (Pushshift/Arctic Shift) | ✅ Full support | 2.38B+ posts (40,029 subreddits; rolling — [monthly dumps](https://github.com/ArthurHeitmann/arctic_shift/blob/master/download_links.md) keep archives current) | [Download](https://academictorrents.com/details/3e3f64dee22dc304cdd2546254ca1f8e8ae542b4) |
 | **Voat** | SQL dumps | ✅ Full support | 3.81M posts, 24.1M comments (22,637 subverses, complete archive) | [Download](https://archive.org/details/voat-archive-2021) |
 | **Ruqqus** | .7z JSON Lines | ✅ Full support | 500K posts (6,217 guilds, complete archive) | [Download](https://archive.org/details/ruqqus-archive-2021) |
 
-*Tracked content: **2.384 billion posts across 68,883 communities** (Reddit full Pushshift dataset through Dec 31 2025, Voat/Ruqqus complete archives)*
+*Tracked content: **2.38B+ posts across 68,883 communities** (full Reddit dataset plus monthly Arctic Shift dumps via [incremental updates](docs/INCREMENTAL_UPDATES.md); Voat/Ruqqus complete archives)*
 
 **Version 1.0** features multi-platform archiving, REST API with 30+ endpoints, MCP server for AI integration, and PostgreSQL-backed architecture for large-scale processing. Since 1.0 the project has added three serving modes, incremental monthly updates, theme palettes, and subreddit metadata/wiki enrichment (see below).
 
@@ -95,10 +95,18 @@ reddarc.py --update-status   # audit what has been applied
 - [Static Hosting](docs/STATIC_DEPLOYMENT.md) - GitHub/Codeberg Pages (browse-only)
 - [Docker Reference](docker/README.md) - Complete Docker guide
 
+**→ Operations:**
+- [Incremental Updates](docs/INCREMENTAL_UPDATES.md) - Keep archives current with monthly dumps
+- [Performance](docs/PERFORMANCE.md) - Memory, storage, and tuning
+- [Scaling](docs/SCALING.md) - Multi-instance deployments
+- [Search Setup](docs/SEARCH.md) - Full-text search configuration
+
 **→ Advanced:**
 - [MCP Server](mcp_server/README.md) - AI integration (Claude Desktop/Code)
 - [Scanner Tools](docs/SCANNER_TOOLS.md) - Data discovery utilities
 - [Registry Setup](docs/REGISTRY_SETUP.md) - Instance leaderboard
+- [Installation Guide](docs/INSTALLATION.md) - Platform-specific setup
+- [Contributing](CONTRIBUTING.md) · [Security Policy](SECURITY.md) · [License](LICENSE)
 
 ---
 
@@ -139,34 +147,28 @@ Archive content from multiple link aggregator platforms in a single unified arch
 
 See [MCP Server Documentation](mcp_server/README.md) for complete setup guide.
 
-### Core Functionality
+### 📖 For Readers (offline, mobile, Tor)
 - **📱 Mobile-First Design**: Responsive layout optimized for all devices with touch-friendly navigation
-- **🔍 Advanced Search System (Server Required)**: PostgreSQL full-text search optimized for Tor network. Search by keywords, subreddit, author, date, score. *Requires Docker deployment - offline browsing uses sorted index pages.*
-- **⚡ JavaScript Free**: Complete functionality without JS, pure CSS interactions
-- **🎨 Themes**: CSS-only dark/light mode (follows system preference, manual toggle), plus operator palettes — `--theme` with 11 palettes (sepia, nord, solarized, dracula, gruvbox, cyberpunk, midnight OLED, old-reddit, phosphor, high-contrast) and `--accent-color` at export time, or `REDDARCHIVER_THEME` in dynamic mode, with `--custom-css` for full control
+- **⚡ JavaScript Free**: Complete functionality without JS, pure CSS interactions — Tor-optimized, no external dependencies
 - **📇 Offline Browsing Aids**: Per-letter title indexes (Ctrl+F-friendly), flair indexes, and an archive map page — search-like navigation with zero server
-- **📖 Community Metadata**: Subreddit descriptions, rules, and wikis imported from Arctic Shift dumps; Voat subverse metadata, user profiles, and flair
+- **🔍 Full-Text Search (server deployments)**: PostgreSQL FTS with Google-style operators — keywords, subreddit, author, date, score
+- **📰 Community Context**: Subreddit descriptions, rules, and wikis; Voat subverse metadata, user profiles, and flair
 - **♿ Accessibility**: WCAG compliant — Lighthouse 100 accessibility score across page types
 - **🚄 Performance**: ~13KB gzipped CSS, 3–32KB gzipped pages, Lighthouse 94–100, designed for low-bandwidth networks
 
-### Technical Excellence
-- **🏗️ Modular Architecture**: 18 specialized modules for maintainability and extensibility
-- **🗄️ PostgreSQL Backend**: Large-scale processing with constant memory usage regardless of dataset size
-- **⚡ Lightning-Fast Search**: PostgreSQL full-text search with GIN indexing
-- **🌐 REST API v1**: 30+ endpoints with MCP/AI optimization for programmatic access to posts, comments, users, statistics, search, aggregations, and exports
-- **🧅 Tor-Optimized**: Zero JavaScript, server-side search, no external dependencies
-- **📊 Rich Statistics**: Comprehensive analytics dashboard with file size tracking
-- **🔗 SEO Optimized**: Complete meta tags, XML sitemaps, and structured data
-- **💾 Streaming Processing**: Memory-efficient with automatic resume capability
-- **📈 Progress Tracking**: Real-time transfer rates, ETAs, and database metrics
-- **🏆 Instance Registry**: Leaderboard system with completeness-weighted scoring for distributed archives
+### 🛠️ For Operators
+- **🧭 Three Serving Modes**: static (host anywhere), hybrid (static + search server), dynamic (everything served live from PostgreSQL) — switch anytime, same database
+- **🔄 Incremental Updates**: monthly dumps apply idempotently; archives stay current without rebuilds
+- **🎨 Themes**: 11 palettes (default, sepia, nord, solarized, dracula, gruvbox, cyberpunk, midnight OLED, old-reddit, phosphor, high-contrast) via `--theme` / `REDDARCHIVER_THEME`, plus `--accent-color` and `--custom-css`; CSS-only dark/light mode follows system preference with a manual toggle
+- **🗄️ PostgreSQL Backend**: streaming imports with constant memory; COPY protocol; resume from checkpoints
+- **🚀 Deployment Options**: localhost/LAN (2 commands), HTTPS with automated Let's Encrypt (15 min), Tor hidden service (2 min, works behind CGNAT), HTTPS+Tor dual-mode, or GitHub/Codeberg Pages (static)
+- **🔗 SEO Ready**: meta tags, XML sitemaps, structured data; `--precompress` + `gzip_static` for high-traffic static serving
+- **🏆 Instance Registry**: leaderboard with completeness-weighted scoring for distributed archiving
 
-### Deployment Options
-- **🏠 Local/Homelab**: HTTP on localhost or LAN (2 commands)
-- **🌐 Production HTTPS**: Automated Let's Encrypt setup (5 minutes)
-- **🧅 Tor Hidden Service**: .onion access, zero networking config (2 minutes)
-- **🔀 Dual-Mode**: HTTPS + Tor simultaneously
-- **📄 Static Hosting**: GitHub/Codeberg Pages for small archives (browse-only, no search)
+### 🔬 For Researchers & AI
+- **🌐 REST API v1**: 30+ endpoints — posts, comments, users, statistics, search, aggregations, batch and export (CSV/NDJSON) — with field selection and truncation controls
+- **🤖 MCP Server**: 29 tools for Claude Desktop/Claude Code (see above)
+- **📊 Rich Statistics**: analytics dashboard, per-community metrics, user activity summaries
 
 ---
 
@@ -225,11 +227,11 @@ nano .env  # Edit POSTGRES_PASSWORD and DATABASE_URL
 docker compose up -d
 
 # Generate archive (after downloading .zst files to data/)
-python reddarc.py data/ \
+docker compose exec reddarchiver-builder python reddarc.py /data \
   --subreddit privacy \
-  --comments-file data/privacy_comments.zst \
-  --submissions-file data/privacy_submissions.zst \
-  --output output/
+  --comments-file /data/privacy_comments.zst \
+  --submissions-file /data/privacy_submissions.zst \
+  --output /output/
 ```
 
 **Detailed installation procedures** (Docker, Ubuntu/Debian, macOS, Windows WSL2):
@@ -241,16 +243,20 @@ python reddarc.py data/ \
 
 ### Basic Example
 ```bash
-# Generate archive (assumes .zst files in data/ directory)
-python reddarc.py data/ \
-  --subreddit privacy \
-  --comments-file data/privacy_comments.zst \
-  --submissions-file data/privacy_submissions.zst \
-  --output output/
-
-# Deploy with Docker
+# Docker (canonical): generate archive inside the builder container
 docker compose up -d
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --subreddit privacy \
+  --comments-file /data/privacy_comments.zst \
+  --submissions-file /data/privacy_submissions.zst \
+  --output /output/
 # Access at http://localhost
+
+# Local development (uv): same flags, host paths
+export DATABASE_URL="postgresql://user:pass@localhost:5432/reddarchiver"
+uv run python reddarc.py data/ --subreddit privacy \
+  --comments-file data/privacy_comments.zst \
+  --submissions-file data/privacy_submissions.zst --output output/
 ```
 
 ### Multi-Platform Support
@@ -262,7 +268,7 @@ docker compose up -d
 - **[QUICKSTART.md](QUICKSTART.md)** - Step-by-step deployment (2-15 min)
 - **[Scanner Tools](tools/README.md)** - Identify high-priority communities
 - **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup procedures
-- **[Deployment Guides](#-additional-resources)** - Docker, Tor, Static hosting
+- **[Docker Deployment](docker/README.md)** - PostgreSQL, nginx, HTTPS, Tor in one compose file
 
 **CLI options** and advanced workflows: See QUICKSTART.md for complete reference.
 
@@ -405,30 +411,6 @@ Internet content disappears every day. Communities get banned, platforms shut do
 
 ---
 
-## 📚 Additional Resources
-
-### Deployment Guides
-- **[Docker Deployment Guide](docker/README.md)** - Complete Docker setup including PostgreSQL, nginx, HTTPS, and Tor
-- **[Tor Deployment Guide](docs/TOR_DEPLOYMENT.md)** - Tor hidden service setup for homelab and privacy deployments
-- **[Static Deployment Guide](docs/STATIC_DEPLOYMENT.md)** - GitHub Pages and Codeberg Pages deployment (browse-only, no search)
-
-### Technical Guides
-- **[Installation Guide](docs/INSTALLATION.md)** - Detailed installation procedures (Docker, Ubuntu/Debian, macOS, Windows WSL2)
-- **[Incremental Updates](docs/INCREMENTAL_UPDATES.md)** - Keep archives current with monthly Arctic Shift dumps
-- **[Search Setup](docs/SEARCH.md)** - PostgreSQL full-text search configuration and usage
-- **[Performance Guide](docs/PERFORMANCE.md)** - Memory usage, storage calculations, and tuning
-- **[Scaling Guide](docs/SCALING.md)** - Horizontal scaling for large archives (multi-instance deployments)
-
-### API & Integration
-- **[REST API Documentation](docs/API.md)** - Complete API reference with 30+ endpoints
-- **[MCP Server Documentation](mcp_server/README.md)** - AI integration with Claude Desktop/Claude Code
-- **[Registry Setup Guide](docs/REGISTRY_SETUP.md)** - Instance registry configuration
-
-### Project Documentation
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development guidelines and contribution procedures
-- **[SECURITY.md](SECURITY.md)** - Security policy and vulnerability reporting
-- **[LICENSE](LICENSE)** - Unlicense (public domain)
-
 ## 🤝 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, code structure, and testing procedures.
@@ -439,7 +421,7 @@ Key areas for contribution:
 - Enhanced search features
 - Documentation improvements
 
-See our modular architecture (18 specialized modules) for easy entry points to contribute.
+See our modular architecture (24 specialized HTML modules plus importer, API, and processing packages) for easy entry points to contribute.
 
 ---
 
@@ -487,6 +469,9 @@ This isn't backed by a company or institution—just an individual committed to 
 
 Every donation, no matter the size, helps keep this preservation effort alive.
 
+<details>
+<summary><b>Donation addresses (BTC / XMR)</b></summary>
+
 ### Bitcoin (BTC)
 
 ```
@@ -510,6 +495,9 @@ bc1q8wpdldnfqt3n9jh2n9qqmhg9awx20hxtz6qdl7
   <br>
   <em>Scan to donate Monero</em>
 </p>
+
+
+</details>
 
 **Thank you for supporting internet archival efforts!** Every contribution helps maintain and improve this project.
 
