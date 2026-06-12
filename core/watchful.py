@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 
+import orjson  # 5-10x faster line parsing; JSONDecodeError subclasses json's
 import zstandard
 
 from utils.console_output import print_error, print_info, print_success, print_warning
@@ -87,7 +88,7 @@ def return_redd_objects(path: str) -> list[dict[str, Any]]:
     # try:
     for line, file_bytes_processed in read_lines_zst(file_path):
         try:
-            obj = json.loads(line)
+            obj = orjson.loads(line)
             datetime.utcfromtimestamp(int(obj["created_utc"]))
             # temp = obj[field] == value
             objects.append(obj)
@@ -165,7 +166,7 @@ def stream_to_database(
         for line, file_bytes_processed in read_lines_zst(zst_file_path):
             try:
                 # Parse JSON object
-                obj = json.loads(line)
+                obj = orjson.loads(line)
 
                 # Apply filtering if provided (preserves existing filtering patterns)
                 if _should_include_record(obj, filters, record_type):

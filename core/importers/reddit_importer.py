@@ -17,6 +17,8 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
+import orjson  # 5-10x faster line parsing; JSONDecodeError subclasses json's
+
 from ..watchful import read_lines_zst
 from .base_importer import BaseImporter
 
@@ -87,6 +89,8 @@ class RedditImporter(BaseImporter):
         line_count = 0
         valid_count = 0
         filtered_count = 0
+        # Hoisted out of the per-line loop (monthly dumps stream 100M+ lines)
+        wanted = {s.lower() for s in filter_communities} if filter_communities else None
 
         for line, _ in read_lines_zst(file_path):
             line_count += 1
@@ -95,11 +99,10 @@ class RedditImporter(BaseImporter):
                 continue
 
             try:
-                obj = json.loads(line)
+                obj = orjson.loads(line)
 
                 # Apply community filter if provided
-                subreddit = obj.get("subreddit", "")
-                if filter_communities and subreddit.lower() not in [s.lower() for s in filter_communities]:
+                if wanted is not None and obj.get("subreddit", "").lower() not in wanted:
                     filtered_count += 1
                     continue
 
@@ -131,6 +134,8 @@ class RedditImporter(BaseImporter):
         line_count = 0
         valid_count = 0
         filtered_count = 0
+        # Hoisted out of the per-line loop (monthly dumps stream 100M+ lines)
+        wanted = {s.lower() for s in filter_communities} if filter_communities else None
 
         for line, _ in read_lines_zst(file_path):
             line_count += 1
@@ -139,11 +144,10 @@ class RedditImporter(BaseImporter):
                 continue
 
             try:
-                obj = json.loads(line)
+                obj = orjson.loads(line)
 
                 # Apply community filter if provided
-                subreddit = obj.get("subreddit", "")
-                if filter_communities and subreddit.lower() not in [s.lower() for s in filter_communities]:
+                if wanted is not None and obj.get("subreddit", "").lower() not in wanted:
                     filtered_count += 1
                     continue
 

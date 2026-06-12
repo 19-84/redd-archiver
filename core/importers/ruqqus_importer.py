@@ -25,6 +25,8 @@ import subprocess
 from collections.abc import Iterator
 from typing import Any
 
+import orjson  # 5-10x faster line parsing; JSONDecodeError subclasses json's
+
 from .base_importer import BaseImporter
 
 logger = logging.getLogger(__name__)
@@ -99,7 +101,7 @@ class RuqqusImporter(BaseImporter):
                     continue
 
                 try:
-                    obj = json.loads(line)
+                    obj = orjson.loads(line)
 
                     # Apply community filter if provided
                     guild_name = obj.get("guild_name", "")
@@ -152,7 +154,7 @@ class RuqqusImporter(BaseImporter):
                     continue
 
                 try:
-                    obj = json.loads(line)
+                    obj = orjson.loads(line)
 
                     # Apply community filter if provided
                     # guild field is an object, extract name
