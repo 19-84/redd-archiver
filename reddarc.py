@@ -397,6 +397,47 @@ def copy_global_asset(src_path: str, asset_name: str, output_dir: str) -> str | 
 THEME_CSS_FILENAME = "redd-archiver-universal.css"
 
 
+PRECOMPRESS_EXTENSIONS = (".html", ".css", ".xml", ".txt", ".json", ".svg", ".webmanifest")
+
+
+def precompress_output(output_dir: str) -> None:
+    """Write .gz siblings for text assets (--precompress).
+
+    nginx's gzip_static serves these directly, skipping per-request
+    compression CPU. Skips .gz files newer than their source (resume-safe).
+    zlib releases the GIL, so threads parallelize cleanly.
+    """
+    import gzip
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _compress(path: str) -> int:
+        gz_path = path + ".gz"
+        try:
+            if os.path.exists(gz_path) and os.path.getmtime(gz_path) >= os.path.getmtime(path):
+                return 0
+            with open(path, "rb") as src, gzip.open(gz_path, "wb", compresslevel=9) as dst:
+                shutil.copyfileobj(src, dst)
+            return 1
+        except OSError as e:
+            print_error(f"Failed to precompress {path}: {e}")
+            return 0
+
+    targets = [
+        os.path.join(root, name)
+        for root, _dirs, files in os.walk(output_dir)
+        for name in files
+        if name.endswith(PRECOMPRESS_EXTENSIONS)
+    ]
+    if not targets:
+        return
+
+    start = time.time()
+    with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 4)) as pool:
+        written = sum(pool.map(_compress, targets))
+    print_success(f"Precompressed {written:,}/{len(targets):,} files in {time.time() - start:.1f}s (gzip_static)")
+
+
 def copy_static_assets(
     output_dir: str,
     minify_css: bool = True,
@@ -678,6 +719,12 @@ Examples:
     parser.add_argument(
         "--custom-css",
         help="Path to additional CSS appended after the main stylesheet",
+    )
+    parser.add_argument(
+        "--precompress",
+        action="store_true",
+        help="Write .gz siblings for HTML/CSS/XML output so nginx (gzip_static) serves "
+        "precompressed responses without per-request CPU",
     )
 
     # Processing Arguments
@@ -1677,6 +1724,12 @@ def process_export_only(
 
         for subreddit in imported_subreddits:
             processed_count += 1
+            # processing_metadata names can be filename-derived; hot queries use
+            # exact matches, so map to the case stored on the posts themselves
+            canonical = db.resolve_subreddit_name(subreddit)
+            if canonical and canonical != subreddit:
+                print_info(f"Using stored community name '{canonical}' for '{subreddit}'")
+                subreddit = canonical
             print_section(f"Exporting r/{subreddit} ({processed_count}/{total_subreddits})")
 
             try:
@@ -1710,7 +1763,7 @@ def process_export_only(
                         """
                             SELECT COUNT(*) as filtered_count
                             FROM posts
-                            WHERE LOWER(subreddit) = LOWER(%s)
+                            WHERE subreddit = %s
                             AND score >= %s
                             AND num_comments >= %s
                         """,
@@ -1842,6 +1895,9 @@ def process_export_only(
 
     # Cleanup database connection
     db.cleanup()
+
+    if args.precompress:
+        precompress_output(output_dir)
 
     print_section("Export Complete")
     print_success(f"Successfully exported {processed_count}/{total_subreddits} subreddits")
@@ -2167,6 +2223,12 @@ def process_archive_incremental(
                     continue
 
                 posts = subreddit_data[actual_subreddit]
+                # Hot queries use exact matches: map the discovered name to the
+                # case stored on the posts themselves before any export queries
+                canonical = reddit_db.resolve_subreddit_name(actual_subreddit)
+                if canonical and canonical != actual_subreddit:
+                    print_info(f"Using stored community name '{canonical}' for '{actual_subreddit}'", indent=1)
+                    actual_subreddit = canonical
                 # Use actual subreddit name for all file generation and processing
                 # ✅ MEMORY LEAK FIX: Store only subreddit name, not full post data to prevent accumulation
                 processed_subreddits[actual_subreddit] = True
@@ -2796,6 +2858,9 @@ def process_archive_incremental(
 
         # Clean up progress files
         processor.cleanup()
+
+        if args.precompress:
+            precompress_output(output_dir)
 
         print_success(f"Archive generated successfully in {output_dir}")
         print_info(f"Homepage: {output_dir}/r/index.html", indent=1)

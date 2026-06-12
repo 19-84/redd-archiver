@@ -89,6 +89,7 @@ def write_subreddit_pages_jinja2(
                 order_by="score DESC",
                 min_score=min_score,
                 min_comments=min_comments,
+                include_selftext=False,  # score-range sampling reads scores only
             )
         )
         subreddit_score_ranges = calculate_subreddit_score_ranges(sample_posts)
@@ -119,6 +120,7 @@ def write_subreddit_pages_jinja2(
                         order_by=order_by_clause,
                         min_score=min_score,
                         min_comments=min_comments,
+                        include_selftext=False,  # index rows never render selftext
                     )
                 )
             except Exception:
@@ -561,6 +563,7 @@ def write_subreddit_pages_parallel_jinja2(
                 order_by="score DESC",
                 min_score=min_score,
                 min_comments=min_comments,
+                include_selftext=False,  # score-range sampling reads scores only
             )
         )
         subreddit_score_ranges = calculate_subreddit_score_ranges(sample_posts)
@@ -694,6 +697,7 @@ def _generate_sort_pages_parallel(
                 order_by=order_by_clause,
                 min_score=min_score,
                 min_comments=min_comments,
+                include_selftext=False,  # index rows never render selftext
             )
         except Exception as e:
             print_error(

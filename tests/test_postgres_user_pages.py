@@ -25,11 +25,14 @@ def postgres_db():
 @pytest.fixture(scope="function")
 def clean_database(postgres_db):
     """Clean database and seed test data before each test"""
-    # Clear test data
+    # Clear test data — by author as well as subreddit: other test files seed
+    # posts under the same test_user_* authors (test_streaming_user_pages'
+    # test_single_batch), and the unfiltered activity assertions below count
+    # everything those authors ever posted
     with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM comments WHERE subreddit = 'test_usergen'")
-        cur.execute("DELETE FROM posts WHERE subreddit = 'test_usergen'")
-        cur.execute("DELETE FROM users WHERE username LIKE 'test_user_%'")
+        cur.execute("DELETE FROM comments WHERE subreddit = 'test_usergen' OR author LIKE 'test\\_user\\_%'")
+        cur.execute("DELETE FROM posts WHERE subreddit = 'test_usergen' OR author LIKE 'test\\_user\\_%'")
+        cur.execute("DELETE FROM users WHERE username LIKE 'test\\_user\\_%'")
         conn.commit()
 
     # Seed test data
@@ -264,6 +267,45 @@ class TestPostgresUserPages:
         # Comments 5, 15, 25, ... (10 comments) = varies
         # Total should be > 0
         assert total_score > 150
+
+    def test_filtered_statistics_keep_global_counts(self, clean_database):
+        """Regression: a subreddit-filtered stats refresh must not clobber a
+        user's global counts with per-subreddit ones (incremental updates,
+        Feature 3, refresh stats per imported community)."""
+        db = clean_database
+
+        # test_user_1 already has 5 posts in test_usergen (fixture);
+        # add activity in a second community
+        db.insert_posts_batch(
+            [
+                {
+                    "id": "usergen2_post_1",
+                    "subreddit": "test_usergen2",
+                    "author": "test_user_1",
+                    "title": "Other-community post",
+                    "selftext": "x",
+                    "score": 7,
+                    "created_utc": 1700009999,
+                    "num_comments": 0,
+                    "url": "https://reddit.com/r/test_usergen2/1",
+                    "permalink": "/r/test_usergen2/comments/usergen2_post_1/",
+                    "is_self": True,
+                }
+            ]
+        )
+        try:
+            # Refresh filtered by ONE community: counts must still be global
+            db.update_user_statistics(subreddit_filter="test_usergen2")
+
+            with db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("SELECT post_count FROM users WHERE username = 'test_user_1'")
+                row = cur.fetchone()
+            assert row is not None
+            assert row["post_count"] == 6  # 5 in test_usergen + 1 in test_usergen2
+        finally:
+            with db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit = 'test_usergen2'")
+                conn.commit()
 
 
 class TestUserPageGeneration:

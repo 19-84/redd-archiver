@@ -33,6 +33,8 @@ http {
 
     # Gzip compression (universally supported, 50-70% reduction)
     gzip on;
+    # Serve pre-compressed .gz siblings when present (reddarc --precompress)
+    gzip_static on;
     gzip_vary on;
     gzip_comp_level 6;
     gzip_types text/plain text/css application/json application/javascript application/x-javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
