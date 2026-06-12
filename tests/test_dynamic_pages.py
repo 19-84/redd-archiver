@@ -220,6 +220,8 @@ def seeded_db_module(request):
     db.save_subreddit_metadata(
         TEST_SUB, "reddit", {"display_name": TEST_SUB, "public_description": "A dyn test sub", "subscribers": 42}
     )
+    db.update_user_statistics(subreddit_filter=TEST_SUB)  # users table rows for resolve_username
+    db._subreddit_names_ts = 0.0  # fresh data: force the name-resolution cache to rebuild
     yield db
     cleanup()
     db.cleanup()
@@ -242,6 +244,24 @@ def dynamic_client(monkeypatch, seeded_db_module):
 @pytest.fixture
 def hybrid_client(monkeypatch, seeded_db_module):
     return _load_app(monkeypatch, "hybrid").test_client()
+
+
+class TestNameResolution:
+    """Canonical-name resolvers backing the exact-match query optimization."""
+
+    def test_resolve_subreddit_name(self, seeded_db_module):
+        db = seeded_db_module
+        assert db.resolve_subreddit_name(TEST_SUB.upper()) == TEST_SUB
+        assert db.resolve_subreddit_name(TEST_SUB) == TEST_SUB
+        assert db.resolve_subreddit_name("no_such_sub_xyz") is None
+        assert db.resolve_subreddit_name(None) is None
+        assert db.resolve_subreddit_name("") is None
+
+    def test_resolve_username(self, seeded_db_module):
+        db = seeded_db_module
+        assert db.resolve_username("DYN_AUTHOR") == "dyn_author"
+        assert db.resolve_username("dyn_author") == "dyn_author"
+        assert db.resolve_username("no_such_user_xyz") is None
 
 
 class TestModeGating:
@@ -281,6 +301,33 @@ class TestDynamicRoutes:
         assert r.status_code == 200
         # date sort: newest (beta) first
         assert r.data.index(b"Dynamic beta post") < r.data.index(b"Dynamic alpha post")
+
+    def test_case_insensitive_subreddit_url(self, dynamic_client):
+        """URL case is canonicalized at the boundary (queries are exact-match)."""
+        r = dynamic_client.get(f"/r/{TEST_SUB.upper()}/")
+        assert r.status_code == 200
+        assert b"Dynamic alpha post" in r.data
+
+    def test_case_insensitive_user_url(self, dynamic_client):
+        r = dynamic_client.get("/user/DYN_AUTHOR/")
+        assert r.status_code == 200
+        assert b"Dynamic alpha post" in r.data
+
+    def test_http_cache_headers_and_304(self, dynamic_client):
+        """Archive pages carry Cache-Control + ETag; If-None-Match returns 304."""
+        r = dynamic_client.get(f"/r/{TEST_SUB}/")
+        assert r.status_code == 200
+        assert "public" in r.headers.get("Cache-Control", "")
+        assert "max-age" in r.headers.get("Cache-Control", "")
+        etag = r.headers.get("ETag")
+        assert etag
+
+        r2 = dynamic_client.get(f"/r/{TEST_SUB}/", headers={"If-None-Match": etag})
+        assert r2.status_code == 304
+
+    def test_health_not_cached(self, dynamic_client):
+        r = dynamic_client.get("/health")
+        assert "max-age" not in r.headers.get("Cache-Control", "")
 
     def test_wrong_platform_prefix_404s(self, dynamic_client):
         assert dynamic_client.get(f"/v/{TEST_SUB}/").status_code == 404
@@ -389,3 +436,34 @@ class TestStaticPathRedirects:
         r = dynamic_client.get(path)
         assert r.status_code == 301
         assert r.headers["Location"] == target
+
+
+@pytest.mark.unit
+class TestPrecompressOutput:
+    def test_writes_gz_siblings(self, tmp_path):
+        from reddarc import precompress_output
+
+        (tmp_path / "index.html").write_text("<html>hello archive</html>")
+        (tmp_path / "static").mkdir()
+        (tmp_path / "static" / "style.css").write_text("body { color: red; }")
+        (tmp_path / "image.png").write_bytes(b"\x89PNG not compressible")
+
+        precompress_output(str(tmp_path))
+
+        import gzip
+
+        with gzip.open(tmp_path / "index.html.gz", "rb") as f:
+            assert f.read() == b"<html>hello archive</html>"
+        assert (tmp_path / "static" / "style.css.gz").exists()
+        assert not (tmp_path / "image.png.gz").exists()
+
+    def test_skips_fresh_gz(self, tmp_path):
+        from reddarc import precompress_output
+
+        page = tmp_path / "index.html"
+        page.write_text("v1")
+        precompress_output(str(tmp_path))
+        first_mtime = (tmp_path / "index.html.gz").stat().st_mtime_ns
+
+        precompress_output(str(tmp_path))
+        assert (tmp_path / "index.html.gz").stat().st_mtime_ns == first_mtime

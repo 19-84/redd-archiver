@@ -101,6 +101,12 @@ class PostgresSearch:
         if not query.query_text or query.query_text.strip() == "":
             return [], 0
 
+        # Canonicalize the sub: operator so the exact-match predicate below
+        # hits the composite indexes (unknown communities keep the raw value
+        # and return zero results, same as before)
+        if query.subreddit:
+            query.subreddit = self.db.resolve_subreddit_name(query.subreddit) or query.subreddit
+
         results = []
 
         # Determine which tables to search
@@ -223,7 +229,7 @@ class PostgresSearch:
 
         # Optional filters
         if query.subreddit:
-            where_clauses.append(sql.SQL("LOWER(subreddit) = LOWER({})").format(sql.Placeholder()))
+            where_clauses.append(sql.SQL("subreddit = {}").format(sql.Placeholder()))
             params.append(query.subreddit)
 
         if query.author:
