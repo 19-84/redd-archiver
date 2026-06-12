@@ -1,6 +1,6 @@
 # Feature 2: Dynamic Serving Mode
 
-**Status:** In progress — Phases 1–4 implemented (shared filters; URL adaptation; core page routes behind `REDDARCHIVER_SERVE_MODE=dynamic`; dynamic-only filters `?flair=&domain=&min_score=&from=&to=`, `/all/` cross-subreddit view, and on-the-fly title browsing at the static title-index URLs). Phase 5 (caching) not started.
+**Status:** ✅ Implemented (Phases 1–5). Phases 1–4: shared filters; URL adaptation; core page routes behind `REDDARCHIVER_SERVE_MODE=dynamic`; dynamic-only filters `?flair=&domain=&min_score=&from=&to=`, `/all/` cross-subreddit view, and on-the-fly title browsing at the static title-index URLs. Phase 5 (2026-06-12): HTTP caching (Cache-Control + ETag/304, `REDDARCHIVER_HTTP_CACHE_MAX_AGE`), in-process listing cache (`REDDARCHIVER_LISTING_CACHE_TTL`), exact-match queries with canonical-name resolution, and global /all/ indexes — listings dropped from ~2.2s to 1–23ms. Redis layer not needed at measured latencies.
 **Last updated:** 2026-06-11
 
 **Goal:** Expand the Flask search server into a full application server that serves all page types from PostgreSQL, enabling the dynamic serving mode described in [README.md > Serving Modes](README.md#serving-modes).
