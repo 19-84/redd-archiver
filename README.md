@@ -205,6 +205,24 @@ PostgreSQL full-text search with Google-style operators. Supports filtering by s
 
 Search results with highlighted excerpts using PostgreSQL `ts_headline()`. Sub-second response times with GIN indexing. *(Server-based, Tor-compatible)*
 
+### 🎨 Theme Gallery
+
+All 11 palettes on the same post page (each ships dark **and** light variants; `--accent-color` re-tints any of them):
+
+| | |
+|:---:|:---:|
+| ![default](screenshots/themes/theme-default.png) **default** | ![nord](screenshots/themes/theme-nord.png) **nord** |
+| ![solarized](screenshots/themes/theme-solarized.png) **solarized** | ![dracula](screenshots/themes/theme-dracula.png) **dracula** |
+| ![gruvbox](screenshots/themes/theme-gruvbox.png) **gruvbox** | ![sepia](screenshots/themes/theme-sepia.png) **sepia** |
+| ![cyberpunk](screenshots/themes/theme-cyberpunk.png) **cyberpunk** | ![midnight](screenshots/themes/theme-midnight.png) **midnight** (OLED) |
+| ![old-reddit](screenshots/themes/theme-old-reddit.png) **old-reddit** | ![phosphor](screenshots/themes/theme-phosphor.png) **phosphor** |
+| ![high-contrast](screenshots/themes/theme-high-contrast.png) **high-contrast** | |
+
+```bash
+reddarc.py ... --theme nord                    # static export
+REDDARCHIVER_THEME=nord search_server.py       # dynamic mode
+```
+
 > **Sample Archive**: Multi-platform archive featuring programming and technology communities from Reddit, Voat, and Ruqqus · [See all screenshots →](screenshots/)
 
 ## 🛠️ Installation
