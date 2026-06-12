@@ -706,10 +706,12 @@ Examples:
     parser.add_argument("--og-image", help="Path to Open Graph image (will be copied to output)")
 
     # Theme Arguments (Feature 4 Phases 3-4)
+    from html_modules.themes import THEME_NAMES
+
     parser.add_argument(
         "--theme",
         default="default",
-        choices=["default", "sepia", "high-contrast"],
+        choices=list(THEME_NAMES),
         help="Theme palette baked into the exported CSS (default: default)",
     )
     parser.add_argument(
