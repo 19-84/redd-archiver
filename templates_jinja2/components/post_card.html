@@ -2,7 +2,12 @@
 {% from 'macros/reddit_macros.html' import user_link, post_flair, stickied_indicator, content_warnings, status_indicators, awards_indicator, removal_indicator, video_indicator, crosspost_indicator, distinguished_badge, edit_indicator %}
 {% from 'macros/platform_macros.html' import platform_badge %}
 
-<div class="link mt-3">
+<div class="link mt-3{% if post.thumbnail_local %} has-thumbnail{% endif %}">
+    {% if post.thumbnail_local %}
+    <a href="{{ post.url_comments }}" class="post-thumbnail-link">
+        <img class="post-thumbnail" src="{{ base_path }}{{ post.thumbnail_local }}" alt="" width="48" height="36" loading="lazy">
+    </a>
+    {% endif %}
     <h5 class="title mb-0">
         <a href="{{ post.url_comments }}">{{ post.title }}</a>
         {% if post.link_flair_text %}{{ post_flair(post.link_flair_text) }}{% endif %}

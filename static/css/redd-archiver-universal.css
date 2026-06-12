@@ -4028,3 +4028,23 @@ details.comment[open][data-depth="1"] {
 .map-letters a {
     margin-right: 0.4rem;
 }
+
+/* ===== VOAT POST THUMBNAILS (Feature 7 Phase 4) ===== */
+.link.has-thumbnail {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  grid-column-gap: 0.5rem;
+  align-items: start;
+}
+.link.has-thumbnail > .post-thumbnail-link {
+  grid-row: 1 / span 3;
+}
+.post-thumbnail {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--primary-20, rgba(59, 130, 246, 0.2));
+  display: block;
+  margin-top: 0.35rem;
+}
