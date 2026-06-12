@@ -1,6 +1,6 @@
 # Feature 4: Visual Themes
 
-**Status:** In progress (Phases 1–2 implemented)
+**Status:** ✅ Implemented (Phases 1–4; persistence toggles deferred, see Phase 4)
 **Last updated:** 2026-06-11
 
 **Goal:** Replace the hardcoded dark/light toggle with a flexible CSS theme system where each theme provides both dark and light palettes, supports system preference detection, and allows operator customization — all without JavaScript (except for optional persistence in static mode).
@@ -135,6 +135,16 @@ Replace the checkbox toggle with a `@media (prefers-color-scheme)` approach. Use
 
 ## Phase 3: Theme-Agnostic CSS + Theme Definitions
 
+Implemented. Palettes live in `html_modules/themes.py` / `html_modules/theme_data.py`: the default
+theme's dark/light dicts are extracted verbatim from the stylesheet (a test enforces CSS↔Python
+sync), and sepia / high-contrast are derived by color transforms that re-hue only the blue/indigo
+accent-and-surface family (hue band 185–300°) — semantic greens/reds/ambers (mod/admin badges,
+gilded, locked) pass through untouched. Themes also re-skin the mode-shared base palette entries
+they change (gradients, `--primary-*`, comment-depth ramps). Static export rewrites the three token
+blocks via `apply_theme_to_css()`; dynamic mode injects an inline `<style>` block after the
+stylesheet link (empty for the default config, so default output is unchanged and the CSS file stays
+fully cacheable). Spec anchor colors (palette matrix above) are pinned and test-asserted.
+
 Decouple the CSS from any specific theme. The main stylesheet uses only `var()` references. Theme palettes are defined as standalone data (Python dicts) that the export pipeline and Flask both consume.
 
 ### Theme definition format
@@ -250,6 +260,15 @@ The main CSS file contains zero hardcoded colors and is identical regardless of 
 ---
 
 ## Phase 4: Custom Branding
+
+Implemented: `--theme` / `--accent-color` / `--custom-css` CLI flags and the
+`REDDARCHIVER_THEME` / `REDDARCHIVER_ACCENT_COLOR` env vars for dynamic mode. The accent override is
+a pure hue rotation of the theme's accent family (saturation/lightness ladders preserved), applied
+per mode after the theme transform. `--custom-css` content is appended unminified after the themed,
+minified main stylesheet. **Deferred:** the persistence toggles below — cookie-based mode
+persistence needs a set-mode endpoint (a bare CSS checkbox can't set cookies), and
+`--enable-theme-persistence` would add the first JavaScript to static output; both wait for a
+concrete request.
 
 ### CLI flags
 

@@ -85,6 +85,30 @@ if SERVE_MODE == "dynamic":
     print_info("Dynamic serving mode enabled: archive pages served from PostgreSQL")
 
 # ============================================================================
+# THEME (Feature 4 Phases 3-4)
+# ============================================================================
+
+# REDDARCHIVER_THEME / REDDARCHIVER_ACCENT_COLOR re-skin server-rendered pages
+# via an inline <style> token block after the stylesheet link; the static CSS
+# file stays untouched and fully cacheable. Empty for the default theme.
+THEME = os.environ.get("REDDARCHIVER_THEME", "default").strip().lower() or "default"
+ACCENT_COLOR = os.environ.get("REDDARCHIVER_ACCENT_COLOR", "").strip() or None
+
+try:
+    from html_modules.themes import render_inline_theme_css
+
+    _theme_inline_css = render_inline_theme_css(THEME, ACCENT_COLOR)
+except ValueError as e:
+    print_info(f"Ignoring theme configuration: {e}")
+    _theme_inline_css = ""
+
+
+@app.context_processor
+def inject_theme():
+    return {"theme_inline_css": _theme_inline_css}
+
+
+# ============================================================================
 # GLOBAL SEARCH ENGINE (reused across all requests)
 # ============================================================================
 

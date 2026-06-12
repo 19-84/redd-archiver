@@ -49,6 +49,10 @@
     {% block stylesheets %}
     <!-- Universal CSS Build -->
     <link rel="stylesheet" href="{{ include_path }}static/css/redd-archiver-universal.css">
+    {% if theme_inline_css %}
+    <!-- Theme token override (REDDARCHIVER_THEME / REDDARCHIVER_ACCENT_COLOR) -->
+    <style>{{ theme_inline_css | safe }}</style>
+    {% endif %}
     {% endblock stylesheets %}
 
     {% block extra_head_scripts %}
