@@ -43,9 +43,24 @@ class TestDesignTokens:
             css, r"#dark-theme-toggle:checked\s*~\s*body,\s*\n#dark-theme-toggle:checked\s*~\s*\.site-content"
         )
         assert dark, "no design tokens found"
-        assert set(dark) == set(light), (
-            f"token sets differ: only-dark={sorted(set(dark) - set(light))}, "
-            f"only-light={sorted(set(light) - set(dark))}"
+        # every dark token needs a light value; the light block may additionally
+        # override variables defined in the ORIGINAL :root (e.g. --comment-depth-*)
+        only_dark = set(dark) - set(light)
+        assert not only_dark, f"tokens missing a light value: {sorted(only_dark)}"
+        defined_anywhere = set(re.findall(r"(--[\w-]+)\s*:", css))
+        unknown_light = {t for t in set(light) - set(dark) if t not in defined_anywhere}
+        assert not unknown_light, f"light-only tokens never defined in :root: {sorted(unknown_light)}"
+
+    def test_system_preference_block_matches_toggle(self, css):
+        """The prefers-color-scheme light block must define the same tokens as the toggle (F4 Phase 2)."""
+        toggle = _block_tokens(
+            css, r"#dark-theme-toggle:checked\s*~\s*body,\s*\n#dark-theme-toggle:checked\s*~\s*\.site-content"
+        )
+        media_at = css.index("SYSTEM COLOR-SCHEME SUPPORT")
+        media = _block_tokens(css[media_at:], r":root")
+        assert media == toggle, (
+            f"media-light tokens diverge from toggle: only-toggle={sorted(set(toggle) - set(media))}, "
+            f"only-media={sorted(set(media) - set(toggle))}"
         )
 
     def test_all_var_references_defined(self, css):
