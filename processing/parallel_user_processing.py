@@ -4,6 +4,7 @@ ABOUTME: Parallel User Processing Implementation
 ABOUTME: Multi-threaded user page generation with concurrent database loading and batched queries
 """
 
+import contextlib
 import gc
 import queue
 import threading
@@ -181,10 +182,8 @@ class BatchedDatabaseLoader:
 
                 # Close database connections
                 for db in db_connection_pool:
-                    try:
+                    with contextlib.suppress(BaseException):
                         db.cleanup()
-                    except:
-                        pass
 
             except Exception as e:
                 print(f"[ERROR] Prefetch worker failed: {e}")
@@ -277,7 +276,7 @@ class ParallelUserPageGenerator:
             success = write_user_page(self.subs, user_batch, self.seo_config)
 
             # Record results for each user in the batch
-            for username in user_batch.keys():
+            for username in user_batch:
                 results[username] = success
 
             batch_time = time.time() - batch_start_time

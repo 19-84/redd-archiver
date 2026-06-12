@@ -45,10 +45,7 @@ def prepare_global_summary_data(
     if global_stats.get("total_time_span_days", 0) > 0:
         years = global_stats["total_time_span_days"] // 365
         remaining_days = global_stats["total_time_span_days"] % 365
-        if years > 0:
-            time_span_text = f"{years}y {remaining_days}d"
-        else:
-            time_span_text = f"{global_stats['total_time_span_days']}d"
+        time_span_text = f"{years}y {remaining_days}d" if years > 0 else f"{global_stats['total_time_span_days']}d"
 
     # Format activity
     activity_text = f"{global_stats.get('total_posts_per_day', 0)}/day"
@@ -72,9 +69,7 @@ def prepare_global_summary_data(
 
             # Use same logic as prepare_dashboard_card_data()
             is_banned = False
-            if latest_date and latest_date < cutoff_date:
-                is_banned = True
-            elif stats.get("is_banned", False):
+            if (latest_date and latest_date < cutoff_date) or stats.get("is_banned", False):
                 is_banned = True
 
             if is_banned:
@@ -207,9 +202,7 @@ def prepare_dashboard_card_data(
             latest_date = None
 
     is_banned = False
-    if latest_date and latest_date < cutoff_date:
-        is_banned = True
-    elif stats.get("is_banned", False):
+    if (latest_date and latest_date < cutoff_date) or stats.get("is_banned", False):
         is_banned = True
 
     status_class = "danger" if is_banned else "success"
@@ -263,10 +256,7 @@ def prepare_dashboard_card_data(
     if stats.get("time_span_days", 0) > 0:
         years = stats["time_span_days"] // 365
         remaining_days = stats["time_span_days"] % 365
-        if years > 0:
-            time_span_text = f"{years}y {remaining_days}d"
-        else:
-            time_span_text = f"{stats['time_span_days']}d"
+        time_span_text = f"{years}y {remaining_days}d" if years > 0 else f"{stats['time_span_days']}d"
 
     # Archive date
     archive_date_text = "Unknown"
@@ -431,9 +421,7 @@ def prepare_subreddit_card_data(sub: dict[str, Any], min_score: int, min_comment
             latest_date = None
 
     is_banned = False
-    if latest_date and latest_date < cutoff_date:
-        is_banned = True
-    elif stats.get("is_banned", False):
+    if (latest_date and latest_date < cutoff_date) or stats.get("is_banned", False):
         is_banned = True
 
     status_class = "danger" if is_banned else "success"
@@ -465,10 +453,7 @@ def prepare_subreddit_card_data(sub: dict[str, Any], min_score: int, min_comment
     if stats.get("time_span_days", 0) > 0:
         years = stats["time_span_days"] // 365
         remaining_days = stats["time_span_days"] % 365
-        if years > 0:
-            time_span_text = f"{years}y {remaining_days}d"
-        else:
-            time_span_text = f"{stats['time_span_days']}d"
+        time_span_text = f"{years}y {remaining_days}d" if years > 0 else f"{stats['time_span_days']}d"
 
     # Archive date
     archive_date_text = "Unknown"

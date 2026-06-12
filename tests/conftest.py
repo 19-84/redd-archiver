@@ -65,13 +65,12 @@ def postgres_db(postgres_connection_string):
 def clean_database(postgres_db):
     """Clean database before each test"""
     # Clear test data
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM processing_metadata WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
-            cur.execute("DELETE FROM users WHERE username LIKE 'test_%'")
-            conn.commit()
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM processing_metadata WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
+        cur.execute("DELETE FROM users WHERE username LIKE 'test_%'")
+        conn.commit()
 
     yield postgres_db
 
@@ -169,17 +168,16 @@ def multiplatform_test_database(postgres_db):
     Generates ~200 posts total across all platforms with specific test IDs.
     """
     # Clear any existing multiplatform test data first
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
-            )
-            cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
-            cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
-            cur.execute(
-                "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"
-            )
-            conn.commit()
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
+        )
+        cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
+        cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
+        cur.execute(
+            "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"
+        )
+        conn.commit()
 
     posts = []
     comments = []
@@ -418,14 +416,13 @@ def multiplatform_test_database(postgres_db):
     yield postgres_db
 
     # Cleanup after module tests complete
-    with postgres_db.pool.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
-            )
-            cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
-            cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
-            cur.execute(
-                "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"
-            )
-            conn.commit()
+    with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM subreddit_statistics WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')"
+        )
+        cur.execute("DELETE FROM comments WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
+        cur.execute("DELETE FROM posts WHERE subreddit IN ('banned', 'RedditCensors', 'videos', 'Quarantine')")
+        cur.execute(
+            "DELETE FROM users WHERE username LIKE 'reddit_user_%' OR username LIKE 'voat_user_%' OR username LIKE 'ruqqus_user_%'"
+        )
+        conn.commit()

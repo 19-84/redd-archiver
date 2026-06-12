@@ -73,11 +73,8 @@ class LeaderboardGenerator:
         if not endpoints:
             return {"instance_id": instance["instance_id"], "online": False, "error": "No endpoints configured"}
 
-        # 5 retry attempts over 1 hour (or 30s for quick test)
-        if self.quick_test:
-            retry_delays = [0, 2, 4, 6, 8]  # Quick test: 0s, 2s, 4s, 6s, 8s
-        else:
-            retry_delays = [0, 300, 900, 1800, 3600]  # Production: 0s, 5min, 15min, 30min, 60min
+        # 5 retry attempts: production 0s/5min/15min/30min/60min, quick test 0-8s
+        retry_delays = [0, 2, 4, 6, 8] if self.quick_test else [0, 300, 900, 1800, 3600]
 
         for attempt, delay in enumerate(retry_delays, 1):
             if delay > 0:
@@ -458,7 +455,7 @@ class LeaderboardGenerator:
                 "```python",
                 "score = (",
                 "    risk_weighted_content_score +     # Per-subreddit with 1.5x for banned",
-                "    completeness_score +              # 50 pts × (coverage_percentage / 100)",
+                "    completeness_score +              # 50 pts x (coverage_percentage / 100)",
                 "    online_count * 500                # Infrastructure reliability",
                 ")",
                 "```",

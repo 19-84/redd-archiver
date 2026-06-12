@@ -225,16 +225,11 @@ class RedditImporter(BaseImporter):
 
         # Extract post ID from link_id (format: t3_abc123)
         link_id = reddit_comment["link_id"]
-        if link_id.startswith("t3_"):
-            post_id = self.prefix_id(link_id[3:])
-        else:
-            post_id = self.prefix_id(link_id)
+        post_id = self.prefix_id(link_id[3:]) if link_id.startswith("t3_") else self.prefix_id(link_id)
 
         # Extract parent ID (could be post or another comment)
         parent_id_raw = reddit_comment.get("parent_id", link_id)
-        if parent_id_raw.startswith("t1_"):  # Comment parent
-            parent_id = self.prefix_id(parent_id_raw[3:])
-        elif parent_id_raw.startswith("t3_"):  # Post parent
+        if parent_id_raw.startswith("t1_") or parent_id_raw.startswith("t3_"):  # Comment parent
             parent_id = self.prefix_id(parent_id_raw[3:])
         else:
             parent_id = self.prefix_id(parent_id_raw)

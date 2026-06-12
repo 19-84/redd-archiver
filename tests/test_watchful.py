@@ -207,10 +207,9 @@ class TestStreamToDatabase:
         assert result["processing_time"] > 0
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
+            conn.commit()
 
     def test_stream_comments_to_database(self, sample_comments_zst_file, postgres_db):
         """Test streaming comments from .zst to database."""
@@ -223,10 +222,9 @@ class TestStreamToDatabase:
         assert result["bad_lines"] == 0
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE subreddit = 'test'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit = 'test'")
+            conn.commit()
 
     def test_stream_with_malformed_lines(self, malformed_zst_file, postgres_db):
         """Test streaming handles malformed lines gracefully."""
@@ -239,10 +237,9 @@ class TestStreamToDatabase:
         assert result["records_processed"] >= 0
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
+            conn.commit()
 
     def test_stream_invalid_record_type_raises(self, sample_zst_file, postgres_db):
         """Test invalid record_type raises ValueError."""
@@ -275,10 +272,9 @@ class TestStreamToDatabase:
         assert "records_per_second" in result
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
+            conn.commit()
 
     def test_stream_with_batch_size(self, sample_zst_file, postgres_db):
         """Test streaming with custom batch size."""
@@ -290,10 +286,9 @@ class TestStreamToDatabase:
         assert result["records_processed"] >= 2
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test'")
+            conn.commit()
 
 
 # =============================================================================
@@ -324,17 +319,15 @@ class TestFlushBatchToDatabase:
         _flush_batch_to_database(postgres_db, posts, "posts")
 
         # Verify inserted
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM posts WHERE id = 'flush_post_1'")
-                count = cur.fetchone()["count"]
-                assert count == 1
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM posts WHERE id = 'flush_post_1'")
+            count = cur.fetchone()["count"]
+            assert count == 1
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_flush'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_flush'")
+            conn.commit()
 
     def test_flush_comments_batch(self, postgres_db):
         """Test flushing comment batch to database."""
@@ -371,18 +364,16 @@ class TestFlushBatchToDatabase:
         _flush_batch_to_database(postgres_db, comments, "comments")
 
         # Verify inserted
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM comments WHERE id = 'flush_comment_1'")
-                count = cur.fetchone()["count"]
-                assert count == 1
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM comments WHERE id = 'flush_comment_1'")
+            count = cur.fetchone()["count"]
+            assert count == 1
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE subreddit = 'test_flush'")
-                cur.execute("DELETE FROM posts WHERE id = 'flush_comment_parent'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit = 'test_flush'")
+            cur.execute("DELETE FROM posts WHERE id = 'flush_comment_parent'")
+            conn.commit()
 
     def test_flush_invalid_record_type_raises(self, postgres_db):
         """Test flushing with invalid record type raises."""
@@ -431,7 +422,6 @@ class TestLargeFileStreaming:
         assert result["records_processed"] >= 95
 
         # Cleanup
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_stream'")
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_large_stream'")
+            conn.commit()

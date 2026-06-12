@@ -125,9 +125,11 @@ class TestFetchOpenApiSpec:
 
     def test_fetch_openapi_spec_connection_error(self):
         """Test connection error handling."""
-        with patch("httpx.get", side_effect=httpx.ConnectError("Connection refused")):
-            with pytest.raises(httpx.ConnectError):
-                fetch_openapi_spec("http://localhost:5000")
+        with (
+            patch("httpx.get", side_effect=httpx.ConnectError("Connection refused")),
+            pytest.raises(httpx.ConnectError),
+        ):
+            fetch_openapi_spec("http://localhost:5000")
 
     def test_fetch_openapi_spec_http_error(self):
         """Test HTTP error handling."""
@@ -137,9 +139,8 @@ class TestFetchOpenApiSpec:
             "Not Found", request=MagicMock(), response=mock_response
         )
 
-        with patch("httpx.get", return_value=mock_response):
-            with pytest.raises(httpx.HTTPStatusError):
-                fetch_openapi_spec("http://localhost:5000")
+        with patch("httpx.get", return_value=mock_response), pytest.raises(httpx.HTTPStatusError):
+            fetch_openapi_spec("http://localhost:5000")
 
     def test_fetch_openapi_spec_invalid_json(self):
         """Test invalid JSON response handling."""
@@ -147,9 +148,8 @@ class TestFetchOpenApiSpec:
         mock_response.raise_for_status = MagicMock()
         mock_response.json.side_effect = ValueError("Invalid JSON")
 
-        with patch("httpx.get", return_value=mock_response):
-            with pytest.raises(ValueError):
-                fetch_openapi_spec("http://localhost:5000")
+        with patch("httpx.get", return_value=mock_response), pytest.raises(ValueError):
+            fetch_openapi_spec("http://localhost:5000")
 
     def test_fetch_openapi_spec_constructs_correct_url(self):
         """Test correct URL is constructed."""
@@ -188,9 +188,8 @@ class TestParseArgs:
 
     def test_parse_args_version_flag_exists(self):
         """Test --version flag is configured."""
-        with patch("sys.argv", ["server.py", "--version"]):
-            with pytest.raises(SystemExit) as exc_info:
-                parse_args()
+        with patch("sys.argv", ["server.py", "--version"]), pytest.raises(SystemExit) as exc_info:
+            parse_args()
 
         # --version causes sys.exit(0)
         assert exc_info.value.code == 0

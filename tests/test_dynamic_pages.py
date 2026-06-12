@@ -5,6 +5,7 @@ ABOUTME: Covers content URL helpers, mode gating, page routes, and static-path r
 """
 
 import importlib
+from typing import ClassVar
 
 import pytest
 
@@ -46,7 +47,7 @@ class TestBuildCommentTree:
 
 @pytest.mark.unit
 class TestEnrichUserContent:
-    POST = {
+    POST: ClassVar[dict] = {
         "type": "post",
         "subreddit": "example",
         "permalink": "/r/example/comments/abc/slug/",
@@ -54,7 +55,7 @@ class TestEnrichUserContent:
         "url": "",
         "platform": "reddit",
     }
-    COMMENT = {
+    COMMENT: ClassVar[dict] = {
         "type": "comment",
         "id": "ccc",
         "subreddit": "example",
@@ -120,13 +121,12 @@ def seeded_db_module(request):
     db = PostgresDatabase(os.environ["DATABASE_URL"])
 
     def cleanup():
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (TEST_SUB,))
-                cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
-                cur.execute("DELETE FROM subreddit_statistics WHERE subreddit = %s", (TEST_SUB,))
-                cur.execute("DELETE FROM subreddit_metadata WHERE subreddit = %s", (TEST_SUB,))
-                conn.commit()
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (TEST_SUB,))
+            cur.execute("DELETE FROM posts WHERE subreddit = %s", (TEST_SUB,))
+            cur.execute("DELETE FROM subreddit_statistics WHERE subreddit = %s", (TEST_SUB,))
+            cur.execute("DELETE FROM subreddit_metadata WHERE subreddit = %s", (TEST_SUB,))
+            conn.commit()
 
     cleanup()
     db.insert_posts_batch(

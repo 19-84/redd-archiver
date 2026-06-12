@@ -376,7 +376,7 @@ def search():
                     # Voat: /v/subverse/comments/post_id#raw_comment_id
                     if "#" in permalink:
                         # Replace raw anchor with prefixed format
-                        post_part, raw_comment_id = permalink.split("#", 1)
+                        post_part, _raw_comment_id = permalink.split("#", 1)
                         permalink = post_part + "#comment-" + result.id
                     else:
                         permalink = permalink + "#comment-" + result.id

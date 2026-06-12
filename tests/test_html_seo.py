@@ -672,14 +672,14 @@ class TestGenerateCanonicalAndOgUrl:
 
     def test_generates_canonical_tag(self):
         """Test generates canonical tag."""
-        canonical, og_url = generate_canonical_and_og_url("https://example.com", "/r/test/")
+        canonical, _og_url = generate_canonical_and_og_url("https://example.com", "/r/test/")
 
         assert 'rel="canonical"' in canonical
         assert "https://example.com/r/test/" in canonical
 
     def test_generates_og_url_tag(self):
         """Test generates og:url tag."""
-        canonical, og_url = generate_canonical_and_og_url("https://example.com", "/r/test/")
+        _canonical, og_url = generate_canonical_and_og_url("https://example.com", "/r/test/")
 
         assert 'property="og:url"' in og_url
 
@@ -856,17 +856,16 @@ class TestDatabaseBackedSEO:
         from html_modules.html_seo import get_subreddit_stats_from_database
 
         # Insert test data
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO posts (id, subreddit, author, title, created_utc, score, platform, permalink, json_data)
-                    VALUES
-                        ('seo_test_1', 'seo_test_sub', 'user1', 'Title 1', 1640000000, 100, 'reddit', '/r/seo_test_sub/comments/seo_test_1/', '{}'),
-                        ('seo_test_2', 'seo_test_sub', 'user2', 'Title 2', 1640001000, 50, 'reddit', '/r/seo_test_sub/comments/seo_test_2/', '{}'),
-                        ('seo_test_3', 'seo_test_sub2', 'user3', 'Title 3', 1640002000, 75, 'reddit', '/r/seo_test_sub2/comments/seo_test_3/', '{}')
-                    ON CONFLICT (id) DO NOTHING
-                """)
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO posts (id, subreddit, author, title, created_utc, score, platform, permalink, json_data)
+                VALUES
+                    ('seo_test_1', 'seo_test_sub', 'user1', 'Title 1', 1640000000, 100, 'reddit', '/r/seo_test_sub/comments/seo_test_1/', '{}'),
+                    ('seo_test_2', 'seo_test_sub', 'user2', 'Title 2', 1640001000, 50, 'reddit', '/r/seo_test_sub/comments/seo_test_2/', '{}'),
+                    ('seo_test_3', 'seo_test_sub2', 'user3', 'Title 3', 1640002000, 75, 'reddit', '/r/seo_test_sub2/comments/seo_test_3/', '{}')
+                ON CONFLICT (id) DO NOTHING
+            """)
+            conn.commit()
 
         try:
             result = get_subreddit_stats_from_database(postgres_db)
@@ -878,26 +877,24 @@ class TestDatabaseBackedSEO:
 
         finally:
             # Cleanup
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM posts WHERE subreddit LIKE 'seo_test%'")
-                    conn.commit()
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit LIKE 'seo_test%'")
+                conn.commit()
 
     def test_extract_keywords_from_database(self, postgres_db):
         """Test keyword extraction from database."""
         from html_modules.html_seo import extract_keywords_from_database
 
         # Insert test data with specific keywords
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO posts (id, subreddit, author, title, selftext, created_utc, score, platform, permalink, json_data)
-                    VALUES
-                        ('kw_test_1', 'keyword_test', 'user1', 'Python programming tutorial',
-                         'Learn Python programming basics', 1640000000, 100, 'reddit', '/r/keyword_test/comments/kw_test_1/', '{}')
-                    ON CONFLICT (id) DO NOTHING
-                """)
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO posts (id, subreddit, author, title, selftext, created_utc, score, platform, permalink, json_data)
+                VALUES
+                    ('kw_test_1', 'keyword_test', 'user1', 'Python programming tutorial',
+                     'Learn Python programming basics', 1640000000, 100, 'reddit', '/r/keyword_test/comments/kw_test_1/', '{}')
+                ON CONFLICT (id) DO NOTHING
+            """)
+            conn.commit()
 
         try:
             result = extract_keywords_from_database(postgres_db, "keyword_test")
@@ -907,10 +904,9 @@ class TestDatabaseBackedSEO:
 
         finally:
             # Cleanup
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM posts WHERE subreddit = 'keyword_test'")
-                    conn.commit()
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit = 'keyword_test'")
+                conn.commit()
 
     def test_generate_index_meta_from_database(self, postgres_db):
         """Test index meta generation from database."""
@@ -928,14 +924,13 @@ class TestDatabaseBackedSEO:
         from html_modules.html_seo import generate_search_meta_from_database
 
         # Insert test data
-        with postgres_db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO posts (id, subreddit, author, title, created_utc, score, platform, permalink, json_data)
-                    VALUES ('search_meta_test', 'search_meta_sub', 'user1', 'Test', 1640000000, 10, 'reddit', '/r/search_meta_sub/comments/search_meta_test/', '{}')
-                    ON CONFLICT (id) DO NOTHING
-                """)
-                conn.commit()
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO posts (id, subreddit, author, title, created_utc, score, platform, permalink, json_data)
+                VALUES ('search_meta_test', 'search_meta_sub', 'user1', 'Test', 1640000000, 10, 'reddit', '/r/search_meta_sub/comments/search_meta_test/', '{}')
+                ON CONFLICT (id) DO NOTHING
+            """)
+            conn.commit()
 
         try:
             result = generate_search_meta_from_database(postgres_db, "search_meta_sub")
@@ -946,10 +941,9 @@ class TestDatabaseBackedSEO:
 
         finally:
             # Cleanup
-            with postgres_db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM posts WHERE subreddit = 'search_meta_sub'")
-                    conn.commit()
+            with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM posts WHERE subreddit = 'search_meta_sub'")
+                conn.commit()
 
 
 # =============================================================================

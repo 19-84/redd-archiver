@@ -83,7 +83,7 @@ class IncrementalStatistics:
                         self._stats_cache[subreddit_name] = stat_copy
 
                 print(f"[DEBUG] Loaded {len(self._stats_cache)} subreddits from PostgreSQL:")
-                for name in self._stats_cache.keys():
+                for name in self._stats_cache:
                     print(f"[DEBUG]   - {name}")
 
                 # Search metadata is stored in subreddit_statistics, so populate from same data
@@ -105,7 +105,7 @@ class IncrementalStatistics:
                 print("[WARNING] No PostgreSQL database provided, falling back to JSON")
                 self._stats_cache = load_subreddit_stats(self.output_dir)
                 print(f"[DEBUG] Loaded {len(self._stats_cache)} subreddits from JSON:")
-                for name in self._stats_cache.keys():
+                for name in self._stats_cache:
                     print(f"[DEBUG]   - {name}")
 
                 # Load search metadata cache
@@ -347,7 +347,7 @@ class IncrementalStatistics:
 
         # Log what we're about to save
         print(f"[DEBUG] About to save {len(self._stats_cache)} subreddits:")
-        for name in self._stats_cache.keys():
+        for name in self._stats_cache:
             print(f"[DEBUG]   - {name}")
 
         try:
@@ -579,7 +579,7 @@ class IncrementalStatistics:
         self._cache_misses += 1
         return None
 
-    def invalidate_statistics_cache(self, subreddit_name: str = None):
+    def invalidate_statistics_cache(self, subreddit_name: str | None = None):
         """
         Invalidate statistics cache for specific subreddit or all subreddits.
         Only saves to JSON if no PostgreSQL database available.

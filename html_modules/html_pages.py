@@ -95,7 +95,7 @@ def write_subreddit_pages(
     if reddit_db is None:
         raise ValueError("write_subreddit_pages requires PostgreSQL (reddit_db). Legacy in-memory removed.")
 
-    # Use parallel implementation for 60-80% speedup (3 sorts × 5 pages = 15 concurrent)
+    # Use parallel implementation for 60-80% speedup (3 sorts x 5 pages = 15 concurrent)
     from html_modules.html_pages_jinja import write_subreddit_pages_parallel_jinja2
 
     return write_subreddit_pages_parallel_jinja2(

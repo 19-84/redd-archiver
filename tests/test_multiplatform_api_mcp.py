@@ -5,10 +5,10 @@ ABOUTME: Tests all 30+ API endpoints and MCP tools across all three platforms
 
 Test Coverage:
 - API System Endpoints (health, stats, schema)
-- API Posts Endpoints (9 endpoints × 3 platforms)
-- API Users Endpoints (7 endpoints × 3 platforms)
+- API Posts Endpoints (9 endpoints x 3 platforms)
+- API Users Endpoints (7 endpoints x 3 platforms)
 - API Search Endpoints (cross-platform queries)
-- API Community Endpoints (4 endpoints × 3 platforms)
+- API Community Endpoints (4 endpoints x 3 platforms)
 - MCP Server Tools (sample of 29 tools)
 - Platform-Specific Validation (URL generation, terminology)
 - End-to-End Integration Tests
@@ -599,13 +599,12 @@ class TestAPIOptimization:
         response_filtered = api_client.get("/api/v1/posts?limit=5&fields=id,title,score")
         data_filtered = response_filtered.get_json()
 
-        if response_full.status_code == 200 and response_filtered.status_code == 200:
-            # Filtered response should have fewer fields
-            if len(data_filtered["data"]) > 0:
-                filtered_keys = set(data_filtered["data"][0].keys())
-                assert "id" in filtered_keys
-                assert "title" in filtered_keys
-                assert "score" in filtered_keys
+        # Filtered response should have fewer fields
+        if response_full.status_code == 200 and response_filtered.status_code == 200 and len(data_filtered["data"]) > 0:
+            filtered_keys = set(data_filtered["data"][0].keys())
+            assert "id" in filtered_keys
+            assert "title" in filtered_keys
+            assert "score" in filtered_keys
 
     def test_max_body_length_parameter(self, api_client):
         """Test ?max_body_length= parameter truncates content"""
@@ -613,7 +612,7 @@ class TestAPIOptimization:
 
         if response.status_code == 200:
             data = response.get_json()
-            if "selftext" in data and data["selftext"]:
+            if data.get("selftext"):
                 assert len(data["selftext"]) <= 150  # Allow some buffer for ellipsis
 
     def test_include_body_false_parameter(self, api_client):

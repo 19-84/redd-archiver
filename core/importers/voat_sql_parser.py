@@ -13,7 +13,7 @@ import gzip
 import logging
 import re
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class VoatSQLParser:
     """
 
     # Hardcoded column mappings for Voat tables (from CREATE TABLE statements)
-    COLUMN_MAPS = {
+    COLUMN_MAPS: ClassVar[dict[str, list[str]]] = {
         "submission": [
             "submissionid",
             "archiveDate",
@@ -183,7 +183,7 @@ class VoatSQLParser:
     }
 
     # MariaDB escape sequences
-    ESCAPE_MAP = {
+    ESCAPE_MAP: ClassVar[dict[str, str]] = {
         "'": "'",
         "\\": "\\",
         "r": "\r",
@@ -236,9 +236,8 @@ class VoatSQLParser:
         try:
             # Test if file can be opened (catches corrupted gzip files early)
             try:
-                test_f = gzip.open(file_path, "rt", encoding="utf-8", errors="replace")
-                test_f.readline()
-                test_f.close()
+                with gzip.open(file_path, "rt", encoding="utf-8", errors="replace") as test_f:
+                    test_f.readline()
             except Exception as e:
                 logger.error(f"Cannot read {file_path}: {e} (corrupted file)")
                 return  # Exit generator early

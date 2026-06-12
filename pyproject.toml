@@ -124,12 +124,18 @@ select = [
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     "S",   # flake8-bandit (security)
+    "SIM", # flake8-simplify
+    "RUF", # Ruff-specific rules
 ]
 ignore = [
     "E501",  # Line too long (handled by formatter)
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# split_voat keeps an LRU cache of open file handles (SIM115 by design); its
+# remaining SIM violations predate the SIM adoption and need larger refactors
+"tools/split_voat_by_subverse.py" = ["SIM115", "SIM108", "SIM102"]
+"tools/find_banned_subreddits.py" = ["SIM102", "SIM108"]  # legacy scanner, pre-SIM code
 "tests/*" = ["S101"]  # Allow assert in tests
 "benchmarks/*" = ["S101"]  # Allow assert in benchmarks
 "mcp_server/tests/*" = ["S101"]  # Allow assert in MCP tests
@@ -149,11 +155,13 @@ ignore = [
 "monitoring/system_optimizer.py" = ["E722", "S110", "B904", "S112"]  # Safe cleanup, try-except-continue
 "processing/incremental_statistics.py" = ["E722", "S110"]  # Safe cleanup
 "processing/batch_processing_utils.py" = ["E722", "S110"]  # Safe cleanup
-"processing/parallel_user_processing.py" = ["E722", "S110"]  # Safe cleanup
+# SIM113: round-robin counter spans retry loops; enumerate() would reset it
+"processing/parallel_user_processing.py" = ["E722", "S110", "SIM113"]  # Safe cleanup
 "utils/console_output.py" = ["E722", "S105", "S108", "F821", "S110"]  # Bare except, examples, try-except-pass
 "utils/regex_utils.py" = ["B904", "B034", "N818"]  # Custom exception patterns
 "utils/search_operators.py" = ["N806"]  # MAX_QUERY_LENGTH constant
-"api/routes.py" = ["S608", "N806"]  # Safe SQL, constants
+# SIM108: the seeded-md5 if/else carries a comment a ternary would bury
+"api/routes.py" = ["S608", "N806", "SIM108"]  # Safe SQL, constants
 "api/__init__.py" = ["E402", "F401"]  # Import after comment, routes used for side effects
 ".github/scripts/issue-to-registry.py" = ["S603", "S607"]  # Trusted gh CLI
 "utils/error_handling.py" = ["F821"]  # Test code in __main__

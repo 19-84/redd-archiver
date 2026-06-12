@@ -38,9 +38,9 @@ import zstandard
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.enrichment.subreddit_metadata import _detect_files, parse_wiki_path  # noqa: E402
-from core.watchful import read_lines_zst  # noqa: E402
-from utils.console_output import print_error, print_info, print_success, print_warning  # noqa: E402
+from core.enrichment.subreddit_metadata import _detect_files, parse_wiki_path
+from core.watchful import read_lines_zst
+from utils.console_output import print_error, print_info, print_success, print_warning
 
 # Flush a subreddit's buffered wiki pages once they exceed this size. Each flush
 # appends a complete zstd frame; read_lines_zst reads across frames, so a file

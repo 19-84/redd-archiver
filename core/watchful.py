@@ -263,7 +263,7 @@ def _flush_batch_to_database(db: PostgresDatabase, batch_records: list[dict[str,
     """
     try:
         if record_type == "posts":
-            successful, failed, batch_failed_ids = db.insert_posts_batch(batch_records)
+            successful, failed, _batch_failed_ids = db.insert_posts_batch(batch_records)
         elif record_type == "comments":
             successful, failed = db.insert_comments_batch(batch_records)
         else:

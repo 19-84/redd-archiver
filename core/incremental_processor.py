@@ -8,6 +8,7 @@ JSON progress files (.archive-progress.json) are being deprecated in favor
 of PostgreSQL processing_metadata table for better reliability and resume capability.
 """
 
+import contextlib
 import gc
 import json
 import os
@@ -93,10 +94,8 @@ class IncrementalProcessor:
         signal.signal(signal.SIGTERM, self._handle_shutdown)  # Termination
 
         # Windows doesn't have SIGUSR1/SIGUSR2, so only register on Unix
-        try:
+        with contextlib.suppress(AttributeError):
             signal.signal(signal.SIGUSR1, self._handle_status_request)  # Status request
-        except AttributeError:
-            pass  # Windows compatibility
 
     def _handle_shutdown(self, signum, frame):
         """Handle graceful shutdown on Ctrl+C or termination"""
