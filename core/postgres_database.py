@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportOptionalContextManager=false, reportOptionalSubscript=false
 # ABOUTME: PostgreSQL database implementation for Redd-Archiver archive with psycopg3 connection pooling
 # ABOUTME: High-performance alternative to SQLite with native full-text search, JSONB storage, and concurrent operations
 
@@ -1921,6 +1924,7 @@ class PostgresDatabase:
         Yields:
             Thread dictionaries with comments attached
         """
+        start_time = time.time()  # used by the timing breakdown at the end
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Get total post count

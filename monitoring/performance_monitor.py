@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportAssignmentType=false, reportAttributeAccessIssue=false, reportCallIssue=false, reportIndexIssue=false, reportOperatorIssue=false, reportOptionalMemberAccess=false, reportOptionalSubscript=false, reportRedeclaration=false, reportReturnType=false
 """
 ABOUTME: Performance monitoring system for PostgreSQL database processing performance analysis.
 ABOUTME: Provides comprehensive metrics collection, phase tracking, and auto-tuning validation.

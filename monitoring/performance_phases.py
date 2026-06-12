@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportAttributeAccessIssue=false, reportOperatorIssue=false, reportOptionalMemberAccess=false
 """
 ABOUTME: Performance phase tracking infrastructure with decorators and context managers.
 ABOUTME: Provides unified timing and performance monitoring for all major processing phases.

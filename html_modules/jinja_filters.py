@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false
 # ABOUTME: Custom Jinja2 filters for Pushshift data formatting and display with LRU caching
 # ABOUTME: Provides cached filters for dates, scores, numbers, text truncation, and tooltips
 

@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportCallIssue=false, reportOperatorIssue=false
 # ABOUTME: Jinja2-based page generation implementations for redd-archiver
 # ABOUTME: Provides dual-path rendering functions that use Jinja2 templates
 
