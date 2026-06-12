@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportOptionalSubscript=false
 # ABOUTME: Auto-tuning effectiveness validation and performance comparison system for Step 4.2
 # ABOUTME: Provides comprehensive validation of auto-tuning decisions and performance impact analysis
 

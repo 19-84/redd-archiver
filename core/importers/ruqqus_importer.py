@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportOptionalIterable=false, reportOptionalMemberAccess=false
 """
 ABOUTME: Ruqqus archive importer using 7z extraction and JSON Lines parsing
 ABOUTME: Handles 500K+ posts and 1.6M+ comments from Ruqqus platform shutdown archive

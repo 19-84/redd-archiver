@@ -111,7 +111,8 @@ def import_users(db: Any, user_file: str, tracked_users: dict[str, str]) -> int:
     found: set[str] = set()
     for row in parser.stream_rows(user_file, "user"):
         scanned += 1
-        name = row.get("userName") if isinstance(row.get("userName"), str) else ""
+        raw_name = row.get("userName")
+        name = raw_name if isinstance(raw_name, str) else ""
         lname = name.lower()
         if not lname or lname not in tracked_users or lname in found:
             continue
@@ -154,7 +155,7 @@ def import_moderators(db: Any, moderator_file: str, tracked: dict[str, str]) -> 
     for lsub, mods in by_subverse.items():
         # Owners first, then moderators, then the rest; stable within level
         order = {"Owner": 0, "Moderator": 1}
-        mods.sort(key=lambda m: order.get(m.get("level"), 2))
+        mods.sort(key=lambda m: order.get(m.get("level") or "", 2))
         if db.update_moderators_json(tracked[lsub], "voat", mods):
             updated += 1
     print_success(f"Updated structured moderators for {updated} subverse(s) ({scanned:,} records matched)")
@@ -232,7 +233,8 @@ def import_badges(db: Any, badge_file: str, tracked_users: dict[str, str]) -> in
     parser = VoatSQLParser()
     by_user: dict[str, list[dict[str, Any]]] = {}
     for row in parser.stream_rows(badge_file, "userBadge"):
-        name = row.get("username") if isinstance(row.get("username"), str) else ""
+        raw_name = row.get("username")
+        name = raw_name if isinstance(raw_name, str) else ""
         lname = name.lower()
         if not lname or lname not in tracked_users:
             continue
@@ -268,7 +270,8 @@ def import_subverses(db: Any, subverse_file: str, tracked: dict[str, str]) -> in
     fallbacks: dict[str, dict[str, Any]] = {}
     for row in parser.stream_rows(subverse_file, "subverse"):
         scanned += 1
-        name = row.get("name") if isinstance(row.get("name"), str) else ""
+        raw_name = row.get("name")
+        name = raw_name if isinstance(raw_name, str) else ""
         lname = name.lower()
         if not lname or lname not in tracked or lname in exact_done:
             continue
@@ -321,27 +324,33 @@ def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
         files[base if base in files else SUBVERSE_FILENAME] = path
 
     counts = {"subverses": 0, "users": 0, "moderators": 0, "flair": 0, "subscriber_points": 0, "badged_users": 0}
-    if files[SUBVERSE_FILENAME]:
-        counts["subverses"] = import_subverses(db, files[SUBVERSE_FILENAME], tracked)
+    subverse_file = files[SUBVERSE_FILENAME]
+    if subverse_file:
+        counts["subverses"] = import_subverses(db, subverse_file, tracked)
     else:
         print_warning(f"No {SUBVERSE_FILENAME} found in {path} (extract voat-sql-tables.tar first)")
-    if files[MODERATOR_FILENAME]:
-        counts["moderators"] = import_moderators(db, files[MODERATOR_FILENAME], tracked)
-    if files[ATTRIBUTE_FILENAME]:
-        counts["flair"] = import_flair(db, files[ATTRIBUTE_FILENAME])
-    if files[USER_FILENAME]:
+    moderator_file = files[MODERATOR_FILENAME]
+    if moderator_file:
+        counts["moderators"] = import_moderators(db, moderator_file, tracked)
+    attribute_file = files[ATTRIBUTE_FILENAME]
+    if attribute_file:
+        counts["flair"] = import_flair(db, attribute_file)
+    user_file = files[USER_FILENAME]
+    if user_file:
         db.create_user_metadata_table()
         tracked_users = db.get_archived_author_names("voat")
         if tracked_users:
-            counts["users"] = import_users(db, files[USER_FILENAME], tracked_users)
+            counts["users"] = import_users(db, user_file, tracked_users)
         else:
             print_warning("No archived Voat authors found — skipping user profile enrichment")
-    if files[SUBSCRIBERS_FILENAME]:
+    subscribers_file = files[SUBSCRIBERS_FILENAME]
+    if subscribers_file:
         db.create_subscriber_history_table()
-        counts["subscriber_points"] = import_subscribers(db, files[SUBSCRIBERS_FILENAME], tracked)
-    if files[BADGE_FILENAME]:
+        counts["subscriber_points"] = import_subscribers(db, subscribers_file, tracked)
+    badge_file = files[BADGE_FILENAME]
+    if badge_file:
         db.create_subscriber_history_table()  # also adds badges_json (migration 012)
         tracked_users = db.get_archived_author_names("voat")
         if tracked_users:
-            counts["badged_users"] = import_badges(db, files[BADGE_FILENAME], tracked_users)
+            counts["badged_users"] = import_badges(db, badge_file, tracked_users)
     return counts

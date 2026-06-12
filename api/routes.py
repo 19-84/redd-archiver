@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportCallIssue=false, reportOptionalSubscript=false
 # ABOUTME: REST API route handlers with comprehensive endpoint coverage for Redd Archiver
 # ABOUTME: Public API with CORS, rate limiting, pagination, and SQL injection protection
 

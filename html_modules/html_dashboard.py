@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportUndefinedVariable=false
 # ABOUTME: Dashboard and index system module for red-arch with Jinja2 templates
 # ABOUTME: Handles index page generation using clean Jinja2 template system
 

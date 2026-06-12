@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportCallIssue=false, reportOptionalMemberAccess=false
 """
 ABOUTME: Abstract base class for platform-specific importers
 ABOUTME: Defines unified interface for importing Reddit, Voat, and Ruqqus archives
@@ -31,7 +34,7 @@ class BaseImporter(ABC):
     - PLATFORM_ID: Platform identifier ('reddit', 'voat', 'ruqqus')
     """
 
-    PLATFORM_ID: str = None  # Must be set by subclass
+    PLATFORM_ID: str | None = None  # Must be set by subclass (validated in __init__)
 
     def __init__(self):
         """Initialize importer and validate configuration."""
