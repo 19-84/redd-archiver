@@ -138,12 +138,7 @@ class SubverseTracker:
 
             # Determine status
             days_since_last_post = (current_time - last_post_utc) / 86400
-            if last_post_utc < cutoff_utc:
-                status = "inactive"
-            elif days_since_last_post > 365:
-                status = "inactive"
-            else:
-                status = "active"
+            status = "inactive" if last_post_utc < cutoff_utc or days_since_last_post > 365 else "active"
 
             # Calculate percentages
             deleted_percentage = round((data.get("deleted_count", 0) / post_count) * 100, 1)

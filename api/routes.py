@@ -398,7 +398,7 @@ def get_truncation_params() -> tuple:
 
 
 def process_post_response(
-    post: dict, requested_fields: list[str] = None, max_body_length: int = None, include_body: bool = True
+    post: dict, requested_fields: list[str] | None = None, max_body_length: int | None = None, include_body: bool = True
 ) -> dict:
     """
     Process a post response with field selection and truncation.
@@ -430,7 +430,10 @@ def process_post_response(
 
 
 def process_comment_response(
-    comment: dict, requested_fields: list[str] = None, max_body_length: int = None, include_body: bool = True
+    comment: dict,
+    requested_fields: list[str] | None = None,
+    max_body_length: int | None = None,
+    include_body: bool = True,
 ) -> dict:
     """
     Process a comment response with field selection and truncation.
@@ -461,7 +464,7 @@ def process_comment_response(
     return result
 
 
-def process_user_response(user: dict, requested_fields: list[str] = None) -> dict:
+def process_user_response(user: dict, requested_fields: list[str] | None = None) -> dict:
     """
     Process a user response with field selection.
 
@@ -477,7 +480,7 @@ def process_user_response(user: dict, requested_fields: list[str] = None) -> dic
     return user
 
 
-def process_subreddit_response(subreddit: dict, requested_fields: list[str] = None) -> dict:
+def process_subreddit_response(subreddit: dict, requested_fields: list[str] | None = None) -> dict:
     """
     Process a subreddit response with field selection.
 
@@ -713,10 +716,9 @@ def get_stats():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get pre-calculated statistics from metadata table (fast!)
-                cur.execute("""
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get pre-calculated statistics from metadata table (fast!)
+            cur.execute("""
                     SELECT
                         subreddit,
                         platform,
@@ -734,68 +736,66 @@ def get_stats():
                     ORDER BY total_posts DESC
                 """)
 
-                subreddits = []
-                total_posts_sum = 0
-                total_comments_sum = 0
-                total_users_sum = 0
-                earliest_timestamp = None
-                latest_timestamp = None
+            subreddits = []
+            total_posts_sum = 0
+            total_comments_sum = 0
+            total_users_sum = 0
+            earliest_timestamp = None
+            latest_timestamp = None
 
-                for row in cur.fetchall():
-                    total_posts = row["total_posts"] or 0
-                    archived_posts = row["archived_posts"] or 0
+            for row in cur.fetchall():
+                total_posts = row["total_posts"] or 0
+                archived_posts = row["archived_posts"] or 0
 
-                    # Calculate coverage percentage
-                    coverage_pct = round((archived_posts / total_posts * 100), 1) if total_posts > 0 else 0
+                # Calculate coverage percentage
+                coverage_pct = round((archived_posts / total_posts * 100), 1) if total_posts > 0 else 0
 
-                    subreddits.append(
-                        {
-                            "name": row["subreddit"],
-                            "platform": row["platform"],
-                            "archived_posts": archived_posts,
-                            "total_posts": total_posts,
-                            "coverage_percentage": coverage_pct,
-                            "comments": row["total_comments"],
-                            "users": row["unique_users"],
-                            "avg_score": float(row["avg_post_score"]) if row["avg_post_score"] else 0,
-                            "is_banned": row["is_banned"] if row["is_banned"] is not None else False,
-                            "latest_date": format_unix_timestamp(row["latest_date"]) if row["latest_date"] else None,
-                        }
-                    )
-
-                    total_posts_sum += archived_posts  # Use archived, not total
-                    total_comments_sum += row["total_comments"] or 0
-                    total_users_sum += row["unique_users"] or 0
-
-                    if row["earliest_date"]:
-                        if earliest_timestamp is None or row["earliest_date"] < earliest_timestamp:
-                            earliest_timestamp = row["earliest_date"]
-
-                    if row["latest_date"]:
-                        if latest_timestamp is None or row["latest_date"] > latest_timestamp:
-                            latest_timestamp = row["latest_date"]
-
-                return jsonify(
+                subreddits.append(
                     {
-                        "archive_version": "1.0.0",
-                        "api_version": "1.0",
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "instance": get_instance_metadata(),
-                        "content": {
-                            "total_posts": total_posts_sum,
-                            "total_comments": total_comments_sum,
-                            "total_users": total_users_sum,
-                            "total_subreddits": len(subreddits),
-                            "subreddits": subreddits,
-                        },
-                        "date_range": {
-                            "earliest_post": format_unix_timestamp(earliest_timestamp) if earliest_timestamp else None,
-                            "latest_post": format_unix_timestamp(latest_timestamp) if latest_timestamp else None,
-                        },
-                        "features": get_enhanced_features(),
-                        "status": "operational",
+                        "name": row["subreddit"],
+                        "platform": row["platform"],
+                        "archived_posts": archived_posts,
+                        "total_posts": total_posts,
+                        "coverage_percentage": coverage_pct,
+                        "comments": row["total_comments"],
+                        "users": row["unique_users"],
+                        "avg_score": float(row["avg_post_score"]) if row["avg_post_score"] else 0,
+                        "is_banned": row["is_banned"] if row["is_banned"] is not None else False,
+                        "latest_date": format_unix_timestamp(row["latest_date"]) if row["latest_date"] else None,
                     }
-                ), 200
+                )
+
+                total_posts_sum += archived_posts  # Use archived, not total
+                total_comments_sum += row["total_comments"] or 0
+                total_users_sum += row["unique_users"] or 0
+
+                if row["earliest_date"] and (earliest_timestamp is None or row["earliest_date"] < earliest_timestamp):
+                    earliest_timestamp = row["earliest_date"]
+
+                if row["latest_date"] and (latest_timestamp is None or row["latest_date"] > latest_timestamp):
+                    latest_timestamp = row["latest_date"]
+
+            return jsonify(
+                {
+                    "archive_version": "1.0.0",
+                    "api_version": "1.0",
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "instance": get_instance_metadata(),
+                    "content": {
+                        "total_posts": total_posts_sum,
+                        "total_comments": total_comments_sum,
+                        "total_users": total_users_sum,
+                        "total_subreddits": len(subreddits),
+                        "subreddits": subreddits,
+                    },
+                    "date_range": {
+                        "earliest_post": format_unix_timestamp(earliest_timestamp) if earliest_timestamp else None,
+                        "latest_post": format_unix_timestamp(latest_timestamp) if latest_timestamp else None,
+                    },
+                    "features": get_enhanced_features(),
+                    "status": "operational",
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_stats")
@@ -814,10 +814,9 @@ def get_platforms():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get platform statistics
-                cur.execute("""
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get platform statistics
+            cur.execute("""
                     SELECT
                         platform,
                         COUNT(DISTINCT subreddit) as communities,
@@ -827,52 +826,52 @@ def get_platforms():
                     ORDER BY total_posts DESC
                 """)
 
-                platforms = []
-                for row in cur.fetchall():
-                    platform_id = row["platform"]
+            platforms = []
+            for row in cur.fetchall():
+                platform_id = row["platform"]
 
-                    # Get comment count for this platform
-                    cur.execute(
-                        """
+                # Get comment count for this platform
+                cur.execute(
+                    """
                         SELECT COUNT(*) as count FROM comments WHERE platform = %s
                     """,
-                        (platform_id,),
-                    )
-                    comment_count = cur.fetchone()["count"]
+                    (platform_id,),
+                )
+                comment_count = cur.fetchone()["count"]
 
-                    # Get user count for this platform
-                    cur.execute(
-                        """
+                # Get user count for this platform
+                cur.execute(
+                    """
                         SELECT COUNT(*) as count FROM users WHERE platform = %s
                     """,
-                        (platform_id,),
-                    )
-                    user_count = cur.fetchone()["count"]
+                    (platform_id,),
+                )
+                user_count = cur.fetchone()["count"]
 
-                    # Platform metadata
-                    platform_info = {
-                        "reddit": {"display_name": "Reddit", "community_term": "subreddit", "url_prefix": "r"},
-                        "voat": {"display_name": "Voat", "community_term": "subverse", "url_prefix": "v"},
-                        "ruqqus": {"display_name": "Ruqqus", "community_term": "guild", "url_prefix": "g"},
-                    }.get(
-                        platform_id,
-                        {"display_name": platform_id.title(), "community_term": "community", "url_prefix": "c"},
-                    )
+                # Platform metadata
+                platform_info = {
+                    "reddit": {"display_name": "Reddit", "community_term": "subreddit", "url_prefix": "r"},
+                    "voat": {"display_name": "Voat", "community_term": "subverse", "url_prefix": "v"},
+                    "ruqqus": {"display_name": "Ruqqus", "community_term": "guild", "url_prefix": "g"},
+                }.get(
+                    platform_id,
+                    {"display_name": platform_id.title(), "community_term": "community", "url_prefix": "c"},
+                )
 
-                    platforms.append(
-                        {
-                            "platform": platform_id,
-                            "display_name": platform_info["display_name"],
-                            "community_term": platform_info["community_term"],
-                            "url_prefix": platform_info["url_prefix"],
-                            "communities": row["communities"],
-                            "total_posts": row["total_posts"],
-                            "total_comments": comment_count,
-                            "total_users": user_count,
-                        }
-                    )
+                platforms.append(
+                    {
+                        "platform": platform_id,
+                        "display_name": platform_info["display_name"],
+                        "community_term": platform_info["community_term"],
+                        "url_prefix": platform_info["url_prefix"],
+                        "communities": row["communities"],
+                        "total_posts": row["total_posts"],
+                        "total_comments": comment_count,
+                        "total_users": user_count,
+                    }
+                )
 
-                return jsonify({"data": platforms}), 200
+            return jsonify({"data": platforms}), 200
 
     except Exception as e:
         format_user_error(e, "api_platforms")
@@ -924,49 +923,46 @@ def get_platform_communities(platform: str):
         db = get_db()
         offset = (page - 1) * limit
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total count
-                cur.execute(
-                    """
-                    SELECT COUNT(DISTINCT subreddit) as count
-                    FROM posts
-                    WHERE platform = %s
-                """,
-                    (platform,),
-                )
-                total_count = cur.fetchone()["count"]
-
-                # Get communities with statistics
-                query = f"""
-                    SELECT
-                        subreddit as name,
-                        COUNT(*) as post_count,
-                        (SELECT COUNT(*) FROM comments c WHERE c.subreddit = p.subreddit AND c.platform = %s) as comment_count
-                    FROM posts p
-                    WHERE platform = %s
-                    GROUP BY subreddit
-                    ORDER BY {order_by}
-                    LIMIT %s OFFSET %s
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total count
+            cur.execute(
                 """
-                cur.execute(query, (platform, platform, limit, offset))
+                SELECT COUNT(DISTINCT subreddit) as count
+                FROM posts
+                WHERE platform = %s
+            """,
+                (platform,),
+            )
+            total_count = cur.fetchone()["count"]
 
-                communities = []
-                for row in cur.fetchall():
-                    communities.append(
-                        {"name": row["name"], "posts": row["post_count"], "comments": row["comment_count"]}
-                    )
+            # Get communities with statistics
+            query = f"""
+                SELECT
+                    subreddit as name,
+                    COUNT(*) as post_count,
+                    (SELECT COUNT(*) FROM comments c WHERE c.subreddit = p.subreddit AND c.platform = %s) as comment_count
+                FROM posts p
+                WHERE platform = %s
+                GROUP BY subreddit
+                ORDER BY {order_by}
+                LIMIT %s OFFSET %s
+            """
+            cur.execute(query, (platform, platform, limit, offset))
 
-                return jsonify(
-                    build_pagination_response(
-                        data=communities,
-                        page=page,
-                        limit=limit,
-                        total=total_count,
-                        endpoint=f"/api/v1/platforms/{platform}/communities",
-                        sort=sort,
-                    )
-                ), 200
+            communities = []
+            for row in cur.fetchall():
+                communities.append({"name": row["name"], "posts": row["post_count"], "comments": row["comment_count"]})
+
+            return jsonify(
+                build_pagination_response(
+                    data=communities,
+                    page=page,
+                    limit=limit,
+                    total=total_count,
+                    endpoint=f"/api/v1/platforms/{platform}/communities",
+                    sort=sort,
+                )
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_platform_communities")
@@ -1053,37 +1049,36 @@ def get_posts():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Build WHERE clause dynamically with parameterized values
-                where_conditions = []
-                params = []
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Build WHERE clause dynamically with parameterized values
+            where_conditions = []
+            params = []
 
-                if sanitized["subreddit"]:
-                    where_conditions.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(sanitized["subreddit"])
+            if sanitized["subreddit"]:
+                where_conditions.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(sanitized["subreddit"])
 
-                if sanitized["author"]:
-                    where_conditions.append("author = %s")
-                    params.append(sanitized["author"])
+            if sanitized["author"]:
+                where_conditions.append("author = %s")
+                params.append(sanitized["author"])
 
-                if platform:
-                    where_conditions.append("platform = %s")
-                    params.append(platform)
+            if platform:
+                where_conditions.append("platform = %s")
+                params.append(platform)
 
-                if sanitized["min_score"] > 0:
-                    where_conditions.append("score >= %s")
-                    params.append(sanitized["min_score"])
+            if sanitized["min_score"] > 0:
+                where_conditions.append("score >= %s")
+                params.append(sanitized["min_score"])
 
-                where_clause = " AND ".join(where_conditions) if where_conditions else "TRUE"
+            where_clause = " AND ".join(where_conditions) if where_conditions else "TRUE"
 
-                # Get total count for pagination
-                count_query = f"SELECT COUNT(*) as count FROM posts WHERE {where_clause}"
-                cur.execute(count_query, tuple(params))
-                total_count = cur.fetchone()["count"]
+            # Get total count for pagination
+            count_query = f"SELECT COUNT(*) as count FROM posts WHERE {where_clause}"
+            cur.execute(count_query, tuple(params))
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated posts (ORDER BY is from whitelist, safe)
-                query = f"""
+            # Get paginated posts (ORDER BY is from whitelist, safe)
+            query = f"""
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            permalink, created_utc, score, num_comments, is_self, over_18, platform
                     FROM posts
@@ -1091,54 +1086,54 @@ def get_posts():
                     ORDER BY {order_by}
                     LIMIT %s OFFSET %s
                 """
-                params.extend([sanitized["limit"], offset])
-                cur.execute(query, tuple(params))
+            params.extend([sanitized["limit"], offset])
+            cur.execute(query, tuple(params))
 
-                posts = []
-                for row in cur.fetchall():
-                    post = {
-                        "id": row["id"],
-                        "platform": row["platform"],
-                        "subreddit": row["subreddit"],
-                        "author": row["author"],
-                        "title": row["title"],
-                        "selftext": row["selftext"],
-                        "url": row["url"],
-                        "domain": row["domain"],
-                        "permalink": row["permalink"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "score": row["score"],
-                        "num_comments": row["num_comments"],
-                        "is_self": row["is_self"],
-                        "nsfw": row["over_18"],
-                    }
-                    # Apply truncation and field selection
-                    post = process_post_response(post, requested_fields, max_body_length, include_body)
-                    posts.append(post)
+            posts = []
+            for row in cur.fetchall():
+                post = {
+                    "id": row["id"],
+                    "platform": row["platform"],
+                    "subreddit": row["subreddit"],
+                    "author": row["author"],
+                    "title": row["title"],
+                    "selftext": row["selftext"],
+                    "url": row["url"],
+                    "domain": row["domain"],
+                    "permalink": row["permalink"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "score": row["score"],
+                    "num_comments": row["num_comments"],
+                    "is_self": row["is_self"],
+                    "nsfw": row["over_18"],
+                }
+                # Apply truncation and field selection
+                post = process_post_response(post, requested_fields, max_body_length, include_body)
+                posts.append(post)
 
-                # Handle CSV/NDJSON export
-                if export_format in ("csv", "ndjson"):
-                    filename = f"posts_{sanitized['subreddit'] or 'all'}"
-                    return format_response(posts, export_format, filename), 200
+            # Handle CSV/NDJSON export
+            if export_format in ("csv", "ndjson"):
+                filename = f"posts_{sanitized['subreddit'] or 'all'}"
+                return format_response(posts, export_format, filename), 200
 
-                return jsonify(
-                    build_pagination_response(
-                        data=posts,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint="/api/v1/posts",
-                        subreddit=sanitized["subreddit"],
-                        author=sanitized["author"],
-                        platform=platform,
-                        min_score=sanitized["min_score"] if sanitized["min_score"] > 0 else None,
-                        sort=sort,
-                        fields=fields_param,
-                        max_body_length=max_body_length if max_body_length else None,
-                        include_body="false" if not include_body else None,
-                    )
-                ), 200
+            return jsonify(
+                build_pagination_response(
+                    data=posts,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint="/api/v1/posts",
+                    subreddit=sanitized["subreddit"],
+                    author=sanitized["author"],
+                    platform=platform,
+                    min_score=sanitized["min_score"] if sanitized["min_score"] > 0 else None,
+                    sort=sort,
+                    fields=fields_param,
+                    max_body_length=max_body_length if max_body_length else None,
+                    include_body="false" if not include_body else None,
+                )
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_posts")
@@ -1180,48 +1175,47 @@ def get_post(post_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            permalink, created_utc, score, num_comments, is_self, over_18,
                            locked, stickied, platform
                     FROM posts
                     WHERE id = %s
                 """,
-                    (post_id,),
-                )
+                (post_id,),
+            )
 
-                row = cur.fetchone()
+            row = cur.fetchone()
 
-                if not row:
-                    return jsonify({"error": "Post not found"}), 404
+            if not row:
+                return jsonify({"error": "Post not found"}), 404
 
-                post = {
-                    "id": row["id"],
-                    "subreddit": row["subreddit"],
-                    "author": row["author"],
-                    "title": row["title"],
-                    "selftext": row["selftext"],
-                    "url": row["url"],
-                    "domain": row["domain"],
-                    "permalink": row["permalink"],
-                    "created_utc": row["created_utc"],
-                    "created_at": format_unix_timestamp(row["created_utc"]),
-                    "score": row["score"],
-                    "num_comments": row["num_comments"],
-                    "is_self": row["is_self"],
-                    "nsfw": row["over_18"],
-                    "locked": row["locked"],
-                    "stickied": row["stickied"],
-                    "platform": row.get("platform", "reddit"),
-                }
+            post = {
+                "id": row["id"],
+                "subreddit": row["subreddit"],
+                "author": row["author"],
+                "title": row["title"],
+                "selftext": row["selftext"],
+                "url": row["url"],
+                "domain": row["domain"],
+                "permalink": row["permalink"],
+                "created_utc": row["created_utc"],
+                "created_at": format_unix_timestamp(row["created_utc"]),
+                "score": row["score"],
+                "num_comments": row["num_comments"],
+                "is_self": row["is_self"],
+                "nsfw": row["over_18"],
+                "locked": row["locked"],
+                "stickied": row["stickied"],
+                "platform": row.get("platform", "reddit"),
+            }
 
-                # Apply truncation and field selection
-                post = process_post_response(post, requested_fields, max_body_length, include_body)
+            # Apply truncation and field selection
+            post = process_post_response(post, requested_fields, max_body_length, include_body)
 
-                return jsonify(post), 200
+            return jsonify(post), 200
 
     except Exception as e:
         format_user_error(e, "api_post_single")
@@ -1276,15 +1270,14 @@ def get_post_comments(post_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total count
-                cur.execute("SELECT COUNT(*) as count FROM comments WHERE post_id = %s", (post_id,))
-                total_count = cur.fetchone()["count"]
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total count
+            cur.execute("SELECT COUNT(*) as count FROM comments WHERE post_id = %s", (post_id,))
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated comments
-                cur.execute(
-                    """
+            # Get paginated comments
+            cur.execute(
+                """
                     SELECT id, post_id, parent_id, author, body, permalink,
                            created_utc, score, depth
                     FROM comments
@@ -1292,39 +1285,39 @@ def get_post_comments(post_id: str):
                     ORDER BY created_utc ASC
                     LIMIT %s OFFSET %s
                 """,
-                    (post_id, sanitized["limit"], offset),
+                (post_id, sanitized["limit"], offset),
+            )
+
+            comments = []
+            for row in cur.fetchall():
+                comment = {
+                    "id": row["id"],
+                    "post_id": row["post_id"],
+                    "parent_id": row["parent_id"],
+                    "author": row["author"],
+                    "body": row["body"],
+                    "permalink": row["permalink"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "score": row["score"],
+                    "depth": row["depth"],
+                }
+                # Apply truncation and field selection
+                comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
+                comments.append(comment)
+
+            return jsonify(
+                build_pagination_response(
+                    data=comments,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint=f"/api/v1/posts/{post_id}/comments",
+                    fields=fields_param,
+                    max_body_length=max_body_length if max_body_length else None,
+                    include_body="false" if not include_body else None,
                 )
-
-                comments = []
-                for row in cur.fetchall():
-                    comment = {
-                        "id": row["id"],
-                        "post_id": row["post_id"],
-                        "parent_id": row["parent_id"],
-                        "author": row["author"],
-                        "body": row["body"],
-                        "permalink": row["permalink"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "score": row["score"],
-                        "depth": row["depth"],
-                    }
-                    # Apply truncation and field selection
-                    comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
-                    comments.append(comment)
-
-                return jsonify(
-                    build_pagination_response(
-                        data=comments,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint=f"/api/v1/posts/{post_id}/comments",
-                        fields=fields_param,
-                        max_body_length=max_body_length if max_body_length else None,
-                        include_body="false" if not include_body else None,
-                    )
-                ), 200
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_post_comments")
@@ -1398,37 +1391,36 @@ def get_comments():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Build WHERE clause
-                where_conditions = []
-                params = []
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Build WHERE clause
+            where_conditions = []
+            params = []
 
-                if sanitized["subreddit"]:
-                    where_conditions.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(sanitized["subreddit"])
+            if sanitized["subreddit"]:
+                where_conditions.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(sanitized["subreddit"])
 
-                if sanitized["author"]:
-                    where_conditions.append("author = %s")
-                    params.append(sanitized["author"])
+            if sanitized["author"]:
+                where_conditions.append("author = %s")
+                params.append(sanitized["author"])
 
-                if platform:
-                    where_conditions.append("platform = %s")
-                    params.append(platform)
+            if platform:
+                where_conditions.append("platform = %s")
+                params.append(platform)
 
-                if sanitized["min_score"] > 0:
-                    where_conditions.append("score >= %s")
-                    params.append(sanitized["min_score"])
+            if sanitized["min_score"] > 0:
+                where_conditions.append("score >= %s")
+                params.append(sanitized["min_score"])
 
-                where_clause = " AND ".join(where_conditions) if where_conditions else "TRUE"
+            where_clause = " AND ".join(where_conditions) if where_conditions else "TRUE"
 
-                # Get total count
-                count_query = f"SELECT COUNT(*) as count FROM comments WHERE {where_clause}"
-                cur.execute(count_query, tuple(params))
-                total_count = cur.fetchone()["count"]
+            # Get total count
+            count_query = f"SELECT COUNT(*) as count FROM comments WHERE {where_clause}"
+            cur.execute(count_query, tuple(params))
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated comments
-                query = f"""
+            # Get paginated comments
+            query = f"""
                     SELECT id, post_id, parent_id, subreddit, author, body, permalink,
                            created_utc, score, depth, platform
                     FROM comments
@@ -1436,50 +1428,50 @@ def get_comments():
                     ORDER BY created_utc DESC
                     LIMIT %s OFFSET %s
                 """
-                params.extend([sanitized["limit"], offset])
-                cur.execute(query, tuple(params))
+            params.extend([sanitized["limit"], offset])
+            cur.execute(query, tuple(params))
 
-                comments = []
-                for row in cur.fetchall():
-                    comment = {
-                        "id": row["id"],
-                        "platform": row["platform"],
-                        "post_id": row["post_id"],
-                        "parent_id": row["parent_id"],
-                        "subreddit": row["subreddit"],
-                        "author": row["author"],
-                        "body": row["body"],
-                        "permalink": row["permalink"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "score": row["score"],
-                        "depth": row["depth"],
-                    }
-                    # Apply truncation and field selection
-                    comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
-                    comments.append(comment)
+            comments = []
+            for row in cur.fetchall():
+                comment = {
+                    "id": row["id"],
+                    "platform": row["platform"],
+                    "post_id": row["post_id"],
+                    "parent_id": row["parent_id"],
+                    "subreddit": row["subreddit"],
+                    "author": row["author"],
+                    "body": row["body"],
+                    "permalink": row["permalink"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "score": row["score"],
+                    "depth": row["depth"],
+                }
+                # Apply truncation and field selection
+                comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
+                comments.append(comment)
 
-                # Handle CSV/NDJSON export
-                if export_format in ("csv", "ndjson"):
-                    filename = f"comments_{sanitized['subreddit'] or 'all'}"
-                    return format_response(comments, export_format, filename), 200
+            # Handle CSV/NDJSON export
+            if export_format in ("csv", "ndjson"):
+                filename = f"comments_{sanitized['subreddit'] or 'all'}"
+                return format_response(comments, export_format, filename), 200
 
-                return jsonify(
-                    build_pagination_response(
-                        data=comments,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint="/api/v1/comments",
-                        subreddit=sanitized["subreddit"],
-                        author=sanitized["author"],
-                        platform=platform,
-                        min_score=sanitized["min_score"] if sanitized["min_score"] > 0 else None,
-                        fields=fields_param,
-                        max_body_length=max_body_length if max_body_length != 500 else None,
-                        include_body="false" if not include_body else None,
-                    )
-                ), 200
+            return jsonify(
+                build_pagination_response(
+                    data=comments,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint="/api/v1/comments",
+                    subreddit=sanitized["subreddit"],
+                    author=sanitized["author"],
+                    platform=platform,
+                    min_score=sanitized["min_score"] if sanitized["min_score"] > 0 else None,
+                    fields=fields_param,
+                    max_body_length=max_body_length if max_body_length != 500 else None,
+                    include_body="false" if not include_body else None,
+                )
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_comments")
@@ -1521,41 +1513,40 @@ def get_comment(comment_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT id, post_id, parent_id, subreddit, author, body, permalink,
                            created_utc, score, depth
                     FROM comments
                     WHERE id = %s
                 """,
-                    (comment_id,),
-                )
+                (comment_id,),
+            )
 
-                row = cur.fetchone()
+            row = cur.fetchone()
 
-                if not row:
-                    return jsonify({"error": "Comment not found"}), 404
+            if not row:
+                return jsonify({"error": "Comment not found"}), 404
 
-                comment = {
-                    "id": row["id"],
-                    "post_id": row["post_id"],
-                    "parent_id": row["parent_id"],
-                    "subreddit": row["subreddit"],
-                    "author": row["author"],
-                    "body": row["body"],
-                    "permalink": row["permalink"],
-                    "created_utc": row["created_utc"],
-                    "created_at": format_unix_timestamp(row["created_utc"]),
-                    "score": row["score"],
-                    "depth": row["depth"],
-                }
+            comment = {
+                "id": row["id"],
+                "post_id": row["post_id"],
+                "parent_id": row["parent_id"],
+                "subreddit": row["subreddit"],
+                "author": row["author"],
+                "body": row["body"],
+                "permalink": row["permalink"],
+                "created_utc": row["created_utc"],
+                "created_at": format_unix_timestamp(row["created_utc"]),
+                "score": row["score"],
+                "depth": row["depth"],
+            }
 
-                # Apply truncation and field selection
-                comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
+            # Apply truncation and field selection
+            comment = process_comment_response(comment, requested_fields, max_body_length, include_body)
 
-                return jsonify(comment), 200
+            return jsonify(comment), 200
 
     except Exception as e:
         format_user_error(e, "api_comment_single")
@@ -1623,54 +1614,53 @@ def get_users():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total count
-                cur.execute("SELECT COUNT(*) as count FROM users")
-                total_count = cur.fetchone()["count"]
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total count
+            cur.execute("SELECT COUNT(*) as count FROM users")
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated users
-                query = f"""
+            # Get paginated users
+            query = f"""
                     SELECT username, post_count, comment_count, total_activity, total_karma,
                            first_seen_utc, last_seen_utc
                     FROM users
                     ORDER BY {order_by}
                     LIMIT %s OFFSET %s
                 """
-                cur.execute(query, (sanitized["limit"], offset))
+            cur.execute(query, (sanitized["limit"], offset))
 
-                users = []
-                for row in cur.fetchall():
-                    user = {
-                        "username": row["username"],
-                        "post_count": row["post_count"],
-                        "comment_count": row["comment_count"],
-                        "total_activity": row["total_activity"],
-                        "total_karma": row["total_karma"],
-                        "first_seen_utc": row["first_seen_utc"],
-                        "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
-                        "last_seen_utc": row["last_seen_utc"],
-                        "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
-                    }
-                    # Apply field selection
-                    user = process_user_response(user, requested_fields)
-                    users.append(user)
+            users = []
+            for row in cur.fetchall():
+                user = {
+                    "username": row["username"],
+                    "post_count": row["post_count"],
+                    "comment_count": row["comment_count"],
+                    "total_activity": row["total_activity"],
+                    "total_karma": row["total_karma"],
+                    "first_seen_utc": row["first_seen_utc"],
+                    "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
+                    "last_seen_utc": row["last_seen_utc"],
+                    "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
+                }
+                # Apply field selection
+                user = process_user_response(user, requested_fields)
+                users.append(user)
 
-                # Handle CSV/NDJSON export
-                if export_format in ("csv", "ndjson"):
-                    return format_response(users, export_format, "users"), 200
+            # Handle CSV/NDJSON export
+            if export_format in ("csv", "ndjson"):
+                return format_response(users, export_format, "users"), 200
 
-                return jsonify(
-                    build_pagination_response(
-                        data=users,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint="/api/v1/users",
-                        sort=sort,
-                        fields=fields_param,
-                    )
-                ), 200
+            return jsonify(
+                build_pagination_response(
+                    data=users,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint="/api/v1/users",
+                    sort=sort,
+                    fields=fields_param,
+                )
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_users")
@@ -1709,40 +1699,39 @@ def get_user(username: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT username, post_count, comment_count, total_activity, total_karma,
                            first_seen_utc, last_seen_utc, subreddit_activity
                     FROM users
                     WHERE username = %s
                 """,
-                    (username,),
-                )
+                (username,),
+            )
 
-                row = cur.fetchone()
+            row = cur.fetchone()
 
-                if not row:
-                    return jsonify({"error": "User not found"}), 404
+            if not row:
+                return jsonify({"error": "User not found"}), 404
 
-                user = {
-                    "username": row["username"],
-                    "post_count": row["post_count"],
-                    "comment_count": row["comment_count"],
-                    "total_activity": row["total_activity"],
-                    "total_karma": row["total_karma"],
-                    "first_seen_utc": row["first_seen_utc"],
-                    "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
-                    "last_seen_utc": row["last_seen_utc"],
-                    "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
-                    "subreddit_activity": row["subreddit_activity"] or {},
-                }
+            user = {
+                "username": row["username"],
+                "post_count": row["post_count"],
+                "comment_count": row["comment_count"],
+                "total_activity": row["total_activity"],
+                "total_karma": row["total_karma"],
+                "first_seen_utc": row["first_seen_utc"],
+                "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
+                "last_seen_utc": row["last_seen_utc"],
+                "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
+                "subreddit_activity": row["subreddit_activity"] or {},
+            }
 
-                # Apply field selection
-                user = process_user_response(user, requested_fields)
+            # Apply field selection
+            user = process_user_response(user, requested_fields)
 
-                return jsonify(user), 200
+            return jsonify(user), 200
 
     except Exception as e:
         format_user_error(e, "api_user_single")
@@ -1794,52 +1783,51 @@ def get_user_posts(username: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total count
-                cur.execute("SELECT COUNT(*) as count FROM posts WHERE author = %s", (username,))
-                total_count = cur.fetchone()["count"]
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total count
+            cur.execute("SELECT COUNT(*) as count FROM posts WHERE author = %s", (username,))
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated posts
-                cur.execute(
-                    """
+            # Get paginated posts
+            cur.execute(
+                """
                     SELECT id, subreddit, title, url, permalink, created_utc, score, num_comments
                     FROM posts
                     WHERE author = %s
                     ORDER BY created_utc DESC
                     LIMIT %s OFFSET %s
                 """,
-                    (username, sanitized["limit"], offset),
+                (username, sanitized["limit"], offset),
+            )
+
+            posts = []
+            for row in cur.fetchall():
+                post = {
+                    "id": row["id"],
+                    "subreddit": row["subreddit"],
+                    "title": row["title"],
+                    "url": row["url"],
+                    "permalink": row["permalink"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "score": row["score"],
+                    "num_comments": row["num_comments"],
+                }
+                # Apply field selection (no body to truncate in this endpoint)
+                if requested_fields:
+                    post = filter_fields(post, requested_fields, VALID_POST_FIELDS)
+                posts.append(post)
+
+            return jsonify(
+                build_pagination_response(
+                    data=posts,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint=f"/api/v1/users/{username}/posts",
+                    fields=fields_param,
                 )
-
-                posts = []
-                for row in cur.fetchall():
-                    post = {
-                        "id": row["id"],
-                        "subreddit": row["subreddit"],
-                        "title": row["title"],
-                        "url": row["url"],
-                        "permalink": row["permalink"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "score": row["score"],
-                        "num_comments": row["num_comments"],
-                    }
-                    # Apply field selection (no body to truncate in this endpoint)
-                    if requested_fields:
-                        post = filter_fields(post, requested_fields, VALID_POST_FIELDS)
-                    posts.append(post)
-
-                return jsonify(
-                    build_pagination_response(
-                        data=posts,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint=f"/api/v1/users/{username}/posts",
-                        fields=fields_param,
-                    )
-                ), 200
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_user_posts")
@@ -1894,15 +1882,14 @@ def get_user_comments(username: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total count
-                cur.execute("SELECT COUNT(*) as count FROM comments WHERE author = %s", (username,))
-                total_count = cur.fetchone()["count"]
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total count
+            cur.execute("SELECT COUNT(*) as count FROM comments WHERE author = %s", (username,))
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated comments
-                cur.execute(
-                    """
+            # Get paginated comments
+            cur.execute(
+                """
                     SELECT id, post_id, parent_id, subreddit, author, body, permalink,
                            created_utc, score, depth
                     FROM comments
@@ -1910,41 +1897,39 @@ def get_user_comments(username: str):
                     ORDER BY created_utc DESC
                     LIMIT %s OFFSET %s
                 """,
-                    (username, sanitized["limit"], offset),
+                (username, sanitized["limit"], offset),
+            )
+
+            comments = []
+            for row in cur.fetchall():
+                comment_data = {
+                    "id": row["id"],
+                    "post_id": row["post_id"],
+                    "parent_id": row["parent_id"],
+                    "subreddit": row["subreddit"],
+                    "author": row["author"],
+                    "body": row["body"],
+                    "body_length": len(row["body"]) if row["body"] else 0,
+                    "permalink": row["permalink"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "score": row["score"],
+                    "depth": row["depth"],
+                }
+                # Apply truncation and field selection
+                comment_data = process_comment_response(comment_data, requested_fields, max_body_length, include_body)
+                comments.append(comment_data)
+
+            return jsonify(
+                build_pagination_response(
+                    data=comments,
+                    page=page,
+                    limit=sanitized["limit"],
+                    total=total_count,
+                    endpoint=f"/api/v1/users/{username}/comments",
+                    fields=fields_param,
                 )
-
-                comments = []
-                for row in cur.fetchall():
-                    comment_data = {
-                        "id": row["id"],
-                        "post_id": row["post_id"],
-                        "parent_id": row["parent_id"],
-                        "subreddit": row["subreddit"],
-                        "author": row["author"],
-                        "body": row["body"],
-                        "body_length": len(row["body"]) if row["body"] else 0,
-                        "permalink": row["permalink"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "score": row["score"],
-                        "depth": row["depth"],
-                    }
-                    # Apply truncation and field selection
-                    comment_data = process_comment_response(
-                        comment_data, requested_fields, max_body_length, include_body
-                    )
-                    comments.append(comment_data)
-
-                return jsonify(
-                    build_pagination_response(
-                        data=comments,
-                        page=page,
-                        limit=sanitized["limit"],
-                        total=total_count,
-                        endpoint=f"/api/v1/users/{username}/comments",
-                        fields=fields_param,
-                    )
-                ), 200
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_user_comments")
@@ -1993,10 +1978,9 @@ def get_subreddits():
 
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get total posts and comments per subreddit (unfiltered)
-                cur.execute("""
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get total posts and comments per subreddit (unfiltered)
+            cur.execute("""
                     SELECT
                         p.subreddit,
                         COUNT(DISTINCT p.id) as post_count,
@@ -2007,47 +1991,47 @@ def get_subreddits():
                     ORDER BY post_count DESC
                 """)
 
-                subreddits = []
-                for row in cur.fetchall():
-                    subreddit_data = {
-                        "name": row["subreddit"],
-                        "total_posts": row["post_count"],
-                        "total_comments": row["comment_count"],
-                    }
+            subreddits = []
+            for row in cur.fetchall():
+                subreddit_data = {
+                    "name": row["subreddit"],
+                    "total_posts": row["post_count"],
+                    "total_comments": row["comment_count"],
+                }
 
-                    # Get stored filters for this subreddit
-                    stored_filters = db.get_subreddit_filters(row["subreddit"])
+                # Get stored filters for this subreddit
+                stored_filters = db.get_subreddit_filters(row["subreddit"])
 
-                    # Use query params as override, otherwise use stored filters
-                    effective_min_score = min_score if min_score > 0 else stored_filters["min_score"]
-                    effective_min_comments = min_comments if min_comments > 0 else stored_filters["min_comments"]
+                # Use query params as override, otherwise use stored filters
+                effective_min_score = min_score if min_score > 0 else stored_filters["min_score"]
+                effective_min_comments = min_comments if min_comments > 0 else stored_filters["min_comments"]
 
-                    # Add filter info to response (only show the effective filters being applied)
-                    subreddit_data["filters"] = {
-                        "min_score": effective_min_score,
-                        "min_comments": effective_min_comments,
-                    }
+                # Add filter info to response (only show the effective filters being applied)
+                subreddit_data["filters"] = {
+                    "min_score": effective_min_score,
+                    "min_comments": effective_min_comments,
+                }
 
-                    # If filters applied (either from query or stored), get filtered counts
-                    if effective_min_score > 0 or effective_min_comments > 0:
-                        # Get filtered post count
-                        cur.execute(
-                            """
+                # If filters applied (either from query or stored), get filtered counts
+                if effective_min_score > 0 or effective_min_comments > 0:
+                    # Get filtered post count
+                    cur.execute(
+                        """
                             SELECT COUNT(*) as filtered_count
                             FROM posts
                             WHERE LOWER(subreddit) = LOWER(%s)
                             AND score >= %s
                             AND num_comments >= %s
                         """,
-                            (row["subreddit"], effective_min_score, effective_min_comments),
-                        )
+                        (row["subreddit"], effective_min_score, effective_min_comments),
+                    )
 
-                        filtered_row = cur.fetchone()
-                        subreddit_data["filtered_posts"] = filtered_row["filtered_count"]
+                    filtered_row = cur.fetchone()
+                    subreddit_data["filtered_posts"] = filtered_row["filtered_count"]
 
-                        # Get filtered comment count (only comments from filtered posts)
-                        cur.execute(
-                            """
+                    # Get filtered comment count (only comments from filtered posts)
+                    cur.execute(
+                        """
                             SELECT COUNT(*) as comment_count
                             FROM comments c
                             INNER JOIN posts p ON c.post_id = p.id
@@ -2055,27 +2039,27 @@ def get_subreddits():
                             AND p.score >= %s
                             AND p.num_comments >= %s
                         """,
-                            (row["subreddit"], effective_min_score, effective_min_comments),
-                        )
+                        (row["subreddit"], effective_min_score, effective_min_comments),
+                    )
 
-                        filtered_comment_row = cur.fetchone()
-                        subreddit_data["filtered_comments"] = filtered_comment_row["comment_count"]
-                    else:
-                        # No filters - filtered counts same as totals
-                        subreddit_data["filtered_posts"] = row["post_count"]
-                        subreddit_data["filtered_comments"] = row["comment_count"]
+                    filtered_comment_row = cur.fetchone()
+                    subreddit_data["filtered_comments"] = filtered_comment_row["comment_count"]
+                else:
+                    # No filters - filtered counts same as totals
+                    subreddit_data["filtered_posts"] = row["post_count"]
+                    subreddit_data["filtered_comments"] = row["comment_count"]
 
-                    # Apply field selection
-                    subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
-                    subreddits.append(subreddit_data)
+                # Apply field selection
+                subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
+                subreddits.append(subreddit_data)
 
-                # Handle CSV/NDJSON export
-                if export_format in ("csv", "ndjson"):
-                    return format_response(subreddits, export_format, "subreddits"), 200
+            # Handle CSV/NDJSON export
+            if export_format in ("csv", "ndjson"):
+                return format_response(subreddits, export_format, "subreddits"), 200
 
-                response = {"data": subreddits, "meta": {"total": len(subreddits), "fields": fields_param}}
+            response = {"data": subreddits, "meta": {"total": len(subreddits), "fields": fields_param}}
 
-                return jsonify(response), 200
+            return jsonify(response), 200
 
     except Exception as e:
         format_user_error(e, "api_subreddits")
@@ -2118,39 +2102,38 @@ def get_subreddit(subreddit: str):
         # below so we never hold two pool connections at once
         enrichment = get_subreddit_enrichment_fields(db, subreddit)
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Try to get from subreddit_statistics table first
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Try to get from subreddit_statistics table first
+            cur.execute(
+                """
                     SELECT total_posts, total_comments, unique_users,
                            earliest_date, latest_date, avg_post_score
                     FROM subreddit_statistics
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
+                (subreddit,),
+            )
 
-                stats_row = cur.fetchone()
+            stats_row = cur.fetchone()
 
-                if stats_row:
-                    subreddit_data = {
-                        "name": subreddit,
-                        "total_posts": stats_row["total_posts"],
-                        "total_comments": stats_row["total_comments"],
-                        "unique_users": stats_row["unique_users"],
-                        "earliest_post": format_unix_timestamp(stats_row["earliest_date"]),
-                        "latest_post": format_unix_timestamp(stats_row["latest_date"]),
-                        "avg_post_score": float(stats_row["avg_post_score"]) if stats_row["avg_post_score"] else 0,
-                        **enrichment,
-                    }
-                    # Apply field selection
-                    subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
-                    return jsonify(subreddit_data), 200
+            if stats_row:
+                subreddit_data = {
+                    "name": subreddit,
+                    "total_posts": stats_row["total_posts"],
+                    "total_comments": stats_row["total_comments"],
+                    "unique_users": stats_row["unique_users"],
+                    "earliest_post": format_unix_timestamp(stats_row["earliest_date"]),
+                    "latest_post": format_unix_timestamp(stats_row["latest_date"]),
+                    "avg_post_score": float(stats_row["avg_post_score"]) if stats_row["avg_post_score"] else 0,
+                    **enrichment,
+                }
+                # Apply field selection
+                subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
+                return jsonify(subreddit_data), 200
 
-                # Fallback: Calculate stats on-the-fly
-                cur.execute(
-                    """
+            # Fallback: Calculate stats on-the-fly
+            cur.execute(
+                """
                     SELECT
                         COUNT(*) as post_count,
                         COUNT(DISTINCT author) as user_count,
@@ -2160,39 +2143,39 @@ def get_subreddit(subreddit: str):
                     FROM posts
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
+                (subreddit,),
+            )
 
-                row = cur.fetchone()
+            row = cur.fetchone()
 
-                if row["post_count"] == 0:
-                    return jsonify({"error": "Subreddit not found"}), 404
+            if row["post_count"] == 0:
+                return jsonify({"error": "Subreddit not found"}), 404
 
-                # Get comment count
-                cur.execute(
-                    """
+            # Get comment count
+            cur.execute(
+                """
                     SELECT COUNT(*) as comment_count
                     FROM comments
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
+                (subreddit,),
+            )
 
-                comment_count = cur.fetchone()["comment_count"]
+            comment_count = cur.fetchone()["comment_count"]
 
-                subreddit_data = {
-                    "name": subreddit,
-                    "total_posts": row["post_count"],
-                    "total_comments": comment_count,
-                    "unique_users": row["user_count"],
-                    "earliest_post": format_unix_timestamp(row["earliest"]),
-                    "latest_post": format_unix_timestamp(row["latest"]),
-                    "avg_post_score": float(row["avg_score"]) if row["avg_score"] else 0,
-                    **enrichment,
-                }
-                # Apply field selection
-                subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
-                return jsonify(subreddit_data), 200
+            subreddit_data = {
+                "name": subreddit,
+                "total_posts": row["post_count"],
+                "total_comments": comment_count,
+                "unique_users": row["user_count"],
+                "earliest_post": format_unix_timestamp(row["earliest"]),
+                "latest_post": format_unix_timestamp(row["latest"]),
+                "avg_post_score": float(row["avg_score"]) if row["avg_score"] else 0,
+                **enrichment,
+            }
+            # Apply field selection
+            subreddit_data = process_subreddit_response(subreddit_data, requested_fields)
+            return jsonify(subreddit_data), 200
 
     except Exception as e:
         format_user_error(e, "api_subreddit_single")
@@ -2746,42 +2729,41 @@ def api_posts_aggregate():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Set query timeout for expensive operations
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Set query timeout for expensive operations
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Build query based on group_by
-                if group_by == "created_utc":
-                    # Time-based grouping
-                    select_key = f"date_trunc('{frequency}', to_timestamp(created_utc)) as key"
-                    group_key = "1"
-                    order_by = "key ASC"
-                else:
-                    select_key = f"{group_by} as key"
-                    group_key = group_by
-                    order_by = "count DESC"
+            # Build query based on group_by
+            if group_by == "created_utc":
+                # Time-based grouping
+                select_key = f"date_trunc('{frequency}', to_timestamp(created_utc)) as key"
+                group_key = "1"
+                order_by = "key ASC"
+            else:
+                select_key = f"{group_by} as key"
+                group_key = group_by
+                order_by = "count DESC"
 
-                # Build WHERE clauses
-                where_clauses = []
-                params = []
+            # Build WHERE clauses
+            where_clauses = []
+            params = []
 
-                if subreddit:
-                    where_clauses.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(subreddit)
-                if author:
-                    where_clauses.append("author = %s")
-                    params.append(author)
-                if after:
-                    where_clauses.append("created_utc >= %s")
-                    params.append(after)
-                if before:
-                    where_clauses.append("created_utc <= %s")
-                    params.append(before)
+            if subreddit:
+                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(subreddit)
+            if author:
+                where_clauses.append("author = %s")
+                params.append(author)
+            if after:
+                where_clauses.append("created_utc >= %s")
+                params.append(after)
+            if before:
+                where_clauses.append("created_utc <= %s")
+                params.append(before)
 
-                where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-                query = f"""
+            query = f"""
                     SELECT {select_key},
                            COUNT(*) as count,
                            SUM(score) as sum_score,
@@ -2794,40 +2776,40 @@ def api_posts_aggregate():
                     ORDER BY {order_by}
                     LIMIT %s
                 """
-                params.extend([min_count, limit])
+            params.extend([min_count, limit])
 
-                cur.execute(query, params)
-                rows = cur.fetchall()
+            cur.execute(query, params)
+            rows = cur.fetchall()
 
-                results = []
-                for row in rows:
-                    result = {
-                        "key": str(row["key"]) if row["key"] else None,
-                        "count": row["count"],
-                        "sum_score": row["sum_score"],
-                        "avg_score": float(row["avg_score"]) if row["avg_score"] else 0,
-                        "sum_comments": row["sum_comments"],
-                    }
-                    results.append(result)
+            results = []
+            for row in rows:
+                result = {
+                    "key": str(row["key"]) if row["key"] else None,
+                    "count": row["count"],
+                    "sum_score": row["sum_score"],
+                    "avg_score": float(row["avg_score"]) if row["avg_score"] else 0,
+                    "sum_comments": row["sum_comments"],
+                }
+                results.append(result)
 
-                return jsonify(
-                    {
-                        "data": results,
-                        "meta": {
-                            "group_by": group_by,
-                            "frequency": frequency if group_by == "created_utc" else None,
-                            "filters": {
-                                "subreddit": subreddit,
-                                "author": author,
-                                "after": after,
-                                "before": before,
-                                "min_count": min_count,
-                            },
-                            "total_results": len(results),
-                            "limit": limit,
+            return jsonify(
+                {
+                    "data": results,
+                    "meta": {
+                        "group_by": group_by,
+                        "frequency": frequency if group_by == "created_utc" else None,
+                        "filters": {
+                            "subreddit": subreddit,
+                            "author": author,
+                            "after": after,
+                            "before": before,
+                            "min_count": min_count,
                         },
-                    }
-                ), 200
+                        "total_results": len(results),
+                        "limit": limit,
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_posts_aggregate")
@@ -2882,41 +2864,40 @@ def api_comments_aggregate():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Set query timeout
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Set query timeout
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Build query based on group_by
-                if group_by == "created_utc":
-                    select_key = f"date_trunc('{frequency}', to_timestamp(created_utc)) as key"
-                    group_key = "1"
-                    order_by = "key ASC"
-                else:
-                    select_key = f"{group_by} as key"
-                    group_key = group_by
-                    order_by = "count DESC"
+            # Build query based on group_by
+            if group_by == "created_utc":
+                select_key = f"date_trunc('{frequency}', to_timestamp(created_utc)) as key"
+                group_key = "1"
+                order_by = "key ASC"
+            else:
+                select_key = f"{group_by} as key"
+                group_key = group_by
+                order_by = "count DESC"
 
-                # Build WHERE clauses
-                where_clauses = []
-                params = []
+            # Build WHERE clauses
+            where_clauses = []
+            params = []
 
-                if subreddit:
-                    where_clauses.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(subreddit)
-                if author:
-                    where_clauses.append("author = %s")
-                    params.append(author)
-                if after:
-                    where_clauses.append("created_utc >= %s")
-                    params.append(after)
-                if before:
-                    where_clauses.append("created_utc <= %s")
-                    params.append(before)
+            if subreddit:
+                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(subreddit)
+            if author:
+                where_clauses.append("author = %s")
+                params.append(author)
+            if after:
+                where_clauses.append("created_utc >= %s")
+                params.append(after)
+            if before:
+                where_clauses.append("created_utc <= %s")
+                params.append(before)
 
-                where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-                query = f"""
+            query = f"""
                     SELECT {select_key},
                            COUNT(*) as count,
                            SUM(score) as sum_score,
@@ -2928,39 +2909,39 @@ def api_comments_aggregate():
                     ORDER BY {order_by}
                     LIMIT %s
                 """
-                params.extend([min_count, limit])
+            params.extend([min_count, limit])
 
-                cur.execute(query, params)
-                rows = cur.fetchall()
+            cur.execute(query, params)
+            rows = cur.fetchall()
 
-                results = []
-                for row in rows:
-                    result = {
-                        "key": str(row["key"]) if row["key"] else None,
-                        "count": row["count"],
-                        "sum_score": row["sum_score"],
-                        "avg_score": float(row["avg_score"]) if row["avg_score"] else 0,
-                    }
-                    results.append(result)
+            results = []
+            for row in rows:
+                result = {
+                    "key": str(row["key"]) if row["key"] else None,
+                    "count": row["count"],
+                    "sum_score": row["sum_score"],
+                    "avg_score": float(row["avg_score"]) if row["avg_score"] else 0,
+                }
+                results.append(result)
 
-                return jsonify(
-                    {
-                        "data": results,
-                        "meta": {
-                            "group_by": group_by,
-                            "frequency": frequency if group_by == "created_utc" else None,
-                            "filters": {
-                                "subreddit": subreddit,
-                                "author": author,
-                                "after": after,
-                                "before": before,
-                                "min_count": min_count,
-                            },
-                            "total_results": len(results),
-                            "limit": limit,
+            return jsonify(
+                {
+                    "data": results,
+                    "meta": {
+                        "group_by": group_by,
+                        "frequency": frequency if group_by == "created_utc" else None,
+                        "filters": {
+                            "subreddit": subreddit,
+                            "author": author,
+                            "after": after,
+                            "before": before,
+                            "min_count": min_count,
                         },
-                    }
-                ), 200
+                        "total_results": len(results),
+                        "limit": limit,
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_comments_aggregate")
@@ -3012,72 +2993,71 @@ def api_users_aggregate():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Build WHERE clauses
-                where_clauses = ["post_count >= %s", "comment_count >= %s", "total_activity >= %s"]
-                params = [min_posts, min_comments, min_total]
+            # Build WHERE clauses
+            where_clauses = ["post_count >= %s", "comment_count >= %s", "total_activity >= %s"]
+            params = [min_posts, min_comments, min_total]
 
-                if subreddit:
-                    # If filtering by subreddit, need a different approach
-                    # For now, just filter from the users table if subreddit activity exists
-                    where_clauses.append("subreddit_activity ? %s")
-                    params.append(subreddit.lower())
+            if subreddit:
+                # If filtering by subreddit, need a different approach
+                # For now, just filter from the users table if subreddit activity exists
+                where_clauses.append("subreddit_activity ? %s")
+                params.append(subreddit.lower())
 
-                where_sql = " AND ".join(where_clauses)
+            where_sql = " AND ".join(where_clauses)
 
-                # Count total
-                count_query = f"""
+            # Count total
+            count_query = f"""
                     SELECT COUNT(*) as count FROM users WHERE {where_sql}
                 """
-                cur.execute(count_query, params)
-                total_count = cur.fetchone()["count"]
+            cur.execute(count_query, params)
+            total_count = cur.fetchone()["count"]
 
-                # Get paginated results
-                query = f"""
+            # Get paginated results
+            query = f"""
                     SELECT username, post_count, comment_count, total_activity, total_karma
                     FROM users
                     WHERE {where_sql}
                     ORDER BY {sort_column} {sort_dir}
                     LIMIT %s OFFSET %s
                 """
-                params.extend([limit, offset])
-                cur.execute(query, params)
-                rows = cur.fetchall()
+            params.extend([limit, offset])
+            cur.execute(query, params)
+            rows = cur.fetchall()
 
-                results = []
-                for row in rows:
-                    results.append(
-                        {
-                            "username": row["username"],
-                            "post_count": row["post_count"],
-                            "comment_count": row["comment_count"],
-                            "total_activity": row["total_activity"],
-                            "total_karma": row["total_karma"],
-                        }
-                    )
-
-                return jsonify(
+            results = []
+            for row in rows:
+                results.append(
                     {
-                        "data": results,
-                        "meta": {
-                            "filters": {
-                                "subreddit": subreddit,
-                                "min_posts": min_posts,
-                                "min_comments": min_comments,
-                                "min_total": min_total,
-                            },
-                            "sort_by": sort_by,
-                            "sort": sort_order,
-                            "total": total_count,
-                            "page": page,
-                            "limit": limit,
-                            "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 1,
-                        },
+                        "username": row["username"],
+                        "post_count": row["post_count"],
+                        "comment_count": row["comment_count"],
+                        "total_activity": row["total_activity"],
+                        "total_karma": row["total_karma"],
                     }
-                ), 200
+                )
+
+            return jsonify(
+                {
+                    "data": results,
+                    "meta": {
+                        "filters": {
+                            "subreddit": subreddit,
+                            "min_posts": min_posts,
+                            "min_comments": min_comments,
+                            "min_total": min_total,
+                        },
+                        "sort_by": sort_by,
+                        "sort": sort_order,
+                        "total": total_count,
+                        "page": page,
+                        "limit": limit,
+                        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 1,
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_users_aggregate")
@@ -3133,53 +3113,52 @@ def api_posts_batch():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            score, num_comments, created_utc, permalink,
                            is_self, over_18, locked, stickied
                     FROM posts
                     WHERE id = ANY(%s)
                 """,
-                    (ids,),
-                )
+                (ids,),
+            )
 
-                found_ids = set()
-                posts = []
-                for row in cur.fetchall():
-                    found_ids.add(row["id"])
-                    post_data = {
-                        "id": row["id"],
-                        "subreddit": row["subreddit"],
-                        "author": row["author"],
-                        "title": row["title"],
-                        "selftext": row["selftext"],
-                        "url": row["url"],
-                        "domain": row["domain"],
-                        "score": row["score"],
-                        "num_comments": row["num_comments"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "permalink": row["permalink"],
-                        "is_self": row["is_self"],
-                        "nsfw": row["over_18"],
-                        "locked": row["locked"],
-                        "stickied": row["stickied"],
-                    }
-                    post_data = process_post_response(post_data, requested_fields, max_body_length, include_body)
-                    posts.append(post_data)
+            found_ids = set()
+            posts = []
+            for row in cur.fetchall():
+                found_ids.add(row["id"])
+                post_data = {
+                    "id": row["id"],
+                    "subreddit": row["subreddit"],
+                    "author": row["author"],
+                    "title": row["title"],
+                    "selftext": row["selftext"],
+                    "url": row["url"],
+                    "domain": row["domain"],
+                    "score": row["score"],
+                    "num_comments": row["num_comments"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "permalink": row["permalink"],
+                    "is_self": row["is_self"],
+                    "nsfw": row["over_18"],
+                    "locked": row["locked"],
+                    "stickied": row["stickied"],
+                }
+                post_data = process_post_response(post_data, requested_fields, max_body_length, include_body)
+                posts.append(post_data)
 
-                not_found = [id for id in ids if id not in found_ids]
+            not_found = [id for id in ids if id not in found_ids]
 
-                return jsonify(
-                    {
-                        "data": posts,
-                        "not_found": not_found,
-                        "meta": {"requested": len(ids), "found": len(posts), "not_found": len(not_found)},
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "data": posts,
+                    "not_found": not_found,
+                    "meta": {"requested": len(ids), "found": len(posts), "not_found": len(not_found)},
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_posts_batch")
@@ -3228,49 +3207,46 @@ def api_comments_batch():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT id, post_id, parent_id, author, body, score,
                            created_utc, subreddit, permalink, depth
                     FROM comments
                     WHERE id = ANY(%s)
                 """,
-                    (ids,),
-                )
+                (ids,),
+            )
 
-                found_ids = set()
-                comments = []
-                for row in cur.fetchall():
-                    found_ids.add(row["id"])
-                    comment_data = {
-                        "id": row["id"],
-                        "post_id": row["post_id"],
-                        "parent_id": row["parent_id"],
-                        "author": row["author"],
-                        "body": row["body"],
-                        "score": row["score"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "subreddit": row["subreddit"],
-                        "permalink": row["permalink"],
-                        "depth": row["depth"],
-                    }
-                    comment_data = process_comment_response(
-                        comment_data, requested_fields, max_body_length, include_body
-                    )
-                    comments.append(comment_data)
+            found_ids = set()
+            comments = []
+            for row in cur.fetchall():
+                found_ids.add(row["id"])
+                comment_data = {
+                    "id": row["id"],
+                    "post_id": row["post_id"],
+                    "parent_id": row["parent_id"],
+                    "author": row["author"],
+                    "body": row["body"],
+                    "score": row["score"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "subreddit": row["subreddit"],
+                    "permalink": row["permalink"],
+                    "depth": row["depth"],
+                }
+                comment_data = process_comment_response(comment_data, requested_fields, max_body_length, include_body)
+                comments.append(comment_data)
 
-                not_found = [id for id in ids if id not in found_ids]
+            not_found = [id for id in ids if id not in found_ids]
 
-                return jsonify(
-                    {
-                        "data": comments,
-                        "not_found": not_found,
-                        "meta": {"requested": len(ids), "found": len(comments), "not_found": len(not_found)},
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "data": comments,
+                    "not_found": not_found,
+                    "meta": {"requested": len(ids), "found": len(comments), "not_found": len(not_found)},
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_comments_batch")
@@ -3316,45 +3292,44 @@ def api_users_batch():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
                     SELECT username, post_count, comment_count, total_activity,
                            total_karma, first_seen_utc, last_seen_utc
                     FROM users
                     WHERE username = ANY(%s)
                 """,
-                    (usernames,),
-                )
+                (usernames,),
+            )
 
-                found_usernames = set()
-                users = []
-                for row in cur.fetchall():
-                    found_usernames.add(row["username"])
-                    user_data = {
-                        "username": row["username"],
-                        "post_count": row["post_count"],
-                        "comment_count": row["comment_count"],
-                        "total_activity": row["total_activity"],
-                        "total_karma": row["total_karma"],
-                        "first_seen_utc": row["first_seen_utc"],
-                        "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
-                        "last_seen_utc": row["last_seen_utc"],
-                        "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
-                    }
-                    user_data = process_user_response(user_data, requested_fields)
-                    users.append(user_data)
+            found_usernames = set()
+            users = []
+            for row in cur.fetchall():
+                found_usernames.add(row["username"])
+                user_data = {
+                    "username": row["username"],
+                    "post_count": row["post_count"],
+                    "comment_count": row["comment_count"],
+                    "total_activity": row["total_activity"],
+                    "total_karma": row["total_karma"],
+                    "first_seen_utc": row["first_seen_utc"],
+                    "first_seen_at": format_unix_timestamp(row["first_seen_utc"]),
+                    "last_seen_utc": row["last_seen_utc"],
+                    "last_seen_at": format_unix_timestamp(row["last_seen_utc"]),
+                }
+                user_data = process_user_response(user_data, requested_fields)
+                users.append(user_data)
 
-                not_found = [username for username in usernames if username not in found_usernames]
+            not_found = [username for username in usernames if username not in found_usernames]
 
-                return jsonify(
-                    {
-                        "data": users,
-                        "not_found": not_found,
-                        "meta": {"requested": len(usernames), "found": len(users), "not_found": len(not_found)},
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "data": users,
+                    "not_found": not_found,
+                    "meta": {"requested": len(usernames), "found": len(users), "not_found": len(not_found)},
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_users_batch")
@@ -3400,76 +3375,75 @@ def api_post_context(post_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Get the post
-                cur.execute(
-                    """
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Get the post
+            cur.execute(
+                """
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            score, num_comments, created_utc, permalink,
                            is_self, over_18, locked, stickied, platform
                     FROM posts WHERE id = %s
                 """,
-                    (post_id,),
-                )
+                (post_id,),
+            )
 
-                post_row = cur.fetchone()
-                if not post_row:
-                    return jsonify({"error": "Post not found"}), 404
+            post_row = cur.fetchone()
+            if not post_row:
+                return jsonify({"error": "Post not found"}), 404
 
-                post_data = {
-                    "id": post_row["id"],
-                    "subreddit": post_row["subreddit"],
-                    "author": post_row["author"],
-                    "title": post_row["title"],
-                    "selftext": post_row["selftext"],
-                    "url": post_row["url"],
-                    "domain": post_row["domain"],
-                    "score": post_row["score"],
-                    "num_comments": post_row["num_comments"],
-                    "created_utc": post_row["created_utc"],
-                    "created_at": format_unix_timestamp(post_row["created_utc"]),
-                    "permalink": post_row["permalink"],
-                    "is_self": post_row["is_self"],
-                    "nsfw": post_row["over_18"],
-                    "locked": post_row["locked"],
-                    "stickied": post_row["stickied"],
-                    "platform": post_row.get("platform", "reddit"),
-                }
+            post_data = {
+                "id": post_row["id"],
+                "subreddit": post_row["subreddit"],
+                "author": post_row["author"],
+                "title": post_row["title"],
+                "selftext": post_row["selftext"],
+                "url": post_row["url"],
+                "domain": post_row["domain"],
+                "score": post_row["score"],
+                "num_comments": post_row["num_comments"],
+                "created_utc": post_row["created_utc"],
+                "created_at": format_unix_timestamp(post_row["created_utc"]),
+                "permalink": post_row["permalink"],
+                "is_self": post_row["is_self"],
+                "nsfw": post_row["over_18"],
+                "locked": post_row["locked"],
+                "stickied": post_row["stickied"],
+                "platform": post_row.get("platform", "reddit"),
+            }
 
-                # Get top-level comments IDs first
-                # Top-level comments have parent_id like 't3_{post_id}'
-                cur.execute(
-                    f"""
+            # Get top-level comments IDs first
+            # Top-level comments have parent_id like 't3_{post_id}'
+            cur.execute(
+                f"""
                     SELECT id
                     FROM comments
                     WHERE post_id = %s AND parent_id LIKE 't3_%%'
                     ORDER BY {sort_column}
                     LIMIT %s
                 """,
-                    (post_id, top_comments),
-                )
+                (post_id, top_comments),
+            )
 
-                top_comment_ids = [row["id"] for row in cur.fetchall()]
+            top_comment_ids = [row["id"] for row in cur.fetchall()]
 
-                if not top_comment_ids:
-                    # No comments - return post only
-                    return jsonify(
-                        {
-                            "post": post_data,
-                            "comments": [],
-                            "meta": {
-                                "total_comments": 0,
-                                "returned_comments": 0,
-                                "unique_authors": 0,
-                                "max_depth_returned": 0,
-                            },
-                        }
-                    ), 200
+            if not top_comment_ids:
+                # No comments - return post only
+                return jsonify(
+                    {
+                        "post": post_data,
+                        "comments": [],
+                        "meta": {
+                            "total_comments": 0,
+                            "returned_comments": 0,
+                            "unique_authors": 0,
+                            "max_depth_returned": 0,
+                        },
+                    }
+                ), 200
 
-                # Get top-level comments with replies using recursive CTE
-                cur.execute(
-                    """
+            # Get top-level comments with replies using recursive CTE
+            cur.execute(
+                """
                     WITH RECURSIVE comment_tree AS (
                         -- Top-level comments (pre-selected)
                         SELECT id, parent_id, author, body, score, created_utc, depth, permalink,
@@ -3489,64 +3463,64 @@ def api_post_context(post_id: str):
                     SELECT * FROM comment_tree
                     ORDER BY tree_depth, score DESC
                 """,
-                    (top_comment_ids, max_depth),
-                )
+                (top_comment_ids, max_depth),
+            )
 
-                # Build comment tree
-                comments_by_id = {}
-                top_level_comments = []
+            # Build comment tree
+            comments_by_id = {}
+            top_level_comments = []
 
-                for row in cur.fetchall():
-                    body = row["body"] or ""
-                    truncated = len(body) > max_body_length
-                    comment = {
-                        "id": row["id"],
-                        "author": row["author"],
-                        "body": body[:max_body_length] + "..." if truncated else body,
-                        "body_truncated": truncated,
-                        "score": row["score"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "depth": row["tree_depth"],
-                        "permalink": row["permalink"],
-                        "replies": [],
-                    }
-                    comments_by_id[row["id"]] = comment
+            for row in cur.fetchall():
+                body = row["body"] or ""
+                truncated = len(body) > max_body_length
+                comment = {
+                    "id": row["id"],
+                    "author": row["author"],
+                    "body": body[:max_body_length] + "..." if truncated else body,
+                    "body_truncated": truncated,
+                    "score": row["score"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "depth": row["tree_depth"],
+                    "permalink": row["permalink"],
+                    "replies": [],
+                }
+                comments_by_id[row["id"]] = comment
 
-                    parent_id = row["parent_id"]
-                    if parent_id and parent_id in comments_by_id:
-                        comments_by_id[parent_id]["replies"].append(comment)
-                    elif row["tree_depth"] == 0:
-                        top_level_comments.append(comment)
+                parent_id = row["parent_id"]
+                if parent_id and parent_id in comments_by_id:
+                    comments_by_id[parent_id]["replies"].append(comment)
+                elif row["tree_depth"] == 0:
+                    top_level_comments.append(comment)
 
-                # Get comment statistics
-                cur.execute(
-                    """
+            # Get comment statistics
+            cur.execute(
+                """
                     SELECT COUNT(*) as total,
                            COUNT(DISTINCT author) as unique_authors,
                            AVG(score)::numeric(10,2) as avg_score,
                            MAX(depth) as max_depth
                     FROM comments WHERE post_id = %s
                 """,
-                    (post_id,),
-                )
-                stats_row = cur.fetchone()
+                (post_id,),
+            )
+            stats_row = cur.fetchone()
 
-                return jsonify(
-                    {
-                        "post": post_data,
-                        "comments": top_level_comments,
-                        "meta": {
-                            "total_comments": post_row["num_comments"],
-                            "shown_comments": len(comments_by_id),
-                            "unique_authors": stats_row["unique_authors"] or 0,
-                            "avg_comment_score": float(stats_row["avg_score"]) if stats_row["avg_score"] else 0,
-                            "max_depth_found": stats_row["max_depth"] or 0,
-                            "requested_depth": max_depth,
-                            "sort": sort,
-                        },
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "post": post_data,
+                    "comments": top_level_comments,
+                    "meta": {
+                        "total_comments": post_row["num_comments"],
+                        "shown_comments": len(comments_by_id),
+                        "unique_authors": stats_row["unique_authors"] or 0,
+                        "avg_comment_score": float(stats_row["avg_score"]) if stats_row["avg_score"] else 0,
+                        "max_depth_found": stats_row["max_depth"] or 0,
+                        "requested_depth": max_depth,
+                        "sort": sort,
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_post_context")
@@ -3578,13 +3552,12 @@ def api_subreddit_summary(subreddit: str):
         # needs to orient itself; None values when enrichment hasn't run
         metadata = db.get_subreddit_metadata(subreddit) or {}
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Get basic stats
-                cur.execute(
-                    """
+            # Get basic stats
+            cur.execute(
+                """
                     SELECT
                         COUNT(*) as total_posts,
                         COUNT(DISTINCT author) as unique_users,
@@ -3595,27 +3568,27 @@ def api_subreddit_summary(subreddit: str):
                     FROM posts
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
+                (subreddit,),
+            )
 
-                stats = cur.fetchone()
-                if stats["total_posts"] == 0:
-                    return jsonify({"error": "Subreddit not found"}), 404
+            stats = cur.fetchone()
+            if stats["total_posts"] == 0:
+                return jsonify({"error": "Subreddit not found"}), 404
 
-                # Get comment count
-                cur.execute(
-                    """
+            # Get comment count
+            cur.execute(
+                """
                     SELECT COUNT(*) as comment_count
                     FROM comments
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (subreddit,),
-                )
-                comment_count = cur.fetchone()["comment_count"]
+                (subreddit,),
+            )
+            comment_count = cur.fetchone()["comment_count"]
 
-                # Get top authors by post count
-                cur.execute(
-                    """
+            # Get top authors by post count
+            cur.execute(
+                """
                     SELECT author, COUNT(*) as posts,
                            COALESCE((SELECT COUNT(*) FROM comments c
                                      WHERE c.author = p.author
@@ -3627,70 +3600,70 @@ def api_subreddit_summary(subreddit: str):
                     ORDER BY posts DESC
                     LIMIT 5
                 """,
-                    (subreddit, subreddit),
-                )
+                (subreddit, subreddit),
+            )
 
-                top_authors = []
-                for row in cur.fetchall():
-                    top_authors.append({"username": row["author"], "posts": row["posts"], "comments": row["comments"]})
+            top_authors = []
+            for row in cur.fetchall():
+                top_authors.append({"username": row["author"], "posts": row["posts"], "comments": row["comments"]})
 
-                # Get recent activity (last 7 and 30 days)
-                import time
+            # Get recent activity (last 7 and 30 days)
+            import time
 
-                now = int(time.time())
-                week_ago = now - (7 * 24 * 60 * 60)
-                month_ago = now - (30 * 24 * 60 * 60)
+            now = int(time.time())
+            week_ago = now - (7 * 24 * 60 * 60)
+            month_ago = now - (30 * 24 * 60 * 60)
 
-                cur.execute(
-                    """
+            cur.execute(
+                """
                     SELECT
                         COUNT(*) FILTER (WHERE created_utc >= %s) as posts_7d,
                         COUNT(*) FILTER (WHERE created_utc >= %s) as posts_30d
                     FROM posts
                     WHERE LOWER(subreddit) = LOWER(%s)
                 """,
-                    (week_ago, month_ago, subreddit),
-                )
-                recent = cur.fetchone()
+                (week_ago, month_ago, subreddit),
+            )
+            recent = cur.fetchone()
 
-                # Calculate time span
-                time_span_days = 0
-                if stats["earliest"] and stats["latest"]:
-                    time_span_days = (stats["latest"] - stats["earliest"]) // (24 * 60 * 60)
+            # Calculate time span
+            time_span_days = 0
+            if stats["earliest"] and stats["latest"]:
+                time_span_days = (stats["latest"] - stats["earliest"]) // (24 * 60 * 60)
 
-                # Determine activity trend
-                avg_daily = stats["total_posts"] / max(time_span_days, 1)
-                recent_daily = recent["posts_7d"] / 7 if recent["posts_7d"] else 0
+            # Determine activity trend
+            avg_daily = stats["total_posts"] / max(time_span_days, 1)
+            recent_daily = recent["posts_7d"] / 7 if recent["posts_7d"] else 0
 
-                if recent_daily > avg_daily * 1.5:
-                    activity_trend = "increasing"
-                elif recent_daily < avg_daily * 0.5:
-                    activity_trend = "decreasing"
-                else:
-                    activity_trend = "stable"
+            if recent_daily > avg_daily * 1.5:
+                activity_trend = "increasing"
+            elif recent_daily < avg_daily * 0.5:
+                activity_trend = "decreasing"
+            else:
+                activity_trend = "stable"
 
-                return jsonify(
-                    {
-                        "subreddit": subreddit,
-                        "public_description": metadata.get("public_description"),
-                        "lang": metadata.get("lang"),
-                        "stats": {
-                            "total_posts": stats["total_posts"],
-                            "total_comments": comment_count,
-                            "unique_users": stats["unique_users"],
-                            "avg_posts_per_day": round(avg_daily, 2),
-                            "avg_score": float(stats["avg_score"]) if stats["avg_score"] else 0,
-                        },
-                        "time_range": {
-                            "earliest": format_unix_timestamp(stats["earliest"]),
-                            "latest": format_unix_timestamp(stats["latest"]),
-                            "span_days": time_span_days,
-                        },
-                        "top_authors": top_authors,
-                        "activity_trend": activity_trend,
-                        "recent_activity": {"posts_7d": recent["posts_7d"], "posts_30d": recent["posts_30d"]},
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "subreddit": subreddit,
+                    "public_description": metadata.get("public_description"),
+                    "lang": metadata.get("lang"),
+                    "stats": {
+                        "total_posts": stats["total_posts"],
+                        "total_comments": comment_count,
+                        "unique_users": stats["unique_users"],
+                        "avg_posts_per_day": round(avg_daily, 2),
+                        "avg_score": float(stats["avg_score"]) if stats["avg_score"] else 0,
+                    },
+                    "time_range": {
+                        "earliest": format_unix_timestamp(stats["earliest"]),
+                        "latest": format_unix_timestamp(stats["latest"]),
+                        "span_days": time_span_days,
+                    },
+                    "top_authors": top_authors,
+                    "activity_trend": activity_trend,
+                    "recent_activity": {"posts_7d": recent["posts_7d"], "posts_30d": recent["posts_30d"]},
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_subreddit_summary")
@@ -3718,98 +3691,97 @@ def api_user_summary(username: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Get user from users table
-                cur.execute(
-                    """
+            # Get user from users table
+            cur.execute(
+                """
                     SELECT username, post_count, comment_count, total_activity,
                            total_karma, first_seen_utc, last_seen_utc, subreddit_activity
                     FROM users
                     WHERE username = %s
                 """,
-                    (username,),
-                )
+                (username,),
+            )
 
-                user = cur.fetchone()
-                if not user:
-                    return jsonify({"error": "User not found"}), 404
+            user = cur.fetchone()
+            if not user:
+                return jsonify({"error": "User not found"}), 404
 
-                # Get average scores
-                cur.execute(
-                    """
+            # Get average scores
+            cur.execute(
+                """
                     SELECT AVG(score)::numeric(10,2) as avg_post_score
                     FROM posts WHERE author = %s
                 """,
-                    (username,),
-                )
-                avg_post = cur.fetchone()
+                (username,),
+            )
+            avg_post = cur.fetchone()
 
-                cur.execute(
-                    """
+            cur.execute(
+                """
                     SELECT AVG(score)::numeric(10,2) as avg_comment_score
                     FROM comments WHERE author = %s
                 """,
-                    (username,),
-                )
-                avg_comment = cur.fetchone()
+                (username,),
+            )
+            avg_comment = cur.fetchone()
 
-                # Parse subreddit_activity JSON for top subreddits
-                top_subreddits = []
-                if user["subreddit_activity"]:
-                    activity = user["subreddit_activity"]
-                    if isinstance(activity, dict):
-                        sorted_subs = sorted(
-                            activity.items(),
-                            key=lambda x: x[1].get("total", 0) if isinstance(x[1], dict) else x[1],
-                            reverse=True,
-                        )[:5]
-                        for sub, data in sorted_subs:
-                            if isinstance(data, dict):
-                                top_subreddits.append(
-                                    {"name": sub, "posts": data.get("posts", 0), "comments": data.get("comments", 0)}
-                                )
-                            else:
-                                top_subreddits.append({"name": sub, "activity": data})
+            # Parse subreddit_activity JSON for top subreddits
+            top_subreddits = []
+            if user["subreddit_activity"]:
+                activity = user["subreddit_activity"]
+                if isinstance(activity, dict):
+                    sorted_subs = sorted(
+                        activity.items(),
+                        key=lambda x: x[1].get("total", 0) if isinstance(x[1], dict) else x[1],
+                        reverse=True,
+                    )[:5]
+                    for sub, data in sorted_subs:
+                        if isinstance(data, dict):
+                            top_subreddits.append(
+                                {"name": sub, "posts": data.get("posts", 0), "comments": data.get("comments", 0)}
+                            )
+                        else:
+                            top_subreddits.append({"name": sub, "activity": data})
 
-                # Calculate active days
-                active_days = 0
-                if user["first_seen_utc"] and user["last_seen_utc"]:
-                    active_days = (user["last_seen_utc"] - user["first_seen_utc"]) // (24 * 60 * 60)
+            # Calculate active days
+            active_days = 0
+            if user["first_seen_utc"] and user["last_seen_utc"]:
+                active_days = (user["last_seen_utc"] - user["first_seen_utc"]) // (24 * 60 * 60)
 
-                # Determine activity pattern
-                if user["total_activity"] == 0:
-                    activity_pattern = "inactive"
-                elif user["post_count"] > user["comment_count"] * 2:
-                    activity_pattern = "primarily posts"
-                elif user["comment_count"] > user["post_count"] * 5:
-                    activity_pattern = "primarily comments"
-                else:
-                    activity_pattern = "balanced contributor"
+            # Determine activity pattern
+            if user["total_activity"] == 0:
+                activity_pattern = "inactive"
+            elif user["post_count"] > user["comment_count"] * 2:
+                activity_pattern = "primarily posts"
+            elif user["comment_count"] > user["post_count"] * 5:
+                activity_pattern = "primarily comments"
+            else:
+                activity_pattern = "balanced contributor"
 
-                return jsonify(
-                    {
-                        "username": username,
-                        "stats": {
-                            "total_posts": user["post_count"],
-                            "total_comments": user["comment_count"],
-                            "total_karma": user["total_karma"],
-                            "avg_post_score": float(avg_post["avg_post_score"]) if avg_post["avg_post_score"] else 0,
-                            "avg_comment_score": float(avg_comment["avg_comment_score"])
-                            if avg_comment["avg_comment_score"]
-                            else 0,
-                        },
-                        "time_range": {
-                            "first_seen": format_unix_timestamp(user["first_seen_utc"]),
-                            "last_seen": format_unix_timestamp(user["last_seen_utc"]),
-                            "active_days": active_days,
-                        },
-                        "top_subreddits": top_subreddits,
-                        "activity_pattern": activity_pattern,
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "username": username,
+                    "stats": {
+                        "total_posts": user["post_count"],
+                        "total_comments": user["comment_count"],
+                        "total_karma": user["total_karma"],
+                        "avg_post_score": float(avg_post["avg_post_score"]) if avg_post["avg_post_score"] else 0,
+                        "avg_comment_score": float(avg_comment["avg_comment_score"])
+                        if avg_comment["avg_comment_score"]
+                        else 0,
+                    },
+                    "time_range": {
+                        "first_seen": format_unix_timestamp(user["first_seen_utc"]),
+                        "last_seen": format_unix_timestamp(user["last_seen_utc"]),
+                        "active_days": active_days,
+                    },
+                    "top_subreddits": top_subreddits,
+                    "activity_pattern": activity_pattern,
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_user_summary")
@@ -3852,14 +3824,13 @@ def api_post_comments_tree(post_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Use recursive CTE to build full tree
-                # Top-level comments have parent_id like 't3_{post_id}'
-                cur.execute(
-                    """
+            # Use recursive CTE to build full tree
+            # Top-level comments have parent_id like 't3_{post_id}'
+            cur.execute(
+                """
                     WITH RECURSIVE comment_tree AS (
                         -- Top-level comments
                         SELECT id, parent_id, author, body, score, created_utc, depth, permalink,
@@ -3881,65 +3852,65 @@ def api_post_comments_tree(post_id: str):
                     SELECT * FROM comment_tree
                     ORDER BY path
                 """,
-                    (post_id, max_depth),
-                )
+                (post_id, max_depth),
+            )
 
-                # Build nested tree structure
-                comments_by_id = {}
-                top_level = []
-                max_depth_found = 0
+            # Build nested tree structure
+            comments_by_id = {}
+            top_level = []
+            max_depth_found = 0
 
-                for row in cur.fetchall():
-                    body = row["body"] or ""
-                    truncated = False
-                    if max_body_length and len(body) > max_body_length:
-                        body = body[:max_body_length] + "..."
-                        truncated = True
+            for row in cur.fetchall():
+                body = row["body"] or ""
+                truncated = False
+                if max_body_length and len(body) > max_body_length:
+                    body = body[:max_body_length] + "..."
+                    truncated = True
 
-                    comment = {
-                        "id": row["id"],
-                        "author": row["author"],
-                        "body": body,
-                        "score": row["score"],
-                        "created_utc": row["created_utc"],
-                        "created_at": format_unix_timestamp(row["created_utc"]),
-                        "depth": row["tree_depth"],
-                        "permalink": row["permalink"],
-                        "children": [],
-                    }
-                    if truncated:
-                        comment["body_truncated"] = True
+                comment = {
+                    "id": row["id"],
+                    "author": row["author"],
+                    "body": body,
+                    "score": row["score"],
+                    "created_utc": row["created_utc"],
+                    "created_at": format_unix_timestamp(row["created_utc"]),
+                    "depth": row["tree_depth"],
+                    "permalink": row["permalink"],
+                    "children": [],
+                }
+                if truncated:
+                    comment["body_truncated"] = True
 
-                    comments_by_id[row["id"]] = comment
-                    max_depth_found = max(max_depth_found, row["tree_depth"])
+                comments_by_id[row["id"]] = comment
+                max_depth_found = max(max_depth_found, row["tree_depth"])
 
-                    parent_id = row["parent_id"]
-                    if parent_id and parent_id in comments_by_id:
-                        comments_by_id[parent_id]["children"].append(comment)
-                    elif row["tree_depth"] == 0:
-                        top_level.append(comment)
+                parent_id = row["parent_id"]
+                if parent_id and parent_id in comments_by_id:
+                    comments_by_id[parent_id]["children"].append(comment)
+                elif row["tree_depth"] == 0:
+                    top_level.append(comment)
 
-                # Sort top-level and limit
-                if sort == "score":
-                    top_level.sort(key=lambda x: x["score"], reverse=True)
-                else:
-                    top_level.sort(key=lambda x: x["created_utc"])
-                top_level = top_level[:limit]
+            # Sort top-level and limit
+            if sort == "score":
+                top_level.sort(key=lambda x: x["score"], reverse=True)
+            else:
+                top_level.sort(key=lambda x: x["created_utc"])
+            top_level = top_level[:limit]
 
-                return jsonify(
-                    {
-                        "post_id": post_id,
-                        "comments": top_level,
-                        "meta": {
-                            "total_comments": len(comments_by_id),
-                            "top_level_shown": len(top_level),
-                            "max_depth_found": max_depth_found,
-                            "requested_depth": max_depth,
-                            "sort": sort,
-                            "truncated": len(top_level) < len([c for c in comments_by_id.values() if c["depth"] == 0]),
-                        },
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "post_id": post_id,
+                    "comments": top_level,
+                    "meta": {
+                        "total_comments": len(comments_by_id),
+                        "top_level_shown": len(top_level),
+                        "max_depth_found": max_depth_found,
+                        "requested_depth": max_depth,
+                        "sort": sort,
+                        "truncated": len(top_level) < len([c for c in comments_by_id.values() if c["depth"] == 0]),
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_post_comments_tree")
@@ -3975,38 +3946,37 @@ def api_posts_random():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Build WHERE clauses
-                where_clauses = []
-                params = []
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Build WHERE clauses
+            where_clauses = []
+            params = []
 
-                if subreddit:
-                    where_clauses.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(subreddit)
-                if after:
-                    where_clauses.append("created_utc >= %s")
-                    params.append(after)
-                if before:
-                    where_clauses.append("created_utc <= %s")
-                    params.append(before)
+            if subreddit:
+                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(subreddit)
+            if after:
+                where_clauses.append("created_utc >= %s")
+                params.append(after)
+            if before:
+                where_clauses.append("created_utc <= %s")
+                params.append(before)
 
-                where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-                # Get population count
-                cur.execute(f"SELECT COUNT(*) as count FROM posts WHERE {where_sql}", params)
-                population_size = cur.fetchone()["count"]
+            # Get population count
+            cur.execute(f"SELECT COUNT(*) as count FROM posts WHERE {where_sql}", params)
+            population_size = cur.fetchone()["count"]
 
-                # Use seeded random if seed provided
-                if seed is not None:
-                    # Use md5 hash with seed for reproducible random
-                    order_by = f"md5(id || '{seed}')"
-                else:
-                    order_by = "RANDOM()"
+            # Use seeded random if seed provided
+            if seed is not None:
+                # Use md5 hash with seed for reproducible random
+                order_by = f"md5(id || '{seed}')"
+            else:
+                order_by = "RANDOM()"
 
-                # Get random samples
-                cur.execute(
-                    f"""
+            # Get random samples
+            cur.execute(
+                f"""
                     SELECT id, subreddit, author, title, selftext, url, domain,
                            score, num_comments, created_utc, permalink
                     FROM posts
@@ -4014,39 +3984,39 @@ def api_posts_random():
                     ORDER BY {order_by}
                     LIMIT %s
                 """,
-                    params + [n],
+                [*params, n],
+            )
+
+            posts = []
+            for row in cur.fetchall():
+                posts.append(
+                    {
+                        "id": row["id"],
+                        "subreddit": row["subreddit"],
+                        "author": row["author"],
+                        "title": row["title"],
+                        "selftext": row["selftext"][:500] if row["selftext"] else None,
+                        "url": row["url"],
+                        "score": row["score"],
+                        "num_comments": row["num_comments"],
+                        "created_utc": row["created_utc"],
+                        "created_at": format_unix_timestamp(row["created_utc"]),
+                        "permalink": row["permalink"],
+                    }
                 )
 
-                posts = []
-                for row in cur.fetchall():
-                    posts.append(
-                        {
-                            "id": row["id"],
-                            "subreddit": row["subreddit"],
-                            "author": row["author"],
-                            "title": row["title"],
-                            "selftext": row["selftext"][:500] if row["selftext"] else None,
-                            "url": row["url"],
-                            "score": row["score"],
-                            "num_comments": row["num_comments"],
-                            "created_utc": row["created_utc"],
-                            "created_at": format_unix_timestamp(row["created_utc"]),
-                            "permalink": row["permalink"],
-                        }
-                    )
-
-                return jsonify(
-                    {
-                        "data": posts,
-                        "meta": {
-                            "sample_size": len(posts),
-                            "population_size": population_size,
-                            "seed": seed,
-                            "method": "seeded_hash" if seed else "random",
-                            "filters": {"subreddit": subreddit, "after": after, "before": before},
-                        },
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "data": posts,
+                    "meta": {
+                        "sample_size": len(posts),
+                        "population_size": population_size,
+                        "seed": seed,
+                        "method": "seeded_hash" if seed else "random",
+                        "filters": {"subreddit": subreddit, "after": after, "before": before},
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_posts_random")
@@ -4078,74 +4048,70 @@ def api_comments_random():
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Build WHERE clauses
-                where_clauses = []
-                params = []
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Build WHERE clauses
+            where_clauses = []
+            params = []
 
-                if subreddit:
-                    where_clauses.append("LOWER(subreddit) = LOWER(%s)")
-                    params.append(subreddit)
-                if after:
-                    where_clauses.append("created_utc >= %s")
-                    params.append(after)
-                if before:
-                    where_clauses.append("created_utc <= %s")
-                    params.append(before)
+            if subreddit:
+                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                params.append(subreddit)
+            if after:
+                where_clauses.append("created_utc >= %s")
+                params.append(after)
+            if before:
+                where_clauses.append("created_utc <= %s")
+                params.append(before)
 
-                where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-                # Get population count
-                cur.execute(f"SELECT COUNT(*) as count FROM comments WHERE {where_sql}", params)
-                population_size = cur.fetchone()["count"]
+            # Get population count
+            cur.execute(f"SELECT COUNT(*) as count FROM comments WHERE {where_sql}", params)
+            population_size = cur.fetchone()["count"]
 
-                # Use seeded random if seed provided
-                if seed is not None:
-                    order_by = f"md5(id || '{seed}')"
-                else:
-                    order_by = "RANDOM()"
+            # Use seeded random if seed provided
+            order_by = f"md5(id || '{seed}')" if seed is not None else "RANDOM()"
 
-                # Get random samples
-                cur.execute(
-                    f"""
+            # Get random samples
+            cur.execute(
+                f"""
                     SELECT id, post_id, author, body, score, created_utc, subreddit, permalink
                     FROM comments
                     WHERE {where_sql}
                     ORDER BY {order_by}
                     LIMIT %s
                 """,
-                    params + [n],
+                [*params, n],
+            )
+
+            comments = []
+            for row in cur.fetchall():
+                comments.append(
+                    {
+                        "id": row["id"],
+                        "post_id": row["post_id"],
+                        "subreddit": row["subreddit"],
+                        "author": row["author"],
+                        "body": row["body"][:500] if row["body"] else None,
+                        "score": row["score"],
+                        "created_utc": row["created_utc"],
+                        "created_at": format_unix_timestamp(row["created_utc"]),
+                        "permalink": row["permalink"],
+                    }
                 )
 
-                comments = []
-                for row in cur.fetchall():
-                    comments.append(
-                        {
-                            "id": row["id"],
-                            "post_id": row["post_id"],
-                            "subreddit": row["subreddit"],
-                            "author": row["author"],
-                            "body": row["body"][:500] if row["body"] else None,
-                            "score": row["score"],
-                            "created_utc": row["created_utc"],
-                            "created_at": format_unix_timestamp(row["created_utc"]),
-                            "permalink": row["permalink"],
-                        }
-                    )
-
-                return jsonify(
-                    {
-                        "data": comments,
-                        "meta": {
-                            "sample_size": len(comments),
-                            "population_size": population_size,
-                            "seed": seed,
-                            "method": "seeded_hash" if seed else "random",
-                            "filters": {"subreddit": subreddit, "after": after, "before": before},
-                        },
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "data": comments,
+                    "meta": {
+                        "sample_size": len(comments),
+                        "population_size": population_size,
+                        "seed": seed,
+                        "method": "seeded_hash" if seed else "random",
+                        "filters": {"subreddit": subreddit, "after": after, "before": before},
+                    },
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_comments_random")
@@ -4179,105 +4145,104 @@ def api_post_related(post_id: str):
     try:
         db = get_db()
 
-        with db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SET statement_timeout = '30000'")
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30000'")
 
-                # Get source post
-                cur.execute(
-                    """
+            # Get source post
+            cur.execute(
+                """
                     SELECT id, title, selftext, subreddit
                     FROM posts WHERE id = %s
                 """,
-                    (post_id,),
-                )
+                (post_id,),
+            )
 
-                source = cur.fetchone()
-                if not source:
-                    return jsonify({"error": "Post not found"}), 404
+            source = cur.fetchone()
+            if not source:
+                return jsonify({"error": "Post not found"}), 404
 
-                # Extract keywords from title (remove stopwords for better matching)
-                # This creates an OR query instead of restrictive AND query
-                stopwords = {
-                    "the",
-                    "a",
-                    "an",
-                    "and",
-                    "or",
-                    "but",
-                    "in",
-                    "on",
-                    "at",
-                    "to",
-                    "for",
-                    "of",
-                    "from",
-                    "by",
-                    "with",
-                    "is",
-                    "was",
-                    "are",
-                    "been",
-                    "be",
-                    "has",
-                    "have",
-                    "had",
-                    "do",
-                    "does",
-                    "did",
-                    "will",
-                    "would",
-                    "could",
-                    "should",
-                    "may",
-                    "might",
-                    "can",
-                    "r/",
-                    "u/",
-                    "it",
-                    "this",
-                    "that",
-                    "as",
-                    "so",
-                    "if",
-                    "than",
-                    "when",
-                    "where",
-                    "who",
-                    "which",
-                    "what",
-                }
+            # Extract keywords from title (remove stopwords for better matching)
+            # This creates an OR query instead of restrictive AND query
+            stopwords = {
+                "the",
+                "a",
+                "an",
+                "and",
+                "or",
+                "but",
+                "in",
+                "on",
+                "at",
+                "to",
+                "for",
+                "of",
+                "from",
+                "by",
+                "with",
+                "is",
+                "was",
+                "are",
+                "been",
+                "be",
+                "has",
+                "have",
+                "had",
+                "do",
+                "does",
+                "did",
+                "will",
+                "would",
+                "could",
+                "should",
+                "may",
+                "might",
+                "can",
+                "r/",
+                "u/",
+                "it",
+                "this",
+                "that",
+                "as",
+                "so",
+                "if",
+                "than",
+                "when",
+                "where",
+                "who",
+                "which",
+                "what",
+            }
 
-                # Split title into words, clean punctuation, filter stopwords
-                title_words = source["title"].lower().split()
-                keywords = []
-                for word in title_words:
-                    # Remove punctuation
-                    clean_word = word.strip(".,!?:;/()[]{}\"'*#@")
-                    # Keep if not stopword and length >3
-                    if clean_word not in stopwords and len(clean_word) > 3:
-                        keywords.append(clean_word)
+            # Split title into words, clean punctuation, filter stopwords
+            title_words = source["title"].lower().split()
+            keywords = []
+            for word in title_words:
+                # Remove punctuation
+                clean_word = word.strip(".,!?:;/()[]{}\"'*#@")
+                # Keep if not stopword and length >3
+                if clean_word not in stopwords and len(clean_word) > 3:
+                    keywords.append(clean_word)
 
-                # Take top 8 keywords, build OR query for PostgreSQL
-                keywords = keywords[:8]
-                if not keywords:
-                    # Fallback: if no keywords extracted, use first 5 words of title
-                    keywords = [w.strip(".,!?:;") for w in title_words[:5] if len(w) > 2]
+            # Take top 8 keywords, build OR query for PostgreSQL
+            keywords = keywords[:8]
+            if not keywords:
+                # Fallback: if no keywords extracted, use first 5 words of title
+                keywords = [w.strip(".,!?:;") for w in title_words[:5] if len(w) > 2]
 
-                # Build OR query (| is PostgreSQL OR operator for to_tsquery)
-                search_text = " | ".join(keywords) if keywords else source["title"]
+            # Build OR query (| is PostgreSQL OR operator for to_tsquery)
+            search_text = " | ".join(keywords) if keywords else source["title"]
 
-                # Build WHERE clause
-                where_extra = ""
-                params = [search_text, post_id]
-                if same_subreddit:
-                    where_extra = "AND LOWER(subreddit) = LOWER(%s)"
-                    params.append(source["subreddit"])
+            # Build WHERE clause
+            where_extra = ""
+            params = [search_text, post_id]
+            if same_subreddit:
+                where_extra = "AND LOWER(subreddit) = LOWER(%s)"
+                params.append(source["subreddit"])
 
-                # Find similar posts using FTS with OR logic (to_tsquery)
-                # Changed from websearch_to_tsquery (AND) to to_tsquery (OR)
-                cur.execute(
-                    f"""
+            # Find similar posts using FTS with OR logic (to_tsquery)
+            # Changed from websearch_to_tsquery (AND) to to_tsquery (OR)
+            cur.execute(
+                f"""
                     SELECT id, title, subreddit, author, score, created_utc, permalink,
                            ts_rank(
                                to_tsvector('simple', title || ' ' || COALESCE(selftext, '')),
@@ -4291,32 +4256,32 @@ def api_post_related(post_id: str):
                     ORDER BY similarity DESC
                     LIMIT %s
                 """,
-                    [search_text, search_text, post_id] + ([source["subreddit"]] if same_subreddit else []) + [limit],
+                [search_text, search_text, post_id] + ([source["subreddit"]] if same_subreddit else []) + [limit],
+            )
+
+            related = []
+            for row in cur.fetchall():
+                related.append(
+                    {
+                        "id": row["id"],
+                        "title": row["title"],
+                        "subreddit": row["subreddit"],
+                        "author": row["author"],
+                        "score": row["score"],
+                        "created_utc": row["created_utc"],
+                        "created_at": format_unix_timestamp(row["created_utc"]),
+                        "permalink": row["permalink"],
+                        "similarity": round(float(row["similarity"]), 4) if row["similarity"] else 0,
+                    }
                 )
 
-                related = []
-                for row in cur.fetchall():
-                    related.append(
-                        {
-                            "id": row["id"],
-                            "title": row["title"],
-                            "subreddit": row["subreddit"],
-                            "author": row["author"],
-                            "score": row["score"],
-                            "created_utc": row["created_utc"],
-                            "created_at": format_unix_timestamp(row["created_utc"]),
-                            "permalink": row["permalink"],
-                            "similarity": round(float(row["similarity"]), 4) if row["similarity"] else 0,
-                        }
-                    )
-
-                return jsonify(
-                    {
-                        "source_post": {"id": source["id"], "title": source["title"], "subreddit": source["subreddit"]},
-                        "related": related,
-                        "meta": {"count": len(related), "same_subreddit": same_subreddit, "method": "postgresql_fts"},
-                    }
-                ), 200
+            return jsonify(
+                {
+                    "source_post": {"id": source["id"], "title": source["title"], "subreddit": source["subreddit"]},
+                    "related": related,
+                    "meta": {"count": len(related), "same_subreddit": same_subreddit, "method": "postgresql_fts"},
+                }
+            ), 200
 
     except Exception as e:
         format_user_error(e, "api_post_related")

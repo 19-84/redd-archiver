@@ -184,15 +184,15 @@ class SubredditTracker:
         created_utc: int,
         is_nsfw: bool = False,
         quarantine: bool = False,
-        subreddit_type: str = None,
-        author: str = None,
+        subreddit_type: str | None = None,
+        author: str | None = None,
         score: int = 0,
-        subscribers: int = None,
+        subscribers: int | None = None,
         num_crossposts: int = 0,
         locked: bool = False,
         is_user_deleted: bool = False,
         is_mod_removed: bool = False,
-        whitelist_status: str = None,
+        whitelist_status: str | None = None,
         hide_ads: bool = False,
     ):
         """Update subreddit with post data and metadata discovery"""
@@ -1805,10 +1805,7 @@ Examples:
     for output_format in args.output_format:
         if output_format == "json":
             # Use --output path for JSON, or default filename in output_dir
-            if len(args.output_format) == 1:
-                output_path = args.output
-            else:
-                output_path = os.path.join(output_dir, "subreddits.json")
+            output_path = args.output if len(args.output_format) == 1 else os.path.join(output_dir, "subreddits.json")
             generate_json_output(output_path, all_subreddits, scan_metadata)
 
         elif output_format == "csv":

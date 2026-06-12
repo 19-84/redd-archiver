@@ -34,7 +34,7 @@ class SafeErrorHandler:
         """
         # Log full exception details internally (with stack trace)
         logger.error(
-            f"Error in {context}: {type(exception).__name__}: {str(exception)}",
+            f"Error in {context}: {type(exception).__name__}: {exception!s}",
             exc_info=True,
             extra={"context": context, "exception_type": type(exception).__name__, "exception_message": str(exception)},
         )
@@ -44,7 +44,7 @@ class SafeErrorHandler:
             return self._get_generic_message(exception, context)
         else:
             # Detailed messages for development
-            return f"{context.title()} error: {str(exception)}"
+            return f"{context.title()} error: {exception!s}"
 
     def _get_generic_message(self, exception: Exception, context: str) -> str:
         """
@@ -116,11 +116,7 @@ class SafeErrorHandler:
         ]
 
         message_lower = message.lower()
-        for pattern in sensitive_patterns:
-            if pattern.lower() in message_lower:
-                return False
-
-        return True
+        return all(pattern.lower() not in message_lower for pattern in sensitive_patterns)
 
     def sanitize_error_message(self, message: str) -> str:
         """

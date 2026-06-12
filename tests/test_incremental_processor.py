@@ -191,7 +191,7 @@ class TestDetectProcessingState:
         with open(processor.progress_file, "w") as f:
             json.dump(progress_data, f)
 
-        state, data = processor.detect_processing_state()
+        state, _data = processor.detect_processing_state()
 
         assert state == "already_complete"
 
@@ -207,7 +207,7 @@ class TestDetectProcessingState:
         with open(processor.progress_file, "w") as f:
             json.dump(progress_data, f)
 
-        state, data = processor.detect_processing_state()
+        state, _data = processor.detect_processing_state()
 
         assert state == "resume_from_emergency"
 
@@ -223,7 +223,7 @@ class TestDetectProcessingState:
         with open(processor.progress_file, "w") as f:
             json.dump(progress_data, f)
 
-        state, data = processor.detect_processing_state()
+        state, _data = processor.detect_processing_state()
 
         assert state == "resume_subreddits"
 
@@ -234,7 +234,7 @@ class TestDetectProcessingState:
         with open(processor.progress_file, "w") as f:
             json.dump(progress_data, f)
 
-        state, data = processor.detect_processing_state()
+        state, _data = processor.detect_processing_state()
 
         assert state == "resume_users"
 
@@ -373,9 +373,8 @@ class TestShutdownHandling:
     def test_handle_shutdown_sets_flag(self, processor):
         """Test _handle_shutdown sets shutdown_requested flag."""
         # Simulate calling the handler (without actually sending signal)
-        with patch.object(processor, "_save_progress_state"):
-            with pytest.raises(SystemExit):
-                processor._handle_shutdown(2, None)  # SIGINT
+        with patch.object(processor, "_save_progress_state"), pytest.raises(SystemExit):
+            processor._handle_shutdown(2, None)  # SIGINT
 
         assert processor.shutdown_requested is True
 

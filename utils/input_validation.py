@@ -573,7 +573,7 @@ if __name__ == "__main__":
         if not valid and error:
             print(f"       Error: {error}")
         if valid and sanitized is not None and sanitized != value:
-            print(f"       Sanitized: {repr(sanitized)}")
+            print(f"       Sanitized: {sanitized!r}")
 
     print()
     print("=" * 80)

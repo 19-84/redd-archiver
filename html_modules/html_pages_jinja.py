@@ -93,7 +93,7 @@ def write_subreddit_pages_jinja2(
         subreddit_score_ranges = {"very_high": 100, "high": 50, "medium": 10}
 
     # Process each sort order
-    for sort in sort_indexes.keys():
+    for sort in sort_indexes:
         order_by_clause = _get_sort_order_sql(sort)
         total_pages = (stat_sub_filtered_links + links_per_page - 1) // links_per_page
 
@@ -501,20 +501,20 @@ def write_subreddit_pages_parallel_jinja2(
     Parallelization strategy (AGGRESSIVE):
     - Level 1: Generate 3 sort orders in parallel (score, comments, date)
     - Level 2: Within each sort, generate 5 pages at a time in parallel
-    - Batch queries: Fetch 500 posts at once (5 pages × 100 posts/page)
-    - Max concurrent: 15 page generations (3 sorts × 5 pages)
+    - Batch queries: Fetch 500 posts at once (5 pages x 100 posts/page)
+    - Max concurrent: 15 page generations (3 sorts x 5 pages)
 
     Memory safety (tested):
     - Streaming template rendering prevents buffering
     - Each page is independent (~1-2MB footprint)
-    - Tested peak: 95.9MB with 3×3 config (+5.5MB delta)
-    - Expected peak with 3×5: 98-105MB (+8-12MB delta)
+    - Tested peak: 95.9MB with 3x3 config (+5.5MB delta)
+    - Expected peak with 3x5: 98-105MB (+8-12MB delta)
     - Well under 150MB safety limit
 
-    Performance results (tested with 3×3 config):
+    Performance results (tested with 3x3 config):
     - Sequential: 76.3s for 72 pages
-    - Parallel 3×3: 10.90s (-86% improvement!)
-    - Expected with 3×5: 8-10s (additional 15-20% improvement)
+    - Parallel 3x3: 10.90s (-86% improvement!)
+    - Expected with 3x5: 8-10s (additional 15-20% improvement)
 
     Args:
         subreddit: Subreddit name
@@ -576,7 +576,7 @@ def write_subreddit_pages_parallel_jinja2(
     with ThreadPoolExecutor(max_workers=3, thread_name_prefix="SortGen") as sort_executor:
         sort_futures = {}
 
-        for sort in sort_indexes.keys():
+        for sort in sort_indexes:
             future = sort_executor.submit(
                 _generate_sort_pages_parallel,
                 subreddit,
@@ -966,7 +966,7 @@ def write_link_page_jinja2(
     post_id: str | None = None,
     post_data: dict[str, Any] | None = None,
     subreddit: str = "",
-    subreddits: list[dict[str, Any]] = None,
+    subreddits: list[dict[str, Any]] | None = None,
     reddit_db: Any = None,
     hide_deleted_comments: bool = False,
     latest_archive_date: str | None = None,
@@ -1314,10 +1314,7 @@ def write_user_page_jinja2(
 
         # Determine filepath
         userpath = "user/" + username + "/"
-        if page_num == 1:
-            filepath = userpath + "index.html"
-        else:
-            filepath = userpath + f"index-{page_num}.html"
+        filepath = userpath + "index.html" if page_num == 1 else userpath + f"index-{page_num}.html"
 
         if not os.path.isfile(filepath):
             if os.environ.get("ARCHIVE_RESUME_MODE") == "true":

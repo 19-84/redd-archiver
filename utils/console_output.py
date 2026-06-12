@@ -230,7 +230,7 @@ class ConsoleOutput:
         self.file_logger = setup_file_logging(log_file_path, log_level)
         self.log_file_path = log_file_path
 
-    def set_context(self, subreddit: str = None, phase: str = None):
+    def set_context(self, subreddit: str | None = None, phase: str | None = None):
         """Set context information for logging"""
         if subreddit is not None:
             self.current_subreddit = subreddit
@@ -390,7 +390,7 @@ class ConsoleOutput:
             self.info(description)
         self.current_operation = phase_name
 
-    def phase_complete(self, phase_name: str, duration: float = None):
+    def phase_complete(self, phase_name: str, duration: float | None = None):
         """Mark phase as complete"""
         if duration is None:
             duration = time.time() - self.start_time

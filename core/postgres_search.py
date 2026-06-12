@@ -105,35 +105,34 @@ class PostgresSearch:
         search_comments = query.result_type in (None, "comment")
 
         # Build combined query
-        with self.db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Build the UNION query for posts and comments
-                union_parts = []
-                query_params = []
+        with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+            # Build the UNION query for posts and comments
+            union_parts = []
+            query_params = []
 
-                # Convert search query to tsquery
-                tsquery_text = self._prepare_tsquery(query.query_text)
+            # Convert search query to tsquery
+            tsquery_text = self._prepare_tsquery(query.query_text)
 
-                # Posts query
-                if search_posts:
-                    posts_query, posts_params = self._build_posts_query(query, tsquery_text)
-                    union_parts.append(posts_query)
-                    query_params.extend(posts_params)
+            # Posts query
+            if search_posts:
+                posts_query, posts_params = self._build_posts_query(query, tsquery_text)
+                union_parts.append(posts_query)
+                query_params.extend(posts_params)
 
-                # Comments query
-                if search_comments:
-                    comments_query, comments_params = self._build_comments_query(query, tsquery_text)
-                    union_parts.append(comments_query)
-                    query_params.extend(comments_params)
+            # Comments query
+            if search_comments:
+                comments_query, comments_params = self._build_comments_query(query, tsquery_text)
+                union_parts.append(comments_query)
+                query_params.extend(comments_params)
 
-                if not union_parts:
-                    return [], 0
+            if not union_parts:
+                return [], 0
 
-                # Combine with UNION ALL using safe SQL composition
-                union_query = sql.SQL(" UNION ALL ").join(union_parts)
+            # Combine with UNION ALL using safe SQL composition
+            union_query = sql.SQL(" UNION ALL ").join(union_parts)
 
-                # Build complete query with ordering and pagination
-                combined_query = sql.SQL("""
+            # Build complete query with ordering and pagination
+            combined_query = sql.SQL("""
                 WITH combined_results AS (
                     {union_query}
                 )
@@ -141,42 +140,42 @@ class PostgresSearch:
                 ORDER BY {order_by}
                 LIMIT {limit_placeholder} OFFSET {offset_placeholder}
                 """).format(
-                    union_query=union_query,
-                    order_by=sql.SQL(self._get_order_by_clause(query.order_by)),
-                    limit_placeholder=sql.Placeholder(),
-                    offset_placeholder=sql.Placeholder(),
-                )
+                union_query=union_query,
+                order_by=sql.SQL(self._get_order_by_clause(query.order_by)),
+                limit_placeholder=sql.Placeholder(),
+                offset_placeholder=sql.Placeholder(),
+            )
 
-                query_params.extend([query.limit, query.offset])
+            query_params.extend([query.limit, query.offset])
 
-                # Execute search
-                try:
-                    cur.execute(combined_query, query_params)
-                    rows = cur.fetchall()
+            # Execute search
+            try:
+                cur.execute(combined_query, query_params)
+                rows = cur.fetchall()
 
-                    # Parse results
-                    for row in rows:
-                        result = self._parse_search_result(row)
-                        if result:
-                            results.append(result)
+                # Parse results
+                for row in rows:
+                    result = self._parse_search_result(row)
+                    if result:
+                        results.append(result)
 
-                    # Get total count (for pagination)
-                    count_query = sql.SQL("""
+                # Get total count (for pagination)
+                count_query = sql.SQL("""
                     SELECT COUNT(*) as count FROM (
                         {union_query}
                     ) AS count_query
                     """).format(union_query=union_query)
 
-                    # Use same params but without limit/offset
-                    count_params = query_params[:-2]
-                    cur.execute(count_query, count_params)
-                    total_count = cur.fetchone()["count"]
+                # Use same params but without limit/offset
+                count_params = query_params[:-2]
+                cur.execute(count_query, count_params)
+                total_count = cur.fetchone()["count"]
 
-                    return results, total_count
+                return results, total_count
 
-                except Exception as e:
-                    print_error(f"Search query failed: {e}")
-                    return [], 0
+            except Exception as e:
+                print_error(f"Search query failed: {e}")
+                return [], 0
 
     def _prepare_tsquery(self, query_text: str) -> str:
         """Prepare search query text for PostgreSQL tsquery.
@@ -280,7 +279,7 @@ class PostgresSearch:
         # Add tsquery_text for ts_rank and ts_headline at the beginning
         # Query parameter order: ts_rank, ts_headline, then WHERE clause params
         # Note: WHERE clause params already includes 2x tsquery_text (for FTS wildcard check)
-        all_params = [tsquery_text, tsquery_text] + params
+        all_params = [tsquery_text, tsquery_text, *params]
 
         return posts_query, all_params
 
@@ -362,7 +361,7 @@ class PostgresSearch:
 
         # Add tsquery_text for ts_rank and ts_headline at the beginning
         # Query parameter order: ts_rank, ts_headline, then WHERE clause params
-        all_params = [tsquery_text, tsquery_text] + params
+        all_params = [tsquery_text, tsquery_text, *params]
 
         return comments_query, all_params
 
@@ -474,22 +473,21 @@ class PostgresSearch:
         suggestions = []
 
         try:
-            with self.db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    # Get top post titles matching prefix
-                    cur.execute(
-                        """
+            with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+                # Get top post titles matching prefix
+                cur.execute(
+                    """
                         SELECT DISTINCT title
                         FROM posts
                         WHERE title ILIKE %s
                         ORDER BY score DESC
                         LIMIT %s
                     """,
-                        (f"{prefix}%", limit),
-                    )
+                    (f"{prefix}%", limit),
+                )
 
-                    for row in cur:
-                        suggestions.append(row["title"])
+                for row in cur:
+                    suggestions.append(row["title"])
 
         except Exception as e:
             print_error(f"Failed to get search suggestions: {e}")
@@ -511,33 +509,32 @@ class PostgresSearch:
         trending = []
 
         try:
-            with self.db.pool.get_connection() as conn:
-                with conn.cursor() as cur:
-                    # Build query with optional subreddit filter using safe SQL composition
-                    params = []
+            with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+                # Build query with optional subreddit filter using safe SQL composition
+                params = []
 
-                    if subreddit:
-                        query = sql.SQL("""
+                if subreddit:
+                    query = sql.SQL("""
                             SELECT title, score, num_comments
                             FROM posts
                             WHERE subreddit = {subreddit_param}
                             ORDER BY score DESC, created_utc DESC
                             LIMIT {limit_param}
                         """).format(subreddit_param=sql.Placeholder(), limit_param=sql.Placeholder())
-                        params = [subreddit, limit]
-                    else:
-                        query = sql.SQL("""
+                    params = [subreddit, limit]
+                else:
+                    query = sql.SQL("""
                             SELECT title, score, num_comments
                             FROM posts
                             ORDER BY score DESC, created_utc DESC
                             LIMIT {limit_param}
                         """).format(limit_param=sql.Placeholder())
-                        params = [limit]
+                    params = [limit]
 
-                    cur.execute(query, params)
+                cur.execute(query, params)
 
-                    for row in cur:
-                        trending.append({"title": row["title"], "score": row["score"], "comments": row["num_comments"]})
+                for row in cur:
+                    trending.append({"title": row["title"], "score": row["score"], "comments": row["num_comments"]})
 
         except Exception as e:
             print_error(f"Failed to get trending searches: {e}")

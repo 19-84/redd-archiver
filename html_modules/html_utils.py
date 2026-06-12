@@ -31,7 +31,7 @@ def format_file_size(size_bytes: int) -> str:
 
     try:
         size_names = ["B", "KB", "MB", "GB"]
-        i = int(math.floor(math.log(size_bytes, 1024)))
+        i = math.floor(math.log(size_bytes, 1024))
         # Ensure i is within valid range
         i = max(0, min(i, len(size_names) - 1))
         p = math.pow(1024, i)
@@ -44,9 +44,7 @@ def format_file_size(size_bytes: int) -> str:
 
 def validate_link(link: dict[str, Any], min_score: int = 0, min_comments: int = 0) -> bool:
     """Validate if a link meets the filtering criteria"""
-    if not link:
-        return False
-    elif "id" not in link.keys():
+    if not link or "id" not in link:
         return False
     # Apply OR logic: pass if EITHER condition is met (high score OR high comments)
     # This keeps both highly-scored posts with few comments AND highly-discussed posts with lower scores

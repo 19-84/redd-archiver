@@ -393,10 +393,7 @@ def main():
     instance_json = generate_instance_json(parsed_data, api_data, is_tor_only, user_pages_detected)
 
     # Determine output path
-    if args.output:
-        output_path = args.output
-    else:
-        output_path = f"instances/{instance_json['instance_id']}.json"
+    output_path = args.output or f"instances/{instance_json['instance_id']}.json"
 
     # Show form vs API data
     print("\n" + "=" * 60)

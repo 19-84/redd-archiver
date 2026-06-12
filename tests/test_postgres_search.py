@@ -243,11 +243,10 @@ class TestPostgresSearchIntegration:
         yield
 
         # Cleanup
-        with self.db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
-                cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
-                conn.commit()
+        with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit LIKE 'test_%'")
+            cur.execute("DELETE FROM posts WHERE subreddit LIKE 'test_%'")
+            conn.commit()
 
         self.search.cleanup()
 
@@ -303,28 +302,28 @@ class TestPostgresSearchIntegration:
     def test_search_with_subreddit_filter(self):
         """Test search filtered by subreddit."""
         query = SearchQuery(query_text="*", subreddit="test_search")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         assert all(r.subreddit == "test_search" for r in results)
 
     def test_search_with_author_filter(self):
         """Test search filtered by author."""
         query = SearchQuery(query_text="*", author="test_author_1")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         assert all(r.author == "test_author_1" for r in results)
 
     def test_search_with_score_filter(self):
         """Test search filtered by minimum score."""
         query = SearchQuery(query_text="*", min_score=50, result_type="post")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         assert all(r.score >= 50 for r in results)
 
     def test_search_ordering_by_rank(self):
         """Test search results ordered by relevance rank."""
         query = SearchQuery(query_text="programming", order_by="rank")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         if len(results) >= 2:
             # Higher rank should come first
@@ -333,7 +332,7 @@ class TestPostgresSearchIntegration:
     def test_search_ordering_by_score(self):
         """Test search results ordered by score."""
         query = SearchQuery(query_text="*", order_by="score", result_type="post")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         if len(results) >= 2:
             # Higher score should come first
@@ -342,7 +341,7 @@ class TestPostgresSearchIntegration:
     def test_search_ordering_by_date(self):
         """Test search results ordered by date (newest first)."""
         query = SearchQuery(query_text="*", order_by="created_utc", result_type="post")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         if len(results) >= 2:
             # Newer should come first
@@ -365,7 +364,7 @@ class TestPostgresSearchIntegration:
     def test_search_result_has_headline(self):
         """Test search results include highlighted headline."""
         query = SearchQuery(query_text="programming")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         if results:
             # Should have headline excerpt
@@ -374,7 +373,7 @@ class TestPostgresSearchIntegration:
     def test_search_result_has_rank(self):
         """Test search results include relevance rank."""
         query = SearchQuery(query_text="programming")
-        results, count = self.search.search(query)
+        results, _count = self.search.search(query)
 
         if results:
             assert results[0].rank is not None
@@ -413,10 +412,9 @@ class TestSearchConvenienceMethods:
         yield
 
         # Cleanup
-        with self.db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_convenience'")
-                conn.commit()
+        with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_convenience'")
+            conn.commit()
 
         self.search.cleanup()
 
@@ -490,10 +488,9 @@ class TestBackwardsCompatibility:
         yield
 
         # Cleanup
-        with self.db.pool.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM posts WHERE subreddit = 'test_compat'")
-                conn.commit()
+        with self.db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_compat'")
+            conn.commit()
 
     def test_search_archive_function(self):
         """Test search_archive backwards compatibility function."""
