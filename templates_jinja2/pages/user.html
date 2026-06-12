@@ -70,6 +70,11 @@
   {% if user_metadata.bio %}
   <p class="user-bio">{{ user_metadata.bio }}</p>
   {% endif %}
+  {% if user_metadata.badges_json %}
+  <p class="user-badges">
+    {% for badge in user_metadata.badges_json %}<span class="badge badge-type" title="{{ badge.description }}">{{ badge.name }}</span> {% endfor %}
+  </p>
+  {% endif %}
   <p class="text-muted">
     {% if user_metadata.registration_date %}Member since {{ user_metadata.registration_date|reddit_date }}{% endif %}
     {%- if user_metadata.submission_karma is not none %} · Post karma: {{ user_metadata.submission_karma|format_number }}{% endif %}

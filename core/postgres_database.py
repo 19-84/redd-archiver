@@ -4412,6 +4412,72 @@ class PostgresDatabase:
             return 0
         return len(path_by_post_id)
 
+    def create_subscriber_history_table(self) -> bool:
+        """Idempotently create subscriber_history + badges column (migration 012)."""
+        try:
+            migrations_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sql", "migrations"
+            )
+            with open(os.path.join(migrations_dir, "012_subscriber_history.sql")) as f:
+                sql_text = f.read()
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql_text)
+                conn.commit()
+            return True
+        except Exception as e:
+            print_error(f"Failed to create subscriber_history table: {e}")
+            return False
+
+    def save_subscriber_history_batch(self, subreddit: str, platform: str, points: list[tuple[str, int]]) -> int:
+        """Upsert (date, count) points for one community; returns rows written."""
+        if not points:
+            return 0
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        "INSERT INTO subscriber_history (subreddit, platform, date, count) VALUES (%s, %s, %s, %s) "
+                        "ON CONFLICT (subreddit, platform, date) DO UPDATE SET count = EXCLUDED.count",
+                        [(subreddit, platform, d, c) for d, c in points],
+                    )
+                conn.commit()
+            return len(points)
+        except Exception as e:
+            print_error(f"Failed to save subscriber history for {subreddit}: {e}")
+            return 0
+
+    def get_subscriber_history(self, subreddit: str, platform: str = "voat") -> list[dict[str, Any]]:
+        """Chronological (date, count) series for a community; [] if none/table missing."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT date, count FROM subscriber_history "
+                        "WHERE LOWER(subreddit) = LOWER(%s) AND platform = %s ORDER BY date",
+                        (subreddit, platform),
+                    )
+                    return [dict(row) for row in cur]
+        except Exception:
+            return []
+
+    def update_user_badges(self, username: str, platform: str, badges: list[dict[str, Any]]) -> bool:
+        """Set badges_json on an existing user_metadata row."""
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE user_metadata SET badges_json = %s, updated_at = NOW() "
+                        "WHERE LOWER(username) = LOWER(%s) AND platform = %s",
+                        (Jsonb(badges), username, platform),
+                    )
+                    updated = cur.rowcount > 0
+                conn.commit()
+                return updated
+        except Exception as e:
+            print_error(f"Failed to update badges for u/{username}: {e}")
+            return False
+
     def get_archived_author_names(self, platform: str) -> dict[str, str]:
         """{lowercased_author: exact_author} for authors with archived content on a platform."""
         names: dict[str, str] = {}

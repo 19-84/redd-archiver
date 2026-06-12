@@ -282,6 +282,15 @@ def write_subreddit_about_jinja2(
     rules = reddit_db.get_subreddit_rules(subreddit, platform)
     wiki_count = len(reddit_db.get_wiki_pages(subreddit, platform))
 
+    # Subscriber history sparkline (Feature 7 Phase 5) — "" when no series
+    from html_modules.html_charts import subscriber_sparkline
+
+    history = (
+        reddit_db.get_subscriber_history(subreddit, platform) if hasattr(reddit_db, "get_subscriber_history") else []
+    )
+    sparkline_svg = subscriber_sparkline(history)
+    history_peak = max((row["count"] for row in history), default=0)
+
     # About page is one directory deeper than the default index (.../{sub}/about/).
     site_nav_base = "../../../"
     subreddit_nav_base = "../"
@@ -306,6 +315,8 @@ def write_subreddit_about_jinja2(
         "metadata": metadata,
         "rules": rules,
         "wiki_count": wiki_count,
+        "subscriber_sparkline_svg": sparkline_svg,
+        "subscriber_peak": history_peak,
         "url_wiki": "../wiki/index.html",
         "include_path": asset_prefix,
         "url_subs": site_nav_base + "index.html",
