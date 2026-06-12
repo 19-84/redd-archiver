@@ -152,6 +152,10 @@ services:
       # (all archive pages rendered from PostgreSQL — Feature 2)
       REDDARCHIVER_SERVE_MODE: ${REDDARCHIVER_SERVE_MODE:-hybrid}
 
+      # Dynamic-mode Voat thumbnail serving (Feature 7 Phase 4): path to the
+      # extracted thumbnails/ directory; unset = thumbnails 404 in dynamic mode
+      REDDARCHIVER_THUMBNAILS_DIR: ${REDDARCHIVER_THUMBNAILS_DIR:-}
+
       # Application settings
       PYTHONUNBUFFERED: 1
 

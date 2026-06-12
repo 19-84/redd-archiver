@@ -4376,6 +4376,42 @@ class PostgresDatabase:
             return 0
         return len(flair_by_post_id)
 
+    def get_voat_thumbnail_posts(self) -> list[tuple[str, str]]:
+        """(post_id, thumbnail_filename) for archived Voat posts that have one.
+
+        The raw Voat row is nested inside the stored json_data, so the UUID
+        filename lives at json_data->'json_data'->>'thumbnail'.
+        """
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, json_data->'json_data'->>'thumbnail' AS thumb FROM posts "
+                        "WHERE platform = 'voat' AND COALESCE(json_data->'json_data'->>'thumbnail', '') != ''"
+                    )
+                    return [(row["id"], row["thumb"]) for row in cur]
+        except Exception as e:
+            print_error(f"Failed to load Voat thumbnail posts: {e}")
+            return []
+
+    def update_post_thumbnail_batch(self, path_by_post_id: dict[str, str]) -> int:
+        """Set json_data.thumbnail_local on many posts; returns rows updated."""
+        if not path_by_post_id:
+            return 0
+        try:
+            with self.pool.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        "UPDATE posts SET json_data = jsonb_set(json_data, '{thumbnail_local}', to_jsonb(%s::text)) "
+                        "WHERE id = %s",
+                        [(path, post_id) for post_id, path in path_by_post_id.items()],
+                    )
+                conn.commit()
+        except Exception as e:
+            print_error(f"Failed to update post thumbnail batch: {e}")
+            return 0
+        return len(path_by_post_id)
+
     def get_archived_author_names(self, platform: str) -> dict[str, str]:
         """{lowercased_author: exact_author} for authors with archived content on a platform."""
         names: dict[str, str] = {}

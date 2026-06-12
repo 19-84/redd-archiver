@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from flask import Blueprint, abort, redirect, render_template, request
+from flask import Blueprint, abort, redirect, render_template, request, send_from_directory
 
 from core.postgres_database import PostgresDatabase
 from html_modules.content_urls import build_comment_tree, enrich_user_content
@@ -513,6 +513,24 @@ def about_page(prefix: str, subreddit: str):
         "og_title": f"{get_url_prefix(platform)}/{subreddit} - About",
     }
     return render_template("pages/subreddit_about.html", **context)
+
+
+# ---------------------------------------------------------------------------
+# Voat post thumbnails (Feature 7 Phase 4)
+# ---------------------------------------------------------------------------
+
+
+@pages.route("/assets/thumbnails/<path:relpath>")
+def thumbnail_asset(relpath: str):
+    """Serve archived Voat thumbnails from REDDARCHIVER_THUMBNAILS_DIR.
+
+    In static/hybrid mode nginx serves the copied files; dynamic mode points
+    this env var at the extracted thumbnails/ directory instead (no copy).
+    """
+    base = os.environ.get("REDDARCHIVER_THUMBNAILS_DIR")
+    if not base or not os.path.isdir(base):
+        abort(404)
+    return send_from_directory(base, relpath, max_age=86400)
 
 
 # ---------------------------------------------------------------------------
