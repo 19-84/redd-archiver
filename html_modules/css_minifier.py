@@ -5,10 +5,17 @@
 # ABOUTME: Provides functions to minify CSS files during static asset copying
 
 import os
+from typing import cast
 
 import rcssmin
 
 from utils.console_output import print_error, print_info, print_success
+
+
+def minify_css_text(css: str) -> str:
+    """Minify CSS text (keep_bang_comments preserves /*! ... */ license comments)."""
+    # rcssmin returns the input type: str in, str out
+    return cast(str, rcssmin.cssmin(css, keep_bang_comments=True))
 
 
 def minify_css_file(input_path, output_path):
@@ -33,8 +40,7 @@ def minify_css_file(input_path, output_path):
 
         original_size = len(css)
 
-        # Minify CSS (keep_bang_comments preserves /*! ... */ license comments)
-        minified = rcssmin.cssmin(css, keep_bang_comments=True)
+        minified = minify_css_text(css)
 
         minified_size = len(minified)
 
