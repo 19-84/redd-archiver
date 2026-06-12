@@ -89,12 +89,11 @@ EXPOSE 5000
 
 # Default command: Run Flask with Gunicorn (production-ready)
 # - bind to 0.0.0.0:5000 (accessible from outside container)
-# - 4 worker processes for concurrency
+# - worker count set in gunicorn.conf.py: CPU-scaled, GUNICORN_WORKERS overrides
 # - config file with hooks to pre-initialize search engine in each worker
 # - access log to stdout for Docker logging
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
-     "--workers", "4", \
      "--worker-class", "sync", \
      "--config", "/app/gunicorn.conf.py", \
      "--access-logfile", "-", \

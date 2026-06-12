@@ -16,6 +16,8 @@ archives and the shared templates keep working.
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Callable
 from typing import Any
 
 from flask import Blueprint, abort, redirect, render_template, request, send_from_directory
@@ -124,15 +126,48 @@ def _filter_query_suffix(filters: dict[str, Any], sort: str) -> str:
     return "?" + urlencode(params) + "&page=__PAGE__"
 
 
-def _check_platform(prefix: str, subreddit: str) -> str:
-    """404 unless `prefix` exists and matches the archived posts' platform."""
+# Per-request work that only changes on import: community platforms (immutable)
+# and listing counts/score ranges (TTL-cached, REDDARCHIVER_LISTING_CACHE_TTL).
+_platform_cache: dict[str, str] = {}
+_listing_cache: dict[tuple, tuple[float, Any]] = {}
+_LISTING_CACHE_TTL = float(os.environ.get("REDDARCHIVER_LISTING_CACHE_TTL", "300"))
+
+
+def _cached(key: tuple, compute: Callable[[], Any]) -> Any:
+    now = time.time()
+    hit = _listing_cache.get(key)
+    if hit is not None and now - hit[0] < _LISTING_CACHE_TTL:
+        return hit[1]
+    value = compute()
+    if len(_listing_cache) > 4096:  # crude bound; entries are tiny
+        _listing_cache.clear()
+    _listing_cache[key] = (now, value)
+    return value
+
+
+def _resolve_community(prefix: str, subreddit: str) -> tuple[str, str]:
+    """404 unless `prefix` exists and the community is archived under it.
+
+    Returns (platform, canonical_subreddit): user-typed URL case is mapped to
+    the stored form once here so downstream queries use exact index-friendly
+    matches.
+    """
     platform = _PREFIX_PLATFORMS.get(prefix)
     if platform is None:
         abort(404)
-    sample = next(get_db().get_posts_paginated(subreddit, limit=1), None)
-    if sample is None or sample.get("platform", "reddit") != platform:
+    canonical = get_db().resolve_subreddit_name(subreddit)
+    if canonical is None:
         abort(404)
-    return platform
+    actual = _platform_cache.get(canonical)
+    if actual is None:
+        sample = next(get_db().get_posts_paginated(canonical, limit=1), None)
+        if sample is None:
+            abort(404)
+        actual = sample.get("platform", "reddit")
+        _platform_cache[canonical] = actual
+    if actual != platform:
+        abort(404)
+    return platform, canonical
 
 
 def _nav_context(subreddit: str | None = None, prefix: str = "r") -> dict[str, Any]:
@@ -209,7 +244,11 @@ def _render_listing(prefix: str, subreddit: str | None, platform: str):
     sort_key, order_by = _SORTS[sort]
     filters = _filter_args()
 
-    total_posts = db.count_posts_filtered(subreddit=subreddit, **filters)
+    filter_key = tuple(sorted((k, v) for k, v in filters.items() if v))
+
+    total_posts = _cached(
+        ("count", subreddit, filter_key), lambda: db.count_posts_filtered(subreddit=subreddit, **filters)
+    )
     total_pages = max(1, (total_posts + links_per_page - 1) // links_per_page)
 
     posts = db.query_posts_filtered(
@@ -222,18 +261,23 @@ def _render_listing(prefix: str, subreddit: str | None, platform: str):
     if not posts and page_num > 1:
         abort(404)
 
-    try:
-        sample = db.query_posts_filtered(subreddit=subreddit, limit=100, **filters)
-        score_ranges = calculate_subreddit_score_ranges(sample)
-    except Exception:
-        score_ranges = {"very_high": 100, "high": 50, "medium": 10}
+    def _compute_ranges():
+        try:
+            sample = db.query_posts_filtered(subreddit=subreddit, limit=100, **filters)
+            return calculate_subreddit_score_ranges(sample)
+        except Exception:
+            return {"very_high": 100, "high": 50, "medium": 10}
+
+    score_ranges = _cached(("ranges", subreddit, filter_key), _compute_ranges)
 
     url_prefix = get_url_prefix(platform)
     display_name = subreddit or "all"
     base = f"/{prefix}/{subreddit}/" if subreddit else "/all/"
-    has_about = bool(subreddit) and db.get_subreddit_metadata(subreddit, platform) is not None
+    has_about = bool(subreddit) and _cached(
+        ("about", subreddit, platform), lambda: db.get_subreddit_metadata(subreddit, platform) is not None
+    )
 
-    stats = db.get_subreddit_statistics_from_db(subreddit) if subreddit else None
+    stats = _cached(("stats", subreddit), lambda: db.get_subreddit_statistics_from_db(subreddit)) if subreddit else None
 
     context = {
         **_nav_context(subreddit, prefix),
@@ -265,7 +309,7 @@ def _render_listing(prefix: str, subreddit: str | None, platform: str):
 
 @pages.route("/<prefix>/<subreddit>/")
 def subreddit_index(prefix: str, subreddit: str):
-    platform = _check_platform(prefix, subreddit)
+    platform, subreddit = _resolve_community(prefix, subreddit)
     return _render_listing(prefix, subreddit, platform)
 
 
@@ -299,7 +343,7 @@ def _letter_tabs(prefix: str, subreddit: str, counts: dict[str, int], active: st
 
 @pages.route("/<prefix>/<subreddit>/titles/")
 def title_directory(prefix: str, subreddit: str):
-    platform = _check_platform(prefix, subreddit)
+    platform, subreddit = _resolve_community(prefix, subreddit)
     counts = get_db().get_title_letter_counts(subreddit)
     if not counts:
         abort(404)
@@ -322,7 +366,7 @@ def title_directory(prefix: str, subreddit: str):
 def title_letter(prefix: str, subreddit: str, letter: str):
     if letter not in _LETTERS:
         abort(404)
-    platform = _check_platform(prefix, subreddit)
+    platform, subreddit = _resolve_community(prefix, subreddit)
     db = get_db()
     counts = db.get_title_letter_counts(subreddit)
     total = counts.get(letter, 0)
@@ -379,6 +423,7 @@ def _render_post(prefix: str, subreddit: str, post_id: str):
         abort(404)
     if post.get("platform", "reddit") != platform:
         abort(404)
+    subreddit = post.get("subreddit", subreddit)  # canonical case for context/queries
 
     comments_list = list(db.get_comments_for_post(post_id))
     root_comments = build_comment_tree(comments_list)
@@ -425,6 +470,7 @@ def ruqqus_post_page(subreddit: str, post_id: str, slug: str):
 @pages.route("/user/<username>/")
 def user_page(username: str):
     db = get_db()
+    username = db.resolve_username(username) or username
     user_data = db.get_user_activity(username)
     all_content = user_data.get("all_content", [])
     if not all_content:
@@ -486,7 +532,7 @@ def user_page(username: str):
 
 @pages.route("/<prefix>/<subreddit>/about/")
 def about_page(prefix: str, subreddit: str):
-    platform = _check_platform(prefix, subreddit)
+    platform, subreddit = _resolve_community(prefix, subreddit)
     db = get_db()
     metadata = db.get_subreddit_metadata(subreddit, platform)
     if not metadata:

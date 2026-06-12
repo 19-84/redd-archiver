@@ -109,6 +109,32 @@ def inject_theme():
 
 
 # ============================================================================
+# HTTP CACHING
+# ============================================================================
+
+# Archive content is immutable between imports: let clients and proxies cache
+# GET responses and revalidate via ETag (304s skip the body entirely).
+# Operator-tunable; 0 disables. /health stays uncached for monitoring.
+HTTP_CACHE_MAX_AGE = int(os.environ.get("REDDARCHIVER_HTTP_CACHE_MAX_AGE", "300"))
+
+
+@app.after_request
+def add_cache_headers(response):
+    if (
+        HTTP_CACHE_MAX_AGE > 0
+        and request.method == "GET"
+        and response.status_code == 200
+        and request.path != "/health"
+        and not response.direct_passthrough
+    ):
+        response.cache_control.public = True
+        response.cache_control.max_age = HTTP_CACHE_MAX_AGE
+        response.add_etag()
+        return response.make_conditional(request)
+    return response
+
+
+# ============================================================================
 # GLOBAL SEARCH ENGINE (reused across all requests)
 # ============================================================================
 
