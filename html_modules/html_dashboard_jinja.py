@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportUndefinedVariable=false
 # ABOUTME: Jinja2-based dashboard generation for redd-archiver
 # ABOUTME: Replaces f-string HTML generation with clean template rendering
 

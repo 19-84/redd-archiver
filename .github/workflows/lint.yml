@@ -29,3 +29,6 @@ jobs:
 
       - name: Run ruff format check
         run: uv run ruff format --check .
+
+      - name: Run pyright
+        run: uv run pyright

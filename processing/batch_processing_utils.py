@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportOptionalContextManager=false, reportOptionalMemberAccess=false
 # ABOUTME: Database-agnostic batch processing system with advanced auto-tuning and transaction management
 # ABOUTME: Provides memory-efficient data processing with automatic optimization and monitoring for PostgreSQL
 

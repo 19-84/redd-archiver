@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportUndefinedVariable=false
 # ABOUTME: Dashboard data preparation helpers for Jinja2 templates
 # ABOUTME: Separates calculation logic from presentation (replaces f-string HTML generation)
 

@@ -1,3 +1,6 @@
+# Legacy pre-pyright code: rules below are suppressed file-wide (F8 Phase 1);
+# new code in this file should still satisfy them. Tightening tracked in roadmap/08.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportOperatorIssue=false, reportOptionalMemberAccess=false
 # ABOUTME: Jinja2 templating environment configuration for Redd-Archiver HTML generation
 # ABOUTME: Provides optimized template loading, caching, and rendering for static site generation
 
