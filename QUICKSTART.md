@@ -717,7 +717,7 @@ For users who need more control over the archive generation process.
 
 ```bash
 
---theme NAME             # Theme palette: default | sepia | high-contrast
+--theme NAME             # 11 palettes: default|sepia|high-contrast|nord|solarized|dracula|gruvbox|cyberpunk|midnight|old-reddit|phosphor
 
 --accent-color HEX       # Override theme accent color (both light/dark modes)
 

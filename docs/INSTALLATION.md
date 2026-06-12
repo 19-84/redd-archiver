@@ -86,7 +86,7 @@ DATABASE_URL=postgresql://reddarchiver:YOUR_SECURE_PASSWORD@/reddarchiver?host=/
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `REDDARCHIVER_SERVE_MODE` | `hybrid` | `dynamic` serves all pages from PostgreSQL (no export step) |
-| `REDDARCHIVER_THEME` | `default` | Theme palette in dynamic mode: `default` \| `sepia` \| `high-contrast` |
+| `REDDARCHIVER_THEME` | `default` | Theme palette in dynamic mode (11 available: default | sepia | high-contrast | nord | solarized | dracula | gruvbox | cyberpunk | midnight | old-reddit | phosphor) |
 | `REDDARCHIVER_ACCENT_COLOR` | unset | Accent color override (hex) in dynamic mode |
 | `REDDARCHIVER_HTTP_CACHE_MAX_AGE` | `300` | `Cache-Control: max-age` for search-server GET responses (0 disables) |
 | `REDDARCHIVER_LISTING_CACHE_TTL` | `300` | In-process cache TTL (seconds) for dynamic listing counts/stats |

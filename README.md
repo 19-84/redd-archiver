@@ -143,7 +143,7 @@ See [MCP Server Documentation](mcp_server/README.md) for complete setup guide.
 - **📱 Mobile-First Design**: Responsive layout optimized for all devices with touch-friendly navigation
 - **🔍 Advanced Search System (Server Required)**: PostgreSQL full-text search optimized for Tor network. Search by keywords, subreddit, author, date, score. *Requires Docker deployment - offline browsing uses sorted index pages.*
 - **⚡ JavaScript Free**: Complete functionality without JS, pure CSS interactions
-- **🎨 Themes**: CSS-only dark/light mode (follows system preference, manual toggle), plus operator palettes — `--theme default|sepia|high-contrast` and `--accent-color` at export time, or `REDDARCHIVER_THEME` in dynamic mode, with `--custom-css` for full control
+- **🎨 Themes**: CSS-only dark/light mode (follows system preference, manual toggle), plus operator palettes — `--theme` with 11 palettes (sepia, nord, solarized, dracula, gruvbox, cyberpunk, midnight OLED, old-reddit, phosphor, high-contrast) and `--accent-color` at export time, or `REDDARCHIVER_THEME` in dynamic mode, with `--custom-css` for full control
 - **📇 Offline Browsing Aids**: Per-letter title indexes (Ctrl+F-friendly), flair indexes, and an archive map page — search-like navigation with zero server
 - **📖 Community Metadata**: Subreddit descriptions, rules, and wikis imported from Arctic Shift dumps; Voat subverse metadata, user profiles, and flair
 - **♿ Accessibility**: WCAG compliant — Lighthouse 100 accessibility score across page types
@@ -273,7 +273,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/reddarchiver
 
 # Serving (search server)
 REDDARCHIVER_SERVE_MODE=dynamic         # hybrid (default) | dynamic
-REDDARCHIVER_THEME=sepia                # default | sepia | high-contrast
+REDDARCHIVER_THEME=nord                 # 11 palettes: default|sepia|high-contrast|nord|solarized|dracula|gruvbox|cyberpunk|midnight|old-reddit|phosphor
 REDDARCHIVER_ACCENT_COLOR="#8b6914"     # Accent override (hex), both modes
 REDDARCHIVER_HTTP_CACHE_MAX_AGE=300     # Cache-Control/ETag for GET responses (0 disables)
 REDDARCHIVER_LISTING_CACHE_TTL=300      # Listing count/stats cache (dynamic mode)

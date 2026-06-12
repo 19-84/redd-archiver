@@ -38,7 +38,19 @@ def _block_tokens(css, header_re):
 @pytest.mark.unit
 class TestPalettes:
     def test_theme_names(self):
-        assert set(THEME_NAMES) == {"default", "sepia", "high-contrast"}
+        assert set(THEME_NAMES) == {
+            "default",
+            "sepia",
+            "high-contrast",
+            "nord",
+            "solarized",
+            "dracula",
+            "gruvbox",
+            "cyberpunk",
+            "midnight",
+            "old-reddit",
+            "phosphor",
+        }
 
     def test_palette_structure(self):
         """Every theme covers the full default token set; extras only re-skin BASE_PALETTE vars."""
@@ -92,7 +104,48 @@ class TestPalettes:
 
     def test_unknown_theme_raises(self):
         with pytest.raises(ValueError, match="unknown theme"):
-            build_palette("solarized")
+            build_palette("vaporwave")
+
+    def test_new_theme_reference_anchors(self):
+        """Each palette pins its reference colors (nordtheme.com, solarized, etc.)."""
+        anchors = {
+            "nord": {"dark": {"--body-text": "#d8dee9"}, "light": {"--body-text": "#2e3440"}},
+            "solarized": {"dark": {"--body-text": "#93a1a1"}, "light": {"--body-text": "#657b83"}},
+            "dracula": {"dark": {"--body-text": "#f8f8f2"}, "light": {"--body-text": "#282a36"}},
+            "gruvbox": {"dark": {"--body-text": "#ebdbb2"}, "light": {"--body-text": "#3c3836"}},
+            "cyberpunk": {"dark": {"--body-text": "#d6f6ff"}, "light": {"--body-text": "#1a1025"}},
+            "midnight": {"dark": {"--body-bg": "#000000", "--body-text": "#d4d4d8"}, "light": {}},
+            "old-reddit": {
+                "dark": {"--body-bg": "#1a1a1b", "--body-text": "#d7dadc"},
+                "light": {"--body-bg": "#ffffff", "--body-text": "#1a1a1b"},
+            },
+            "phosphor": {"dark": {"--body-bg": "#000000", "--body-text": "#33ff33"}, "light": {}},
+        }
+        for theme, modes in anchors.items():
+            palette = THEMES[theme]
+            for mode, tokens in modes.items():
+                for key, value in tokens.items():
+                    assert palette[mode][key] == value, f"{theme}/{mode} {key}"
+
+    def test_new_themes_preserve_semantic_colors(self):
+        """Greens/reds/ambers (badges, vote colors) survive every theme transform."""
+        for theme in ("nord", "solarized", "dracula", "gruvbox", "cyberpunk", "midnight", "old-reddit", "phosphor"):
+            palette = THEMES[theme]
+            for mode in ("dark", "light"):
+                for key in ("--mod-badge-text", "--admin-badge-text", "--gilded-icon-text"):
+                    assert palette[mode][key] == THEMES["default"][mode][key], f"{theme}/{mode} {key}"
+
+    def test_midnight_light_mode_is_default(self):
+        """OLED midnight only changes dark mode; light stays stock."""
+        assert THEMES["midnight"]["light"] == THEMES["default"]["light"]
+
+    def test_midnight_crushes_dark_surfaces(self):
+        """Surface ladder approaches true black; accents are untouched."""
+        midnight_dark = THEMES["midnight"]["dark"]
+        # the comment-depth surface ramp (BASE_PALETTE) rides along darker
+        assert midnight_dark["--comment-depth-0"] != BASE_PALETTE["--comment-depth-0"]
+        # bright accents stay stock
+        assert midnight_dark["--links-title-hover-text"] == DEFAULT_DARK["--links-title-hover-text"]
 
 
 @pytest.mark.unit
