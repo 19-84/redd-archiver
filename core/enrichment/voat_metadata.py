@@ -27,6 +27,8 @@ SUBVERSE_FILENAME = "subverse.sql.gz"
 USER_FILENAME = "user.sql.gz"
 MODERATOR_FILENAME = "subverseModerator.sql.gz"
 ATTRIBUTE_FILENAME = "submissionAttribute.sql.gz"
+SUBSCRIBERS_FILENAME = "subverseSubscribers.sql.gz"
+BADGE_FILENAME = "userBadge.sql.gz"
 
 # Stripped from user rows before storage. svpassword is always empty in the
 # dump but must never be persisted; the fetch* fields are scraper bookkeeping.
@@ -197,6 +199,58 @@ def import_flair(db: Any, attribute_file: str) -> int:
     return total
 
 
+def import_subscribers(db: Any, subscribers_file: str, tracked: dict[str, str]) -> int:
+    """Stream subverseSubscribers.sql.gz, importing daily counts for tracked subverses.
+
+    Returns data points written. The series powers the subscriber sparkline on
+    about pages (server-rendered SVG — no JavaScript).
+    """
+    print_info(f"Enriching subscriber history from {os.path.basename(subscribers_file)} ...")
+    parser = VoatSQLParser()
+    by_subverse: dict[str, list[tuple[str, int]]] = {}
+    for row in parser.stream_rows(subscribers_file, "subverseSubscribers", filter_subverses=list(tracked.values())):
+        sub = (row.get("subverse") or "").lower() if isinstance(row.get("subverse"), str) else ""
+        date = row.get("date")
+        count = row.get("count")
+        if sub not in tracked or not date or count is None:
+            continue
+        by_subverse.setdefault(sub, []).append((str(date), int(count)))
+    total = 0
+    for lsub, points in by_subverse.items():
+        total += db.save_subscriber_history_batch(tracked[lsub], "voat", points)
+    print_success(f"Imported {total:,} subscriber data point(s) for {len(by_subverse)} subverse(s)")
+    return total
+
+
+def import_badges(db: Any, badge_file: str, tracked_users: dict[str, str]) -> int:
+    """Stream userBadge.sql.gz, attaching badge lists to enriched user profiles.
+
+    Returns users updated. Only users already in user_metadata receive badges
+    (the UPDATE is a no-op for unknown users).
+    """
+    print_info(f"Enriching user badges from {os.path.basename(badge_file)} ...")
+    parser = VoatSQLParser()
+    by_user: dict[str, list[dict[str, Any]]] = {}
+    for row in parser.stream_rows(badge_file, "userBadge"):
+        name = row.get("username") if isinstance(row.get("username"), str) else ""
+        lname = name.lower()
+        if not lname or lname not in tracked_users:
+            continue
+        by_user.setdefault(lname, []).append(
+            {
+                "name": str(row.get("name") or ""),
+                "description": str(row.get("description") or ""),
+                "awarded": row.get("creationdate"),
+            }
+        )
+    updated = 0
+    for lname, badges in by_user.items():
+        if db.update_user_badges(tracked_users[lname], "voat", badges):
+            updated += 1
+    print_success(f"Attached badges to {updated} user(s)")
+    return updated
+
+
 def import_subverses(db: Any, subverse_file: str, tracked: dict[str, str]) -> int:
     """Stream subverse.sql.gz, importing metadata for tracked subverses.
 
@@ -247,13 +301,15 @@ def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
     """
     if not tracked:
         print_warning("No tracked Voat subverses in the database — nothing to enrich. Import Voat posts first.")
-        return {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
+        return {"subverses": 0, "users": 0, "moderators": 0, "flair": 0, "subscriber_points": 0, "badged_users": 0}
 
     files: dict[str, str | None] = {
         SUBVERSE_FILENAME: None,
         USER_FILENAME: None,
         MODERATOR_FILENAME: None,
         ATTRIBUTE_FILENAME: None,
+        SUBSCRIBERS_FILENAME: None,
+        BADGE_FILENAME: None,
     }
     if os.path.isdir(path):
         for fname in files:
@@ -264,7 +320,7 @@ def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
         base = os.path.basename(path)
         files[base if base in files else SUBVERSE_FILENAME] = path
 
-    counts = {"subverses": 0, "users": 0, "moderators": 0, "flair": 0}
+    counts = {"subverses": 0, "users": 0, "moderators": 0, "flair": 0, "subscriber_points": 0, "badged_users": 0}
     if files[SUBVERSE_FILENAME]:
         counts["subverses"] = import_subverses(db, files[SUBVERSE_FILENAME], tracked)
     else:
@@ -280,4 +336,12 @@ def enrich_voat(db: Any, path: str, tracked: dict[str, str]) -> dict[str, int]:
             counts["users"] = import_users(db, files[USER_FILENAME], tracked_users)
         else:
             print_warning("No archived Voat authors found — skipping user profile enrichment")
+    if files[SUBSCRIBERS_FILENAME]:
+        db.create_subscriber_history_table()
+        counts["subscriber_points"] = import_subscribers(db, files[SUBSCRIBERS_FILENAME], tracked)
+    if files[BADGE_FILENAME]:
+        db.create_subscriber_history_table()  # also adds badges_json (migration 012)
+        tracked_users = db.get_archived_author_names("voat")
+        if tracked_users:
+            counts["badged_users"] = import_badges(db, files[BADGE_FILENAME], tracked_users)
     return counts

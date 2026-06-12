@@ -4048,3 +4048,12 @@ details.comment[open][data-depth="1"] {
   display: block;
   margin-top: 0.35rem;
 }
+
+/* ===== SUBSCRIBER SPARKLINE (Feature 7 Phase 5) ===== */
+.sparkline-wrap {
+  color: var(--text-link, #60a5fa);
+  max-width: 600px;
+}
+.user-badges .badge {
+  margin-right: 0.25rem;
+}
