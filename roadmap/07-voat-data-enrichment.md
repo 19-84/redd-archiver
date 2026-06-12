@@ -1,6 +1,6 @@
 # Feature 7: Voat Data Enrichment
 
-**Status:** In progress (Phases 1–3 implemented)
+**Status:** In progress (Phases 1–4 implemented)
 **Last updated:** 2026-06-11
 
 **Goal:** Import the full breadth of Voat metadata from the Voat SQL archive to enrich Voat archives with subverse descriptions, moderator lists, user profiles, post flair, post thumbnails, and subscriber history that exist in the SQL dumps but are not currently imported.
@@ -615,7 +615,7 @@ The `thumbnail` column in the submission SQL (`voat_sql_parser.py:46`, column in
 | **Phase 1: Subverse metadata** — **implemented** (`--enrich-voat`, migration 009, shared about pages; tracking is platform-scoped and prefers exact-case subverse names; API surfacing deferred) | Import subverse descriptions, sidebar HTML, creation dates, subscribers, NSFW, moderator names. Generate about pages. Integrate with dashboard and API. | Medium | None — sidebar HTML is pre-rendered |
 | **Phase 2: User profiles** — **implemented** (user_metadata table via migration 011, `--enrich-voat` auto-detects user.sql.gz, svpassword stripped, user pages show bio/member-since/karma/bot badge in both static and dynamic modes; parser gained Adminer column-list INSERT support) | Import user bios, registration dates, karma breakdowns. Enrich user pages. | Medium | None |
 | **Phase 3: Moderators + flair** — **implemented** (structured moderator lists with levels/dates replace the name-only list; flair from `type='Flair'` attribute rows — NOTE: the spec's `type='linkflairlabel'` was wrong, those are cssClass values on system Data labels — mapped to `json_data.link_flair_text`, enabling the F1 flair index and dynamic `?flair=` for Voat) | Import structured moderator data (levels, dates). Import submission flair attributes. Show moderators on about page, flair on post cards. | Medium | Phase 1 (about page must exist for moderator display) |
-| **Phase 4: Thumbnails** | Extract and serve post thumbnails. Map UUID filenames to submissions. | Large | Phase 1 + storage decisions (14GB) |
+| **Phase 4: Thumbnails** — **implemented** (`--voat-thumbnails DIR` selectively copies archived posts' thumbnails to `output/assets/thumbnails/{XX}/{YY}/`, records `json_data.thumbnail_local`, post cards render a 48x36 lazy-loaded image; dynamic mode serves via `REDDARCHIVER_THUMBNAILS_DIR` without copying) | Extract and serve post thumbnails. Map UUID filenames to submissions. | Large | Phase 1 + storage decisions (14GB) |
 | **Phase 5: Historical data** | Import subscriber time-series, user badges, top50 rankings. Power analytics/charts in dynamic mode. | Small–Medium | Feature 2 dynamic mode (for interactive charts) |
 
 ### Phase 1 advantage over Feature 6 Phase 1
