@@ -17,6 +17,7 @@
 - [Quick Start](#quick-start)
 - [Common Parameters](#common-parameters)
 - [Response Format](#response-format)
+- [Caching](#caching)
 - [System Endpoints](#system-endpoints)
 - [Posts Endpoints](#posts-endpoints)
 - [Comments Endpoints](#comments-endpoints)
@@ -132,6 +133,22 @@ These parameters are supported by most list endpoints:
   "error": "Error message",
   "details": ["Validation error 1", "Validation error 2"]
 }
+```
+
+---
+
+## Caching
+
+All GET responses (except `/health`) carry `Cache-Control: public, max-age=300` and an `ETag` header. The max-age is configurable on the server via `REDDARCHIVER_HTTP_CACHE_MAX_AGE` (seconds, default 300; `0` disables caching).
+
+Clients may send `If-None-Match` with a previously received ETag; unchanged resources return `304 Not Modified` with an empty body:
+
+```bash
+curl -i "https://archive.example.com/api/v1/stats"
+# ETag: "abc123..."
+
+curl -i -H 'If-None-Match: "abc123..."' "https://archive.example.com/api/v1/stats"
+# HTTP/1.1 304 Not Modified
 ```
 
 ---
@@ -2653,5 +2670,5 @@ See [MCP Server Documentation](../mcp_server/README.md) for complete setup guide
 ---
 
 **API Version**: 1.0
-**Documentation Last Updated**: 2025-12-30
+**Documentation Last Updated**: 2026-06-12
 **Validation**: 100% endpoint validation with comprehensive test coverage

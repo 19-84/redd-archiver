@@ -13,6 +13,7 @@ Quick answers to common questions. For detailed guides, see [Documentation Hub](
 - [Data Sources](#data-sources)
 - [Performance](#performance)
 - [Advanced](#advanced)
+- [Updates & Appearance](#updates--appearance)
 
 ---
 
@@ -515,15 +516,10 @@ docker compose exec reddarchiver-builder python reddarc.py /data \
 - User links lead to simple user list
 
 **PostgreSQL memory tuning** (for 4GB systems):
-```yaml
-# In docker-compose.yml
-services:
-  postgres:
-    command:
-      - -c
-      - shared_buffers=256MB  # Default: 1GB
-      - -c
-      - work_mem=16MB  # Default: 64MB
+```ini
+# In postgres.conf (repo root, mounted into the postgres container)
+shared_buffers = 256MB    # Default: 512MB
+work_mem = 16MB           # Default: 32MB
 ```
 
 **See also:** [TROUBLESHOOTING.md - Memory Issues](TROUBLESHOOTING.md#memory-issues)
@@ -548,19 +544,12 @@ services:
 ```
 
 **Step 2: Reduce PostgreSQL memory settings**
-```yaml
-# In docker-compose.yml
-services:
-  postgres:
-    command:
-      - -c
-      - shared_buffers=512MB  # Reduce from 1GB
-      - -c
-      - work_mem=32MB  # Reduce from 64MB
-      - -c
-      - maintenance_work_mem=128MB  # Reduce from 256MB
-      - -c
-      - effective_cache_size=1GB  # Reduce from 4GB
+```ini
+# In postgres.conf (repo root, mounted into the postgres container)
+shared_buffers = 256MB         # Reduce from 512MB
+work_mem = 16MB                # Reduce from 32MB
+maintenance_work_mem = 256MB   # Reduce from 512MB
+effective_cache_size = 1GB     # Reduce from 2GB
 ```
 
 **Step 3: Use memory-saving flags**
@@ -638,6 +627,85 @@ docker compose --profile tor up -d
 ```
 
 **See also:** [TOR_DEPLOYMENT.md - Troubleshooting](TOR_DEPLOYMENT.md#troubleshooting)
+
+---
+
+## Updates & Appearance
+
+### Q18: Can the archive stay up to date?
+
+**Quick Answer:** YES - apply monthly dumps incrementally, no full rebuild needed.
+
+**Solution:**
+```bash
+# Apply a single monthly dump pair
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --update /data/monthly/RS_2026-05.zst \
+  --comments-file /data/monthly/RC_2026-05.zst \
+  --output /output/
+
+# Or apply everything unprocessed in a directory (oldest-first)
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --update-all /data/monthly/ \
+  --output /output/
+
+# Check update history
+docker compose exec reddarchiver-builder python reddarc.py /data --update-status
+```
+
+**How it works:**
+- Only subreddits already in your archive are imported
+- Upserts refresh scores while preserving original content
+- Each file's SHA256 is recorded in the `update_history` table - re-running the same file is a no-op
+
+**See also:** [INCREMENTAL_UPDATES.md](INCREMENTAL_UPDATES.md) - Complete guide
+
+---
+
+### Q19: Can I change the look of my archive?
+
+**Quick Answer:** YES - theme palettes, accent color override, and custom CSS.
+
+**Export flags:**
+```bash
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --export-from-database \
+  --output /output/ \
+  --theme sepia \
+  --accent-color "#8b6914" \
+  --custom-css /data/my-overrides.css
+```
+
+- `--theme default|sepia|high-contrast` - Built-in palettes
+- `--accent-color HEX` - Override the accent color (both light/dark modes)
+- `--custom-css PATH` - Append your own CSS after the main stylesheet
+
+**Dynamic serving mode:** set `REDDARCHIVER_THEME` and `REDDARCHIVER_ACCENT_COLOR` environment variables instead.
+
+Dark/light mode follows the visitor's system preference (`prefers-color-scheme`), with a CSS-only manual toggle.
+
+---
+
+### Q20: Do I need to re-export HTML after every import?
+
+**Quick Answer:** Not in dynamic mode - pages are rendered from the database on request.
+
+**Dynamic mode (no export step):**
+```bash
+# In .env:
+REDDARCHIVER_SERVE_MODE=dynamic
+```
+The Flask server serves all pages straight from PostgreSQL, so new imports are visible immediately.
+
+**Hybrid/static mode:** yes, re-export after importing new data:
+```bash
+docker compose exec reddarchiver-builder python reddarc.py /data \
+  --export-from-database \
+  --output /output/
+```
+Note: `--update`/`--update-all` selectively re-export affected pages automatically (unless `--import-only`).
+
+**See also:** [ARCHITECTURE.md - Serving Modes](../ARCHITECTURE.md#serving-modes)
 
 ---
 
