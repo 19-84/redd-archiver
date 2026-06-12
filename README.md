@@ -3,7 +3,7 @@
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PostgreSQL Required](https://img.shields.io/badge/PostgreSQL-required-blue.svg)](https://www.postgresql.org/)
-[![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)]()
+[![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)]()
 [![Multi-Platform](https://img.shields.io/badge/platforms-Reddit%20%7C%20Voat%20%7C%20Ruqqus-orange.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-29%20tools-purple.svg)]()
 [![Codeberg Mirror](https://img.shields.io/badge/mirror-Codeberg-2185D0.svg?logo=codeberg)](https://codeberg.org/19-84/redd-archiver)
@@ -22,7 +22,7 @@ Transform compressed data dumps into browsable HTML archives with flexible deplo
 
 *Tracked content: **2.38B+ posts across 68,883 communities** (full Reddit dataset plus monthly Arctic Shift dumps via [incremental updates](docs/INCREMENTAL_UPDATES.md); Voat/Ruqqus complete archives)*
 
-**Version 1.0** features multi-platform archiving, REST API with 30+ endpoints, MCP server for AI integration, and PostgreSQL-backed architecture for large-scale processing. Since 1.0 the project has added three serving modes, incremental monthly updates, theme palettes, and subreddit metadata/wiki enrichment (see below).
+**Version 1.1 “Living Archive”** adds three serving modes, monthly incremental updates, 11 theme palettes, community metadata/wiki enrichment, and a major performance pass on top of 1.0's multi-platform archiving, REST API, and MCP server. See [CHANGELOG.md](CHANGELOG.md).
 
 ## 🧭 Serving Modes
 

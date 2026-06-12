@@ -317,7 +317,7 @@ def create_mcp_server(api_url: str) -> FastMCP:
         timeout=60.0,
         follow_redirects=True,
         headers={
-            "User-Agent": "reddarchiver-mcp/1.0.0",
+            "User-Agent": "reddarchiver-mcp/1.1.0",
             "Accept": "application/json",
         },
     )
@@ -391,7 +391,7 @@ Token Limit Tips:
     parser.add_argument(
         "--version",
         action="version",
-        version="reddarchiver-mcp 1.0.0",
+        version="reddarchiver-mcp 1.1.0",
     )
 
     return parser.parse_args()
