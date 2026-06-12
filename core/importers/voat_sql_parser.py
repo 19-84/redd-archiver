@@ -487,13 +487,13 @@ class VoatSQLParser:
                     if paren_depth == 0:
                         # End of tuple
                         if field_count == field_idx:
-                            return self._convert_value(current.strip())
+                            return self._parse_value(current.strip())
                         break
                     paren_depth -= 1
                 elif char == "," and paren_depth == 0:
                     # Field separator
                     if field_count == field_idx:
-                        return self._convert_value(current.strip())
+                        return self._parse_value(current.strip())
                     field_count += 1
                     current = ""
                     i += 1

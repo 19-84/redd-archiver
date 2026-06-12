@@ -22,7 +22,6 @@ This project intentionally deviates from the global `~/.claude/docs/` convention
 | Area | Global Standard | This Project | Rationale |
 |------|----------------|--------------|-----------|
 | Line length | 88 | 120 | HTML string literals, SQL queries, and template paths cause excessive wrapping at 88 |
-| Type checker | pyright (standard) | Not yet configured | Legacy codebase; planned addition (see `roadmap/08-pyright-type-checking.md`) |
 | Logging | structlog | stdlib `logging` | Predates structlog adoption; migration low priority |
 | Project layout | `src/` | Flat (packages at root) | Historical; changing breaks all Docker COPY paths and imports |
 | Source control | jj preferred | git only | jj not configured for this repo |

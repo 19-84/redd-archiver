@@ -1,6 +1,6 @@
 # Feature 8: Add Pyright Type Checking
 
-**Status:** Planned
+**Status:** ✅ Done — Phases 1+2 (2026-06-11): pyright standard mode in pyproject + CI; baseline was 444 errors, resolved via 2 real bug fixes (undefined start_time in rebuild_threads_streamed, phantom _convert_value in the parser's fast-filter path), targeted fixes in recent modules, and tailored per-file rule suppressions on 25 legacy files (each file suppresses only the rules it violates — everything else stays enforced). Phase 3 (gradual strictness) remains ongoing.
 **Last updated:** 2026-02-11
 
 **Goal:** Add static type checking to the project using pyright in standard mode, closing the gap with the global tooling conventions.
