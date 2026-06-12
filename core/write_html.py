@@ -85,7 +85,7 @@ def write_link_pages_jinja2(
             cur.execute(
                 """
                     SELECT COUNT(*) as count FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                    WHERE subreddit = %s AND score >= %s AND num_comments >= %s
                 """,
                 (subreddit, min_score, min_comments),
             )
@@ -95,7 +95,7 @@ def write_link_pages_jinja2(
             cur.execute(
                 """
                     SELECT COUNT(*) as count FROM comments
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )

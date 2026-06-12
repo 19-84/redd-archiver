@@ -23,17 +23,25 @@ BATCH_SIZE = 10_000
 def discover_dump_pairs(directory: str) -> list[tuple[str | None, str | None]]:
     """Find Arctic Shift dump pairs in a directory, oldest month first.
 
+    Scans the directory itself plus the ``comments/`` and ``submissions/``
+    subdirectories — the layout the official Academic Torrents releases use —
+    so ``--update-all`` can point straight at a downloaded torrent.
+
     Returns [(rs_path, rc_path), ...] keyed by month. A month with only one
     of the pair is still processed (the missing side is None) with a warning —
     submissions-only or comments-only updates are valid.
     """
+    scan_dirs = [directory] + [
+        sub for name in ("comments", "submissions") if os.path.isdir(sub := os.path.join(directory, name))
+    ]
     months: dict[str, dict[str, str]] = {}
-    for name in sorted(os.listdir(directory)):
-        parsed = parse_dump_filename(name)
-        if parsed is None:
-            continue
-        kind, month = parsed
-        months.setdefault(month, {})[kind] = os.path.join(directory, name)
+    for scan_dir in scan_dirs:
+        for name in sorted(os.listdir(scan_dir)):
+            parsed = parse_dump_filename(name)
+            if parsed is None:
+                continue
+            kind, month = parsed
+            months.setdefault(month, {})[kind] = os.path.join(scan_dir, name)
     pairs: list[tuple[str | None, str | None]] = []
     for month in sorted(months):
         rs = months[month].get("RS")

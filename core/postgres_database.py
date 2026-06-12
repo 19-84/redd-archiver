@@ -400,6 +400,10 @@ class PostgresDatabase:
         self.enable_monitoring = enable_monitoring
         self.skip_schema_setup = skip_schema_setup
 
+        # lower-cased name -> canonical stored form; see resolve_subreddit_name()
+        self._subreddit_names: dict[str, str] = {}
+        self._subreddit_names_ts: float = 0.0
+
         # Set workload-specific timeout if not provided
         if connection_timeout is None:
             if workload_type == "user_processing":
@@ -947,6 +951,10 @@ class PostgresDatabase:
             if failed > 0:
                 print_warning(f"Failed to insert {failed} posts ({len(failed_post_ids)} unique IDs tracked)")
 
+            # New communities may have appeared: rebuild the canonical-name
+            # cache on next resolve_subreddit_name() call
+            self._subreddit_names_ts = 0.0
+
             return successful, failed, failed_post_ids
 
         except Exception as e:
@@ -1257,6 +1265,7 @@ class PostgresDatabase:
         order_by: str = "score DESC",
         min_score: int = 0,
         min_comments: int = 0,
+        include_selftext: bool = True,
     ) -> Iterator[dict[str, Any]]:
         """Get posts in paginated batches with full JSON data.
 
@@ -1268,6 +1277,9 @@ class PostgresDatabase:
                      Must be one of the whitelisted values for security
             min_score: Minimum score filter (default: 0)
             min_comments: Minimum comments filter (default: 0)
+            include_selftext: False strips selftext/selftext_html server-side —
+                     listing pages never render them, and they dominate the
+                     payload for text-heavy communities
 
         Yields:
             Post dictionaries with full data from json_data column
@@ -1286,21 +1298,23 @@ class PostgresDatabase:
             print_warning(f"Invalid order_by value '{order_by}', using default 'score DESC'")
             order_by = "score DESC"
 
+        payload = "json_data::text" if include_selftext else "(json_data - 'selftext' - 'selftext_html')::text"
+
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Use server-side cursor for memory efficiency
                 query = sql.SQL("""
-                        SELECT json_data::text FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                        SELECT {} AS json_data FROM posts
+                        WHERE subreddit = %s AND score >= %s AND num_comments >= %s
                         ORDER BY {}
                         LIMIT %s OFFSET %s
-                    """).format(sql.SQL(order_by))
+                    """).format(sql.SQL(payload), sql.SQL(order_by))
 
                 cur.execute(query, (subreddit, min_score, min_comments, limit, offset))
 
                 for row in cur:
                     try:
-                        post_data = json.loads(row["json_data"])
+                        post_data = orjson.loads(row["json_data"])
                         yield post_data
                     except Exception as e:
                         print_error(f"Failed to parse post JSON: {e}")
@@ -1330,7 +1344,7 @@ class PostgresDatabase:
                     """
                         SELECT id, title, score, num_comments, created_utc, permalink
                         FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                        WHERE subreddit = %s AND score >= %s AND num_comments >= %s
                         ORDER BY LOWER(title) ASC, id ASC
                         """,
                     (subreddit, min_score, min_comments),
@@ -1355,7 +1369,7 @@ class PostgresDatabase:
                 cur.execute(
                     f"""
                         SELECT {self._TITLE_BUCKET_SQL} AS bucket, COUNT(*) AS n
-                        FROM posts WHERE LOWER(subreddit) = LOWER(%s)
+                        FROM posts WHERE subreddit = %s
                         GROUP BY bucket
                         """,
                     (subreddit,),
@@ -1375,7 +1389,7 @@ class PostgresDatabase:
                     f"""
                         SELECT id, title, score, num_comments, created_utc, permalink
                         FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND {self._TITLE_BUCKET_SQL} = %s
+                        WHERE subreddit = %s AND {self._TITLE_BUCKET_SQL} = %s
                         ORDER BY LOWER(title) ASC, id ASC
                         LIMIT %s OFFSET %s
                         """,
@@ -1393,6 +1407,51 @@ class PostgresDatabase:
         "created_utc DESC, score DESC",
     }
 
+    _SUBREDDIT_NAME_CACHE_TTL = 300.0
+
+    def resolve_subreddit_name(self, name: str | None) -> str | None:
+        """Map a case-insensitive community name to its canonical stored form.
+
+        Hot-path queries use exact ``subreddit = %s`` matches so the composite
+        indexes apply (``LOWER()`` predicates forced seq scans). Boundaries
+        that accept user input — URLs, API params, search operators, CLI
+        flags — resolve through this cached lookup first. Returns None when
+        the community is not archived.
+        """
+        if not name:
+            return None
+        now = time.time()
+        if now - self._subreddit_names_ts > self._SUBREDDIT_NAME_CACHE_TTL:
+            try:
+                with self.pool.get_connection() as conn, conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT subreddit FROM posts")
+                    self._subreddit_names = {row["subreddit"].lower(): row["subreddit"] for row in cur}
+                self._subreddit_names_ts = now
+            except Exception as e:
+                print_error(f"Failed to refresh subreddit name cache: {e}")
+                return name  # fail open: a correctly-cased name still works
+        return self._subreddit_names.get(name.lower())
+
+    def resolve_username(self, name: str | None) -> str | None:
+        """Map a case-insensitive username to its canonical stored form.
+
+        Exact match first (primary-key index); falls back to the
+        ``LOWER(username)`` expression index. Returns None if unknown.
+        """
+        if not name:
+            return None
+        try:
+            with self.pool.get_connection() as conn, conn.cursor() as cur:
+                cur.execute("SELECT username FROM users WHERE username = %s LIMIT 1", (name,))
+                row = cur.fetchone()
+                if row is None:
+                    cur.execute("SELECT username FROM users WHERE LOWER(username) = LOWER(%s) LIMIT 1", (name,))
+                    row = cur.fetchone()
+                return row["username"] if row else None
+        except Exception as e:
+            print_error(f"Failed to resolve username: {e}")
+            return name  # fail open
+
     @staticmethod
     def _filtered_posts_where(
         subreddit: str | None,
@@ -1406,7 +1465,7 @@ class PostgresDatabase:
         clauses = ["score >= %s"]
         params: list[Any] = [min_score]
         if subreddit:
-            clauses.append("LOWER(subreddit) = LOWER(%s)")
+            clauses.append("subreddit = %s")
             params.append(subreddit)
         if flair:
             clauses.append("json_data->>'link_flair_text' = %s")
@@ -1435,25 +1494,29 @@ class PostgresDatabase:
         order_by: str = "score DESC, created_utc DESC",
         limit: int = 100,
         offset: int = 0,
+        include_selftext: bool = False,
     ) -> list[dict[str, Any]]:
         """Filtered post query for dynamic serving mode (F2 Phase 4).
 
         ``subreddit=None`` browses across all archived communities (/all/).
         All filters combine as WHERE clauses — nothing is pre-computed.
+        Listing pages never render selftext, so it is stripped server-side by
+        default (it dominates the payload for text-heavy communities).
         """
         if order_by not in self._FILTERED_ORDER_BY:
             order_by = "score DESC, created_utc DESC"
         where, params = self._filtered_posts_where(subreddit, flair, domain, date_from, date_to, min_score)
+        payload = "json_data::text" if include_selftext else "(json_data - 'selftext' - 'selftext_html')::text"
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
-                query = sql.SQL("SELECT json_data::text FROM posts WHERE {} ORDER BY {} LIMIT %s OFFSET %s").format(
-                    sql.SQL(where), sql.SQL(order_by)
+                query = sql.SQL("SELECT {} AS json_data FROM posts WHERE {} ORDER BY {} LIMIT %s OFFSET %s").format(
+                    sql.SQL(payload), sql.SQL(where), sql.SQL(order_by)
                 )
                 cur.execute(query, (*params, limit, offset))
                 out = []
                 for row in cur:
                     try:
-                        out.append(json.loads(row["json_data"]))
+                        out.append(orjson.loads(row["json_data"]))
                     except Exception as e:
                         print_error(f"Failed to parse post JSON: {e}")
                 return out
@@ -1488,7 +1551,7 @@ class PostgresDatabase:
                     """
                         SELECT json_data->>'link_flair_text' AS flair, COUNT(*) AS count
                         FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND score >= %s AND num_comments >= %s
+                        WHERE subreddit = %s AND score >= %s AND num_comments >= %s
                           AND COALESCE(json_data->>'link_flair_text', '') <> ''
                         GROUP BY 1
                         ORDER BY count DESC, flair ASC
@@ -1516,7 +1579,7 @@ class PostgresDatabase:
                 cur.execute(
                     """
                         SELECT json_data::text FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s) AND json_data->>'link_flair_text' = %s
+                        WHERE subreddit = %s AND json_data->>'link_flair_text' = %s
                           AND score >= %s AND num_comments >= %s
                         ORDER BY score DESC, created_utc DESC
                         LIMIT %s OFFSET %s
@@ -1525,7 +1588,7 @@ class PostgresDatabase:
                 )
                 for row in cur:
                     try:
-                        posts.append(json.loads(row["json_data"]))
+                        posts.append(orjson.loads(row["json_data"]))
                     except Exception as e:
                         print_error(f"Failed to parse post JSON: {e}")
         except Exception as e:
@@ -1558,6 +1621,7 @@ class PostgresDatabase:
         order_by: str = "score DESC",
         min_score: int = 0,
         min_comments: int = 0,
+        include_selftext: bool = True,
     ) -> list[dict[str, Any]]:
         """Get posts using keyset (cursor-based) pagination for constant O(1) performance.
 
@@ -1614,10 +1678,13 @@ class PostgresDatabase:
                 # Build keyset WHERE clause based on sort order
                 # OPTIMIZATION: Query only needed columns + json_data (not json_data::text)
                 # This eliminates 1.3M json.loads() calls and reduces data transfer by 95%
-                select_clause = """
+                json_payload = (
+                    "json_data" if include_selftext else "(json_data - 'selftext' - 'selftext_html') AS json_data"
+                )
+                select_clause = f"""
                         SELECT id, subreddit, title, author, created_utc, score, num_comments,
                                permalink, url, domain, is_self, over_18, locked, stickied,
-                               json_data
+                               {json_payload}
                     """
 
                 if order_by.startswith("score"):
@@ -1628,7 +1695,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                   AND (score, created_utc, id) < (%s::integer, %s::bigint, %s::text)
@@ -1643,7 +1710,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY score DESC, created_utc DESC, id DESC
@@ -1659,7 +1726,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                   AND (num_comments, score, id) < (%s::integer, %s::integer, %s::text)
@@ -1673,7 +1740,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY num_comments DESC, score DESC, id DESC
@@ -1688,7 +1755,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                   AND (created_utc, score, id) < (%s::bigint, %s::integer, %s::text)
@@ -1702,7 +1769,7 @@ class PostgresDatabase:
                             select_clause
                             + """
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND score >= %s
                                   AND num_comments >= %s
                                 ORDER BY created_utc DESC, score DESC, id DESC
@@ -1777,7 +1844,7 @@ class PostgresDatabase:
                 comments = []
                 for row in cur:
                     try:
-                        comment_data = json.loads(row["json_data"])
+                        comment_data = orjson.loads(row["json_data"])
                         comments.append(comment_data)
                     except Exception as e:
                         print_error(f"Failed to parse comment JSON: {e}")
@@ -1810,7 +1877,7 @@ class PostgresDatabase:
                 row = cur.fetchone()
 
                 if row:
-                    return json.loads(row["json_data"])
+                    return orjson.loads(row["json_data"])
                 else:
                     return None
 
@@ -1839,7 +1906,7 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Get total post count
-                cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) as count FROM posts WHERE subreddit = %s", (subreddit,))
                 total_posts = cur.fetchone()["count"]
 
                 print_info(f"Lightweight rebuild for r/{subreddit}: {total_posts} posts (comments loaded on-demand)")
@@ -1854,7 +1921,7 @@ class PostgresDatabase:
                         """
                             SELECT json_data::text as post_json
                             FROM posts
-                            WHERE LOWER(subreddit) = LOWER(%s)
+                            WHERE subreddit = %s
                             ORDER BY created_utc DESC
                             LIMIT %s OFFSET %s
                         """,
@@ -1928,7 +1995,7 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Get total post count
-                cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) as count FROM posts WHERE subreddit = %s", (subreddit,))
                 total_posts = cur.fetchone()["count"]
 
                 print_info(f"Rebuilding threads for r/{subreddit}: {total_posts} posts")
@@ -1960,7 +2027,7 @@ class PostgresDatabase:
                         WITH post_batch AS (
                             SELECT id, json_data::text as post_json
                             FROM posts
-                            WHERE LOWER(subreddit) = LOWER(%s)
+                            WHERE subreddit = %s
                             ORDER BY created_utc DESC
                             LIMIT %s OFFSET %s
                         )
@@ -2095,7 +2162,7 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Get total post count
-                cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) as count FROM posts WHERE subreddit = %s", (subreddit,))
                 total_posts = cur.fetchone()["count"]
 
                 print_info(f"Two-query rebuild for r/{subreddit}: {total_posts} posts")
@@ -2125,7 +2192,7 @@ class PostgresDatabase:
                         """
                         SELECT id, json_data::text as post_json
                         FROM posts
-                        WHERE LOWER(subreddit) = LOWER(%s)
+                        WHERE subreddit = %s
                         ORDER BY created_utc DESC
                         LIMIT %s OFFSET %s
                     """,
@@ -2282,10 +2349,10 @@ class PostgresDatabase:
                 start_time = time.time()
 
                 # Get counts
-                cur.execute("SELECT COUNT(*) FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) FROM posts WHERE subreddit = %s", (subreddit,))
                 total_posts = cur.fetchone()["count"]
 
-                cur.execute("SELECT COUNT(*) FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) FROM comments WHERE subreddit = %s", (subreddit,))
                 total_comments = cur.fetchone()["count"]
 
                 # Determine chunk size based on available memory
@@ -2333,7 +2400,7 @@ class PostgresDatabase:
                             """
                                 SELECT id, created_utc, json_data::text as post_json
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                 ORDER BY created_utc DESC, id DESC
                                 LIMIT %s
                             """,
@@ -2344,7 +2411,7 @@ class PostgresDatabase:
                             """
                                 SELECT id, created_utc, json_data::text as post_json
                                 FROM posts
-                                WHERE LOWER(subreddit) = LOWER(%s)
+                                WHERE subreddit = %s
                                   AND (created_utc, id) < (%s, %s)
                                 ORDER BY created_utc DESC, id DESC
                                 LIMIT %s
@@ -2369,13 +2436,16 @@ class PostgresDatabase:
                     if not posts_list:
                         break  # No more posts
 
-                    # STEP 2: Query comments for this chunk (array lookup)
+                    # STEP 2: Query comments for this chunk (array lookup).
+                    # No ORDER BY: sorting the full chunk (20K posts ≈ 180K+
+                    # comments with JSON payloads) spilled hundreds of MB to
+                    # disk via external merge sort. Attachment goes through a
+                    # dict, so only per-post order matters — sorted in Python.
                     cur.execute(
                         """
                             SELECT post_id, json_data::text as comment_json
                             FROM comments
                             WHERE post_id = ANY(%s)
-                            ORDER BY post_id, created_utc ASC
                         """,
                         (post_ids,),
                     )
@@ -2386,6 +2456,9 @@ class PostgresDatabase:
                             comment_data = orjson.loads(row["comment_json"])
                             posts_dict[row["post_id"]]["comments"].append(comment_data)
                             chunk_comments += 1
+
+                    for post in posts_list:
+                        post["comments"].sort(key=lambda c: c.get("created_utc") or 0)
 
                     comments_attached += chunk_comments
 
@@ -2445,19 +2518,19 @@ class PostgresDatabase:
         try:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 # Query 1: Basic counts
-                cur.execute("SELECT COUNT(*) as count FROM posts WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) as count FROM posts WHERE subreddit = %s", (subreddit,))
                 post_count = cur.fetchone()["count"]
 
-                cur.execute("SELECT COUNT(*) as count FROM comments WHERE LOWER(subreddit) = LOWER(%s)", (subreddit,))
+                cur.execute("SELECT COUNT(*) as count FROM comments WHERE subreddit = %s", (subreddit,))
                 comment_count = cur.fetchone()["count"]
 
                 # Query 2: Unique authors (from both posts and comments)
                 cur.execute(
                     """
                     SELECT COUNT(DISTINCT author) as count FROM (
-                        SELECT author FROM posts WHERE LOWER(subreddit) = LOWER(%s) AND author != '[deleted]'
+                        SELECT author FROM posts WHERE subreddit = %s AND author != '[deleted]'
                         UNION
-                        SELECT author FROM comments WHERE LOWER(subreddit) = LOWER(%s) AND author != '[deleted]'
+                        SELECT author FROM comments WHERE subreddit = %s AND author != '[deleted]'
                     ) AS authors
                 """,
                     (subreddit, subreddit),
@@ -2475,7 +2548,7 @@ class PostgresDatabase:
                         COUNT(CASE WHEN is_self = true THEN 1 END) as self_posts,
                         COUNT(CASE WHEN is_self = false THEN 1 END) as external_urls
                     FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                     (subreddit,),
                 )
@@ -2488,7 +2561,7 @@ class PostgresDatabase:
                         SUM(score) as total_score,
                         AVG(score) as avg_score
                     FROM comments
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                     (subreddit,),
                 )
@@ -2504,7 +2577,7 @@ class PostgresDatabase:
                         COUNT(CASE WHEN author = '[deleted]' THEN 1 END) as user_deleted_posts,
                         COUNT(CASE WHEN selftext = '[removed]' AND author != '[deleted]' THEN 1 END) as mod_removed_posts
                     FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                     (subreddit,),
                 )
@@ -2516,7 +2589,7 @@ class PostgresDatabase:
                         COUNT(CASE WHEN author = '[deleted]' THEN 1 END) as user_deleted_comments,
                         COUNT(CASE WHEN body = '[removed]' AND author != '[deleted]' THEN 1 END) as mod_removed_comments
                     FROM comments
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                     (subreddit,),
                 )
@@ -2625,12 +2698,26 @@ class PostgresDatabase:
             with self.pool.get_connection() as conn, conn.cursor() as cur:
                 start_time = time.time()
 
-                # Build query with optional subreddit filter
-                subreddit_clause = ""
+                # The GROUP BY over posts+comments hashes/sorts far more than
+                # the server-wide work_mem allows; without this it spills to
+                # disk for minutes on large archives. Transaction-scoped.
+                cur.execute("SET LOCAL work_mem = '256MB'")
+
+                # With a filter, restrict WHICH users get refreshed (those
+                # active in that community) but aggregate their FULL activity:
+                # the upsert overwrites post_count/comment_count/total_karma,
+                # so aggregating only the filtered community's rows would
+                # clobber global counts with per-community ones.
+                author_scope = ""
                 params = []
                 if subreddit_filter:
-                    subreddit_clause = "AND subreddit = %s"
-                    params = [subreddit_filter, subreddit_filter]
+                    subreddit_filter = self.resolve_subreddit_name(subreddit_filter) or subreddit_filter
+                    author_scope = """AND author IN (
+                            SELECT author FROM posts WHERE subreddit = %s
+                            UNION
+                            SELECT author FROM comments WHERE subreddit = %s
+                        )"""
+                    params = [subreddit_filter, subreddit_filter] * 2
 
                 query = f"""
                     INSERT INTO users (
@@ -2651,12 +2738,12 @@ class PostgresDatabase:
                         SELECT author, platform, score, created_utc, subreddit, 'post' as table_type
                         FROM posts
                         WHERE author IS NOT NULL AND author != '[deleted]'
-                        {subreddit_clause}
+                        {author_scope}
                         UNION ALL
                         SELECT author, platform, score, created_utc, subreddit, 'comment' as table_type
                         FROM comments
                         WHERE author IS NOT NULL AND author != '[deleted]'
-                        {subreddit_clause}
+                        {author_scope}
                     ) combined
                     GROUP BY author, platform
                     ON CONFLICT (username, platform) DO UPDATE SET
@@ -2791,12 +2878,12 @@ class PostgresDatabase:
                             SELECT COUNT(DISTINCT username) FROM users
                             WHERE (post_count + comment_count) >= %s
                             AND username IN (
-                                SELECT DISTINCT author FROM posts WHERE LOWER(subreddit) = LOWER(%s)
+                                SELECT DISTINCT author FROM posts WHERE subreddit = %s
                                 UNION
-                                SELECT DISTINCT author FROM comments WHERE LOWER(subreddit) = LOWER(%s)
+                                SELECT DISTINCT author FROM comments WHERE subreddit = %s
                             )
                         """,
-                            (min_activity, subreddit_filter.lower(), subreddit_filter.lower()),
+                            (min_activity, subreddit_filter, subreddit_filter),
                         )
                     else:
                         count_cur.execute(
@@ -2817,12 +2904,12 @@ class PostgresDatabase:
                         FROM users
                         WHERE (post_count + comment_count) >= %s
                         AND username IN (
-                            SELECT DISTINCT author FROM posts WHERE LOWER(subreddit) = LOWER(%s)
+                            SELECT DISTINCT author FROM posts WHERE subreddit = %s
                             UNION
-                            SELECT DISTINCT author FROM comments WHERE LOWER(subreddit) = LOWER(%s)
+                            SELECT DISTINCT author FROM comments WHERE subreddit = %s
                         )
                     """
-                    params = [min_activity, subreddit_filter.lower(), subreddit_filter.lower()]
+                    params = [min_activity, subreddit_filter, subreddit_filter]
                 else:
                     query = """
                         SELECT username
@@ -3007,9 +3094,8 @@ class PostgresDatabase:
                           AND score >= %s
                           AND num_comments >= %s
                           AND (NOT %s OR (author != '[deleted]' AND COALESCE(selftext, '') NOT IN ('[deleted]', '[removed]')))
-                        ORDER BY author, created_utc DESC
                     """,
-                        (usernames, subreddit_filter.lower(), min_score, min_comments, hide_deleted),
+                        (usernames, subreddit_filter, min_score, min_comments, hide_deleted),
                     )
                 else:
                     # Query posts for all users in batch
@@ -3020,7 +3106,6 @@ class PostgresDatabase:
                           AND score >= %s
                           AND num_comments >= %s
                           AND (NOT %s OR (author != '[deleted]' AND COALESCE(selftext, '') NOT IN ('[deleted]', '[removed]')))
-                        ORDER BY author, created_utc DESC
                     """,
                         (usernames, min_score, min_comments, hide_deleted),
                     )
@@ -3047,9 +3132,8 @@ class PostgresDatabase:
                         WHERE author = ANY(%s) AND subreddit = %s
                           AND score >= %s
                           AND (NOT %s OR (body NOT IN ('[deleted]', '[removed]')))
-                        ORDER BY author, created_utc DESC
                     """,
-                        (usernames, subreddit_filter.lower(), min_score, hide_deleted),
+                        (usernames, subreddit_filter, min_score, hide_deleted),
                     )
                 else:
                     # Query comments for all users in batch
@@ -3059,7 +3143,6 @@ class PostgresDatabase:
                         WHERE author = ANY(%s)
                           AND score >= %s
                           AND (NOT %s OR (body NOT IN ('[deleted]', '[removed]')))
-                        ORDER BY author, created_utc DESC
                     """,
                         (usernames, min_score, hide_deleted),
                     )
@@ -3108,9 +3191,12 @@ class PostgresDatabase:
                         else:
                             comment["link_title"] = "Post Title"  # Fallback
 
-                # Sort all_content by created_utc for chronological order (newest first)
+                # Sort in Python, newest first. The queries above deliberately
+                # have no ORDER BY: sorting a 2,000-user batch's JSON payloads
+                # in SQL spilled to disk via external merge sort every batch.
                 for username in user_activities:
-                    user_activities[username]["all_content"].sort(key=lambda x: x.get("created_utc", 0), reverse=True)
+                    for key in ("posts", "comments", "all_content"):
+                        user_activities[username][key].sort(key=lambda x: x.get("created_utc", 0), reverse=True)
 
                 return user_activities
 
@@ -3255,6 +3341,10 @@ class PostgresDatabase:
             "idx_posts_subreddit_score",
             "idx_posts_subreddit_comments",
             "idx_posts_subreddit_created",
+            "idx_posts_subreddit_keyset",
+            "idx_posts_score_global",
+            "idx_posts_comments_global",
+            "idx_posts_created_global",
             "idx_posts_author",
             "idx_posts_author_subreddit",
             "idx_posts_permalink",

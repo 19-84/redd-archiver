@@ -10,6 +10,12 @@ CREATE INDEX IF NOT EXISTS idx_posts_subreddit ON posts(subreddit);
 CREATE INDEX IF NOT EXISTS idx_posts_subreddit_score ON posts(subreddit, score DESC, created_utc DESC, id);
 CREATE INDEX IF NOT EXISTS idx_posts_subreddit_comments ON posts(subreddit, num_comments DESC, score DESC, id);
 CREATE INDEX IF NOT EXISTS idx_posts_subreddit_created ON posts(subreddit, created_utc DESC, score DESC, id);
+-- Keyset pagination for thread export (ORDER BY created_utc DESC, id DESC per subreddit)
+CREATE INDEX IF NOT EXISTS idx_posts_subreddit_keyset ON posts(subreddit, created_utc DESC, id DESC);
+-- Cross-subreddit listings (/all/ in dynamic mode) — one per sort order
+CREATE INDEX IF NOT EXISTS idx_posts_score_global ON posts(score DESC, created_utc DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_comments_global ON posts(num_comments DESC, score DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_created_global ON posts(created_utc DESC, score DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author, created_utc DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_author_subreddit ON posts(author, subreddit, created_utc DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_permalink ON posts(permalink);
@@ -52,6 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_created_utc_brin ON comments USING BRIN(
 -- Streaming Architecture: Uses computed column total_activity instead of expression for better performance
 CREATE INDEX IF NOT EXISTS idx_users_total_activity ON users(total_activity DESC);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);  -- For keyset pagination in streaming
+CREATE INDEX IF NOT EXISTS idx_users_username_lower ON users(LOWER(username));  -- Case-insensitive user lookup
 CREATE INDEX IF NOT EXISTS idx_users_karma ON users(total_karma DESC);
 CREATE INDEX IF NOT EXISTS idx_users_first_seen ON users(first_seen_utc DESC);
 CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_utc DESC);

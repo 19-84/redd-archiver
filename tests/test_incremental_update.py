@@ -125,6 +125,17 @@ class TestDiscoverDumpPairs:
     def test_empty_dir(self, tmp_path):
         assert discover_dump_pairs(str(tmp_path)) == []
 
+    def test_torrent_layout_subdirectories(self, tmp_path):
+        """Official Academic Torrents releases ship reddit/{comments,submissions}/."""
+        (tmp_path / "submissions").mkdir()
+        (tmp_path / "comments").mkdir()
+        _write_zst(tmp_path / "submissions" / "RS_2026-01.zst", [_submission(1)])
+        _write_zst(tmp_path / "comments" / "RC_2026-01.zst", [_comment(1, 1)])
+        pairs = discover_dump_pairs(str(tmp_path))
+        assert len(pairs) == 1
+        assert pairs[0][0].endswith("submissions/RS_2026-01.zst")
+        assert pairs[0][1].endswith("comments/RC_2026-01.zst")
+
 
 @pytest.mark.unit
 class TestSelectiveDeletion:

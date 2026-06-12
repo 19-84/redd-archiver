@@ -52,6 +52,17 @@ def get_db() -> PostgresDatabase:
     return _db
 
 
+def _canonical_subreddit(name: str | None) -> str | None:
+    """Map a case-insensitive subreddit param to its stored form.
+
+    Queries use exact matches (index-friendly); unknown names pass through
+    unchanged and simply match nothing, as before.
+    """
+    if not name:
+        return name
+    return get_db().resolve_subreddit_name(name) or name
+
+
 # ============================================================================
 # INSTANCE METADATA CONFIGURATION
 # ============================================================================
@@ -994,7 +1005,7 @@ def get_posts():
         Paginated JSON response with posts, or CSV/NDJSON download
     """
     # Extract and validate parameters
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     author = request.args.get("author")
     platform = request.args.get("platform")
     min_score = request.args.get("min_score", type=int, default=0)
@@ -1058,7 +1069,7 @@ def get_posts():
             params = []
 
             if sanitized["subreddit"]:
-                where_conditions.append("LOWER(subreddit) = LOWER(%s)")
+                where_conditions.append("subreddit = %s")
                 params.append(sanitized["subreddit"])
 
             if sanitized["author"]:
@@ -1348,7 +1359,7 @@ def get_comments():
         Paginated JSON response with comments, or CSV/NDJSON download
     """
     # Extract and validate parameters
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     author = request.args.get("author")
     platform = request.args.get("platform")
     min_score = request.args.get("min_score", type=int, default=0)
@@ -1400,7 +1411,7 @@ def get_comments():
             params = []
 
             if sanitized["subreddit"]:
-                where_conditions.append("LOWER(subreddit) = LOWER(%s)")
+                where_conditions.append("subreddit = %s")
                 params.append(sanitized["subreddit"])
 
             if sanitized["author"]:
@@ -2022,7 +2033,7 @@ def get_subreddits():
                         """
                             SELECT COUNT(*) as filtered_count
                             FROM posts
-                            WHERE LOWER(subreddit) = LOWER(%s)
+                            WHERE subreddit = %s
                             AND score >= %s
                             AND num_comments >= %s
                         """,
@@ -2038,7 +2049,7 @@ def get_subreddits():
                             SELECT COUNT(*) as comment_count
                             FROM comments c
                             INNER JOIN posts p ON c.post_id = p.id
-                            WHERE LOWER(p.subreddit) = LOWER(%s)
+                            WHERE p.subreddit = %s
                             AND p.score >= %s
                             AND p.num_comments >= %s
                         """,
@@ -2087,6 +2098,7 @@ def get_subreddit(subreddit: str):
     # Validate subreddit format
     if not re.match(r"^[a-zA-Z0-9_]{2,21}$", subreddit):
         return jsonify({"error": "Invalid subreddit name format"}), 400
+    subreddit = _canonical_subreddit(subreddit) or subreddit
 
     # Field selection parameters
     fields_param = request.args.get("fields")
@@ -2112,7 +2124,7 @@ def get_subreddit(subreddit: str):
                     SELECT total_posts, total_comments, unique_users,
                            earliest_date, latest_date, avg_post_score
                     FROM subreddit_statistics
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )
@@ -2144,7 +2156,7 @@ def get_subreddit(subreddit: str):
                         MAX(created_utc) as latest,
                         AVG(score) as avg_score
                     FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )
@@ -2159,7 +2171,7 @@ def get_subreddit(subreddit: str):
                 """
                     SELECT COUNT(*) as comment_count
                     FROM comments
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )
@@ -2244,7 +2256,7 @@ def api_search():
 
     # Get filter parameters (query params override operators)
     type_param = request.args.get("type", "").lower()
-    subreddit = request.args.get("subreddit", parsed.subreddit)
+    subreddit = _canonical_subreddit(request.args.get("subreddit", parsed.subreddit))
     author = request.args.get("author", parsed.author)
     min_score = request.args.get("min_score", type=int, default=parsed.min_score)
     after = request.args.get("after", type=int, default=None)
@@ -2620,7 +2632,7 @@ def api_search_explain():
 
     # Get additional parameters that would be applied
     type_param = request.args.get("type", "").lower()
-    subreddit = request.args.get("subreddit", parsed.subreddit)
+    subreddit = _canonical_subreddit(request.args.get("subreddit", parsed.subreddit))
     author = request.args.get("author", parsed.author)
     min_score = request.args.get("min_score", type=int, default=parsed.min_score)
     after = request.args.get("after", type=int, default=None)
@@ -2722,7 +2734,7 @@ def api_posts_aggregate():
         return jsonify({"error": f"Invalid frequency value. Valid values: {', '.join(VALID_FREQUENCY)}"}), 400
 
     # Filter parameters
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     author = request.args.get("author")
     after = request.args.get("after", type=int)
     before = request.args.get("before", type=int)
@@ -2752,7 +2764,7 @@ def api_posts_aggregate():
             params = []
 
             if subreddit:
-                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                where_clauses.append("subreddit = %s")
                 params.append(subreddit)
             if author:
                 where_clauses.append("author = %s")
@@ -2857,7 +2869,7 @@ def api_comments_aggregate():
         return jsonify({"error": f"Invalid frequency value. Valid values: {', '.join(VALID_FREQUENCY)}"}), 400
 
     # Filter parameters
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     author = request.args.get("author")
     after = request.args.get("after", type=int)
     before = request.args.get("before", type=int)
@@ -2886,7 +2898,7 @@ def api_comments_aggregate():
             params = []
 
             if subreddit:
-                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                where_clauses.append("subreddit = %s")
                 params.append(subreddit)
             if author:
                 where_clauses.append("author = %s")
@@ -2972,7 +2984,7 @@ def api_users_aggregate():
     Returns:
         JSON with aggregated user statistics
     """
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     min_posts = request.args.get("min_posts", type=int, default=0)
     min_comments = request.args.get("min_comments", type=int, default=0)
     min_total = request.args.get("min_total", type=int, default=0)
@@ -3547,6 +3559,7 @@ def api_subreddit_summary(subreddit: str):
     """
     if not re.match(r"^[a-zA-Z0-9_]{2,21}$", subreddit):
         return jsonify({"error": "Invalid subreddit name format"}), 400
+    subreddit = _canonical_subreddit(subreddit) or subreddit
 
     try:
         db = get_db()
@@ -3569,7 +3582,7 @@ def api_subreddit_summary(subreddit: str):
                         AVG(score)::numeric(10,2) as avg_score,
                         SUM(num_comments) as total_comments_on_posts
                     FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )
@@ -3583,7 +3596,7 @@ def api_subreddit_summary(subreddit: str):
                 """
                     SELECT COUNT(*) as comment_count
                     FROM comments
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (subreddit,),
             )
@@ -3595,9 +3608,9 @@ def api_subreddit_summary(subreddit: str):
                     SELECT author, COUNT(*) as posts,
                            COALESCE((SELECT COUNT(*) FROM comments c
                                      WHERE c.author = p.author
-                                     AND LOWER(c.subreddit) = LOWER(%s)), 0) as comments
+                                     AND c.subreddit = %s), 0) as comments
                     FROM posts p
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                     AND author != '[deleted]'
                     GROUP BY author
                     ORDER BY posts DESC
@@ -3623,7 +3636,7 @@ def api_subreddit_summary(subreddit: str):
                         COUNT(*) FILTER (WHERE created_utc >= %s) as posts_7d,
                         COUNT(*) FILTER (WHERE created_utc >= %s) as posts_30d
                     FROM posts
-                    WHERE LOWER(subreddit) = LOWER(%s)
+                    WHERE subreddit = %s
                 """,
                 (week_ago, month_ago, subreddit),
             )
@@ -3941,7 +3954,7 @@ def api_posts_random():
         JSON with random post samples and sampling metadata
     """
     n = min(request.args.get("n", type=int, default=10), 100)
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     after = request.args.get("after", type=int)
     before = request.args.get("before", type=int)
     seed = request.args.get("seed", type=int)
@@ -3955,7 +3968,7 @@ def api_posts_random():
             params = []
 
             if subreddit:
-                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                where_clauses.append("subreddit = %s")
                 params.append(subreddit)
             if after:
                 where_clauses.append("created_utc >= %s")
@@ -4043,7 +4056,7 @@ def api_comments_random():
         JSON with random comment samples and sampling metadata
     """
     n = min(request.args.get("n", type=int, default=10), 100)
-    subreddit = request.args.get("subreddit")
+    subreddit = _canonical_subreddit(request.args.get("subreddit"))
     after = request.args.get("after", type=int)
     before = request.args.get("before", type=int)
     seed = request.args.get("seed", type=int)
@@ -4057,7 +4070,7 @@ def api_comments_random():
             params = []
 
             if subreddit:
-                where_clauses.append("LOWER(subreddit) = LOWER(%s)")
+                where_clauses.append("subreddit = %s")
                 params.append(subreddit)
             if after:
                 where_clauses.append("created_utc >= %s")
@@ -4239,7 +4252,7 @@ def api_post_related(post_id: str):
             where_extra = ""
             params = [search_text, post_id]
             if same_subreddit:
-                where_extra = "AND LOWER(subreddit) = LOWER(%s)"
+                where_extra = "AND subreddit = %s"
                 params.append(source["subreddit"])
 
             # Find similar posts using FTS with OR logic (to_tsquery)

@@ -25,6 +25,8 @@ import re
 from collections.abc import Iterator
 from typing import Any
 
+import orjson  # 5-10x faster line parsing; JSONDecodeError subclasses json's
+
 from ..watchful import read_lines_zst
 from .base_importer import BaseImporter
 
@@ -87,7 +89,7 @@ class ArcticShiftImporter(BaseImporter):
             if not line:
                 continue
             try:
-                obj = json.loads(line)
+                obj = orjson.loads(line)
             except json.JSONDecodeError:
                 continue
             subreddit = obj.get("subreddit") or ""
