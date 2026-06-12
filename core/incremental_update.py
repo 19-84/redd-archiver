@@ -89,16 +89,43 @@ def _import_one_file(
 
     matched = 0
     failed = 0
+    orphans = 0
     batch: list[dict[str, Any]] = []
 
+    def comment_post_id(c: dict[str, Any]) -> str | None:
+        # Raw dump objects carry link_id ('t3_xxx'); same derivation the
+        # insert path uses
+        if c.get("post_id"):
+            return c["post_id"]
+        link_id = c.get("link_id") or ""
+        return link_id.removeprefix("t3_") or None
+
+    def drop_orphans() -> int:
+        """Drop comments whose parent post isn't archived. The FK constraint
+        would reject them anyway, but one orphan poisons its whole COPY batch
+        and triggers expensive retry splits — and monthly dumps routinely carry
+        comments on posts the source archive never had (removed posts, posts
+        older than the archive's coverage)."""
+        post_ids = list({pid for c in batch if (pid := comment_post_id(c))})
+        with db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM posts WHERE id = ANY(%s)", (post_ids,))
+            existing = {row["id"] for row in cur}
+        kept = [c for c in batch if comment_post_id(c) in existing]
+        dropped = len(batch) - len(kept)
+        batch[:] = kept
+        return dropped
+
     def flush() -> None:
-        nonlocal matched, failed
+        nonlocal matched, failed, orphans
         if not batch:
             return
-        # insert_posts_batch returns (ok, bad, failed_ids); insert_comments_batch (ok, bad)
-        result = insert(batch)
-        matched += result[0]
-        failed += result[1]
+        if kind == "comments":
+            orphans += drop_orphans()
+        if batch:
+            # insert_posts_batch returns (ok, bad, failed_ids); insert_comments_batch (ok, bad)
+            result = insert(batch)
+            matched += result[0]
+            failed += result[1]
         batch.clear()
 
     print_info(f"Streaming {basename} (filtering {len(tracked)} tracked subreddits) ...", indent=1)
@@ -113,13 +140,21 @@ def _import_one_file(
             flush()
     flush()
 
+    if orphans:
+        print_info(
+            f"{orphans:,} comment(s) skipped — parent posts not in the archive "
+            "(removed posts or coverage gaps in the original dump)",
+            indent=1,
+        )
+
     if update_id is not None:
         db.record_update_complete(
             update_id,
             posts_matched=matched if kind == "posts" else 0,
             posts_failed=failed if kind == "posts" else 0,
             comments_matched=matched if kind == "comments" else 0,
-            comments_failed=failed if kind == "comments" else 0,
+            # orphans count as failed-to-store so update_history totals reconcile
+            comments_failed=(failed + orphans) if kind == "comments" else 0,
             affected_subreddits=list(affected_subs),
             affected_users=list(affected_users),
         )
