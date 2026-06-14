@@ -947,11 +947,11 @@ def _render_single_subreddit_page(
         else:
             filepath = f"{url_prefix}/{subreddit}/index-{sort_indexes[sort]['slug']}/{filename}"
 
-        # Skip if file exists or in resume mode
-        if os.path.isfile(filepath):
-            return True
-
-        if os.environ.get("ARCHIVE_RESUME_MODE") == "true":
+        # During a resume, skip pages the interrupted run already wrote. Outside
+        # resume mode we always rewrite: a re-export (after metadata enrichment or
+        # an incremental update) must refresh existing listing pages — otherwise
+        # stale nav (e.g. a missing About link) and stale pagination persist.
+        if os.environ.get("ARCHIVE_RESUME_MODE") == "true" and os.path.isfile(filepath):
             return True
 
         # Render Jinja2 template (streaming to disk)
@@ -1087,7 +1087,11 @@ def write_link_page_jinja2(
     # Get base_url - use global base_url if not subreddit-specific
     base_url = seo_data.get("base_url", seo_config.get("base_url", "") if seo_config else "")
 
-    canonical_url = str(post["permalink"]).strip("/") + ".html"
+    # Canonical (and og:url, derived from it) must match the served URL. The page
+    # is written to {permalink}/index.html and served as {permalink}/ — a flat
+    # {permalink}.html does not exist, so emitting it canonicalizes every post to
+    # a 404. Use the directory form, matching how user pages canonicalize.
+    canonical_url = str(post["permalink"]).strip("/") + "/"
     if base_url:
         canonical_url = base_url.rstrip("/") + "/" + canonical_url
 
