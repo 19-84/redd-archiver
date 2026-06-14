@@ -10,7 +10,7 @@
 
 ---
 
-This document describes the technical architecture of Redd-Archiver v1.0.0, a PostgreSQL-backed archive generator that transforms compressed data dumps into browsable HTML archives with optional server-side search.
+This document describes the technical architecture of Redd-Archiver v1.1.0, a PostgreSQL-backed archive generator that transforms compressed data dumps into browsable HTML archives with optional server-side search.
 
 ## Table of Contents
 
