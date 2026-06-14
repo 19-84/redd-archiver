@@ -791,7 +791,7 @@ def get_stats():
 
             return jsonify(
                 {
-                    "archive_version": "1.0.0",
+                    "archive_version": "1.1.0",
                     "api_version": "1.0",
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "instance": get_instance_metadata(),
@@ -4324,7 +4324,7 @@ def get_openapi_spec():
         "info": {
             "title": "Redd-Archiver API",
             "description": "REST API for Reddit archive data with full-text search, aggregation, and export capabilities. Optimized for MCP/AI tool calling.",
-            "version": "1.0.0",
+            "version": "1.1.0",
             "contact": {"name": "API Support"},
             "license": {"name": "MIT", "url": "https://opensource.org/licenses/MIT"},
         },

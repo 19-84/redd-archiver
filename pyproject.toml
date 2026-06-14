@@ -1,6 +1,6 @@
 [project]
 name = "redd-archiver"
-version = "1.0.0"
+version = "1.1.0"
 description = "Redd Archiver - PostgreSQL-backed archive generator for Reddit, Voat, and Ruqqus - Transform data dumps into fully browsable static HTML websites with REST API and MCP server"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -4,6 +4,8 @@ ABOUTME: Unit tests for HTML generation main module
 ABOUTME: Tests write_html module functionality including constants and entry points
 """
 
+import os
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -280,3 +282,162 @@ class TestCollectBatchHelper:
         batch = collect_batch(items, 5)
 
         assert batch == [1, 2]
+
+
+# =============================================================================
+# LISTING RE-EXPORT REFRESH TESTS
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestListingReexportRefresh:
+    """Re-export must refresh existing subreddit listing pages (regression).
+
+    A re-export (``--export-from-database`` after metadata enrichment, or the
+    selective re-export after an incremental update) writes into the existing
+    output directory, so the listing index pages already exist on disk. They
+    MUST be rewritten — otherwise stale navigation (e.g. a missing About link
+    once metadata is imported) and stale pagination persist forever. Only an
+    interrupted-run resume (``ARCHIVE_RESUME_MODE=true``) may skip existing files.
+    """
+
+    def _render_with_existing_file(self, *, resume: bool):
+        """Render one listing page when index.html already exists; return the
+        render mock so callers can assert whether a write was attempted."""
+        from html_modules import html_pages_jinja
+
+        original_cwd = os.getcwd()
+        original_env = os.environ.get("ARCHIVE_RESUME_MODE")
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                os.chdir(tmpdir)
+                if resume:
+                    os.environ["ARCHIVE_RESUME_MODE"] = "true"
+                else:
+                    os.environ.pop("ARCHIVE_RESUME_MODE", None)
+
+                os.makedirs("r/testsub", exist_ok=True)
+                with open("r/testsub/index.html", "w") as f:
+                    f.write("STALE_SENTINEL")
+
+                with patch.object(html_pages_jinja, "render_template_to_file") as mock_render:
+                    result = html_pages_jinja._render_single_subreddit_page(
+                        subreddit="testsub",
+                        subs=[{"subreddit": "testsub"}],
+                        sort="score",
+                        page_num=1,
+                        total_pages=1,
+                        page_posts=[
+                            {
+                                "id": "abc123",
+                                "title": "Hello world",
+                                "score": 5,
+                                "num_comments": 1,
+                                "author": "alice",
+                                "created_utc": 1700000000,
+                                "url": "https://example.com",
+                                "is_self": False,
+                                "permalink": "/r/testsub/comments/abc123/hello_world/",
+                                "subreddit": "testsub",
+                            }
+                        ],
+                        stat_sub_filtered_links=1,
+                        stat_sub_comments=1,
+                        subreddit_score_ranges={"very_high": 100, "high": 50, "medium": 10},
+                        seo_config={},
+                        sort_based_prefix="../../",
+                        subreddit_nav_base="",
+                        site_nav_base="../../",
+                        platform="reddit",
+                        has_about=True,
+                    )
+                return result, mock_render
+        finally:
+            os.chdir(original_cwd)
+            if original_env is None:
+                os.environ.pop("ARCHIVE_RESUME_MODE", None)
+            else:
+                os.environ["ARCHIVE_RESUME_MODE"] = original_env
+
+    def test_reexport_rewrites_existing_listing_page(self):
+        """Outside resume mode, an existing listing page is rewritten."""
+        result, mock_render = self._render_with_existing_file(resume=False)
+        assert result is True
+        assert mock_render.called, "re-export must rewrite an existing listing page"
+
+    def test_resume_preserves_existing_listing_page(self):
+        """In resume mode, an existing listing page is left untouched."""
+        result, mock_render = self._render_with_existing_file(resume=True)
+        assert result is True
+        assert not mock_render.called, "resume must skip a listing page already on disk"
+
+
+# =============================================================================
+# POST CANONICAL URL TESTS
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestPostCanonicalMatchesServedUrl:
+    """A post page's canonical/og:url must point at its served URL (regression).
+
+    Post pages are written to ``{permalink}/index.html`` and served as
+    ``{permalink}/``. The canonical previously used a flat ``{permalink}.html``
+    that never exists in this directory-based layout, so every post canonicalized
+    to a 404 — telling crawlers to consolidate ranking onto a dead URL.
+    """
+
+    PERMALINK = "/r/testsub/comments/abc123/hello_world/"
+    BASE_URL = "https://x.test"
+
+    def _capture_render(self):
+        """Render one post page (batch mode) with a mocked writer; return the
+        written filepath and the template context."""
+        from html_modules import html_pages_jinja
+
+        post_data = {
+            "id": "abc123",
+            "permalink": self.PERMALINK,
+            "title": "Hello world",
+            "selftext": "body text",
+            "author": "alice",
+            "score": 5,
+            "num_comments": 0,
+            "created_utc": 1700000000,
+            "is_self": True,
+            "url": "",
+            "subreddit": "testsub",
+            "platform": "reddit",
+            "comments": [],
+        }
+        original_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                os.chdir(tmpdir)
+                with patch.object(html_pages_jinja, "render_template_to_file") as mock_render:
+                    ok = html_pages_jinja.write_link_page_jinja2(
+                        post_data=post_data,
+                        subreddit="testsub",
+                        subreddits=[{"subreddit": "testsub"}],
+                        seo_config={"base_url": self.BASE_URL},
+                    )
+                assert ok is True
+                assert mock_render.called
+                args, kwargs = mock_render.call_args
+                filepath = args[1]  # render_template_to_file(template, filepath, **context)
+                return filepath, kwargs
+        finally:
+            os.chdir(original_cwd)
+
+    def test_canonical_is_directory_form_not_flat_html(self):
+        """Canonical is the trailing-slash directory URL, never flat .html."""
+        _filepath, ctx = self._capture_render()
+        canonical = ctx["canonical_url"]
+        assert canonical == f"{self.BASE_URL}/" + self.PERMALINK.strip("/") + "/"
+        assert not canonical.endswith(".html")
+
+    def test_canonical_resolves_to_written_file(self):
+        """canonical (minus base) + index.html equals the file actually written."""
+        filepath, ctx = self._capture_render()
+        canonical_path = ctx["canonical_url"].removeprefix(f"{self.BASE_URL}/")
+        assert canonical_path + "index.html" == filepath

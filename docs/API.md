@@ -187,7 +187,7 @@ Get archive statistics and instance metadata.
 **Response**:
 ```json
 {
-  "archive_version": "1.0.0",
+  "archive_version": "1.1.0",
   "api_version": "1.0",
   "timestamp": "2025-01-23T12:00:00Z",
   "instance": {
