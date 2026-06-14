@@ -639,6 +639,25 @@ def detect_resume_state_and_files(
         return "start_fresh", None, {}
 
 
+def _import_needs_source_files(args: argparse.Namespace) -> bool:
+    """Whether the run consumes --comments-file/--submissions-file.
+
+    Only a real import from the positional input reads the source files.
+    --export-from-database renders from the database, and the --enrich* paths
+    read from metadata dumps — none of them touch the comments/submissions
+    files, so those flags must not be required in those modes.
+    """
+    return not (
+        args.export_from_database
+        or args.enrich
+        or args.enrich_metadata
+        or args.enrich_rules
+        or args.enrich_wikis
+        or args.enrich_voat
+        or args.voat_thumbnails
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate multi-platform archive websites from Reddit, Voat, and Ruqqus data",
@@ -966,19 +985,23 @@ Examples:
 
     # Validate single community mode arguments (subreddit/subverse/guild)
     community_filter = args.subreddit or args.subverses or args.guilds
+    # Source files are only consumed when importing from the positional input;
+    # export/enrich modes read from the DB or metadata dumps instead.
+    import_needs_files = _import_needs_source_files(args)
     if community_filter:
-        if not (args.comments_file and args.submissions_file):
-            platform_name = "subreddit" if args.subreddit else ("subverse" if args.subverses else "guild")
-            print_error(f"Single {platform_name} mode requires both --comments-file and --submissions-file")
-            print_info(
-                f"Example: python reddarc.py /data --{platform_name} example --comments-file /data/example_comments.zst --submissions-file /data/example_submissions.zst"
-            )
-            return
-        if not all(os.path.exists(f) for f in [args.comments_file, args.submissions_file]):
-            print_error("One or both specified files do not exist:")
-            print_error(f"  Comments: {args.comments_file} (exists: {os.path.exists(args.comments_file)})")
-            print_error(f"  Submissions: {args.submissions_file} (exists: {os.path.exists(args.submissions_file)})")
-            return
+        if import_needs_files:
+            if not (args.comments_file and args.submissions_file):
+                platform_name = "subreddit" if args.subreddit else ("subverse" if args.subverses else "guild")
+                print_error(f"Single {platform_name} mode requires both --comments-file and --submissions-file")
+                print_info(
+                    f"Example: python reddarc.py /data --{platform_name} example --comments-file /data/example_comments.zst --submissions-file /data/example_submissions.zst"
+                )
+                return
+            if not all(os.path.exists(f) for f in [args.comments_file, args.submissions_file]):
+                print_error("One or both specified files do not exist:")
+                print_error(f"  Comments: {args.comments_file} (exists: {os.path.exists(args.comments_file)})")
+                print_error(f"  Submissions: {args.submissions_file} (exists: {os.path.exists(args.submissions_file)})")
+                return
         prefix = "r/" if args.subreddit else ("v/" if args.subverses else "g/")
         print_info(f"Single community mode: processing {prefix}{community_filter}")
     elif args.comments_file or args.submissions_file:
@@ -1007,6 +1030,14 @@ Examples:
             process_voat_thumbnails(args)
         if args.export_from_database:
             process_export_only(args.input_dir or ".", args.output, {}, args)
+        return
+
+    # Export-only mode reads everything from the database — no source files or
+    # input-dir discovery required. Dispatch here, before the import path, so a
+    # plain `--export-from-database` does not demand --comments-file/
+    # --submissions-file or a populated input directory.
+    if args.export_from_database:
+        process_export_only(args.input_dir or ".", args.output, {}, args)
         return
 
     # Validate input directory

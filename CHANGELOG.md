@@ -5,6 +5,20 @@ All notable changes to Redd-Archiver will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Comment/post import dropped an entire COPY batch (up to ~1,000 rows) when the
+  source contained a duplicate ID within that batch — the staging table's
+  PRIMARY KEY aborted the whole COPY, not just the dup. Observed on the Voat
+  searchvoat.co dump (overlapping exports repeat rows): a single `privacy`
+  subverse lost ~850 comments. Duplicate IDs within a batch are now de-duped
+  before COPY and reported; cross-batch repeats were already upserted.
+- `--export-from-database` (and the `--enrich*` modes) no longer require
+  `--comments-file`/`--submissions-file` when a single community is named.
+  Those modes read from the database / metadata dumps, not the source files,
+  so the requirement was spurious.
+
 ## [1.1.0] — 2026-06-12 — "Living Archive"
 
 The archive is no longer a snapshot: serve it three ways, keep it current
