@@ -78,6 +78,14 @@ monthly, and skin it to taste.
   updates).
 - Orphaned comments in monthly dumps (parents never archived) poisoned COPY
   batches with FK retry churn; they are now pre-filtered and reported.
+- Re-exports left subreddit listing pages stale: the listing renderer skipped
+  any index page already on disk, so `--export-from-database` after metadata
+  enrichment never surfaced the About/wiki nav link (and post-update listings
+  kept old pagination). Existing pages are now rewritten on re-export; only an
+  interrupted-run resume skips them.
+- Post-page `canonical`/`og:url` pointed at a flat `{permalink}.html` that does
+  not exist in the directory-based layout (pages live at `{permalink}/`), so
+  every post canonicalized to a 404. Canonicals now use the served directory URL.
 - Heading-order accessibility failure on user pages (Lighthouse 97 → 100).
 - Playwright moved from required dependencies to the optional `screenshots`
   extra (`uv sync --extra screenshots`); archive generation no longer pulls
