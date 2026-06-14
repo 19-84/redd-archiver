@@ -789,6 +789,7 @@ class PostgresDatabase:
         successful = 0
         failed = 0
         skipped = 0  # Track posts without valid IDs
+        duplicates = 0  # Track duplicate IDs within a batch (e.g. overlapping source dumps)
         failed_post_ids: set[str] = set()  # Track which specific posts failed
         total_posts = len(posts)
         current_batch_size = initial_batch_size
@@ -813,6 +814,11 @@ class PostgresDatabase:
                         # This eliminates 350MB buffer overhead per batch
                         copy_buffer = StringIO()
                         records_prepared = 0
+                        # Dedupe IDs within the batch: posts_staging has a PRIMARY KEY,
+                        # so a repeated ID (common when source dumps overlap) aborts the whole
+                        # COPY — not just the dup row. Cross-batch repeats are handled by the
+                        # ON CONFLICT upsert below; only same-batch collisions break COPY.
+                        seen_ids: set[str] = set()
 
                         for post in batch:
                             # Validate post has a valid ID before attempting insertion
@@ -820,6 +826,12 @@ class PostgresDatabase:
                             if not post_id or (isinstance(post_id, str) and not post_id.strip()):
                                 skipped += 1
                                 continue
+
+                            id_key = str(post_id)
+                            if id_key in seen_ids:
+                                duplicates += 1
+                                continue
+                            seen_ids.add(id_key)
 
                             try:
                                 sanitized_post = self._sanitize_recursive(post)
@@ -948,6 +960,9 @@ class PostgresDatabase:
             if skipped > 0:
                 print_warning(f"Skipped {skipped} posts with missing or empty IDs")
 
+            if duplicates > 0:
+                print_warning(f"Skipped {duplicates} duplicate post IDs within batches (overlapping source data)")
+
             if failed > 0:
                 print_warning(f"Failed to insert {failed} posts ({len(failed_post_ids)} unique IDs tracked)")
 
@@ -986,6 +1001,7 @@ class PostgresDatabase:
         successful = 0
         failed = 0
         skipped = 0  # Track comments without valid IDs
+        duplicates = 0  # Track duplicate IDs within a batch (e.g. overlapping source dumps)
         total_comments = len(comments)
         current_batch_size = initial_batch_size
 
@@ -1019,6 +1035,11 @@ class PostgresDatabase:
                         # Use PostgreSQL COPY protocol for true streaming (no buffering)
                         copy_buffer = StringIO()
                         records_prepared = 0
+                        # Dedupe IDs within the batch: comments_staging has a PRIMARY KEY,
+                        # so a repeated ID (common when source dumps overlap) aborts the whole
+                        # COPY — not just the dup row. Cross-batch repeats are handled by the
+                        # ON CONFLICT upsert below; only same-batch collisions break COPY.
+                        seen_ids: set[str] = set()
 
                         for comment in batch:
                             # Validate comment has a valid ID before attempting insertion
@@ -1026,6 +1047,12 @@ class PostgresDatabase:
                             if not comment_id or (isinstance(comment_id, str) and not comment_id.strip()):
                                 skipped += 1
                                 continue
+
+                            id_key = str(comment_id)
+                            if id_key in seen_ids:
+                                duplicates += 1
+                                continue
+                            seen_ids.add(id_key)
 
                             try:
                                 # Extract post_id (parent thread ID)
@@ -1191,6 +1218,9 @@ class PostgresDatabase:
 
             if skipped > 0:
                 print_warning(f"Skipped {skipped} comments with missing or empty IDs")
+
+            if duplicates > 0:
+                print_warning(f"Skipped {duplicates} duplicate comment IDs within batches (overlapping source data)")
 
             if failed > 0:
                 print_warning(f"Failed to insert {failed} comments")
