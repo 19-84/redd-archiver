@@ -115,6 +115,62 @@ class TestBulkInsertPosts:
             cur.execute("DELETE FROM posts WHERE subreddit = 'test_dup'")
             conn.commit()
 
+    def test_insert_posts_batch_within_batch_duplicate_ids(self, postgres_db):
+        """A duplicate ID within a single batch must not abort the whole COPY.
+
+        Overlapping source dumps repeat the same row inside one batch; the
+        posts_staging PRIMARY KEY would otherwise fail the entire COPY (taking
+        every other post in the batch down with it). The duplicate is dropped
+        and the remaining rows still land.
+        """
+        posts = [
+            {
+                "id": "wb_dup_post",
+                "subreddit": "test_wbdup",
+                "author": "a",
+                "title": "First",
+                "created_utc": 1640000000,
+                "score": 10,
+                "permalink": "/r/test_wbdup/comments/wb_dup_post/",
+                "platform": "reddit",
+            },
+            {
+                "id": "wb_dup_post",  # same ID, same batch
+                "subreddit": "test_wbdup",
+                "author": "a",
+                "title": "Duplicate",
+                "created_utc": 1640000000,
+                "score": 99,
+                "permalink": "/r/test_wbdup/comments/wb_dup_post/",
+                "platform": "reddit",
+            },
+            {
+                "id": "wb_unique_post",
+                "subreddit": "test_wbdup",
+                "author": "a",
+                "title": "Unique",
+                "created_utc": 1640000001,
+                "score": 5,
+                "permalink": "/r/test_wbdup/comments/wb_unique_post/",
+                "platform": "reddit",
+            },
+        ]
+
+        _successful, failed, _failed_ids = postgres_db.insert_posts_batch(posts)
+
+        # The whole batch must not be lost to the duplicate: both distinct IDs land.
+        assert failed == 0
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(DISTINCT id) FROM posts WHERE subreddit = 'test_wbdup'")
+            assert cur.fetchone()["count"] == 2
+            cur.execute("SELECT COUNT(*) FROM posts WHERE id = 'wb_dup_post'")
+            assert cur.fetchone()["count"] == 1
+
+        # Cleanup
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM posts WHERE subreddit = 'test_wbdup'")
+            conn.commit()
+
     def test_insert_posts_batch_empty_list(self, postgres_db):
         """Test empty batch insertion."""
         successful, failed, _failed_ids = postgres_db.insert_posts_batch([])
@@ -211,6 +267,62 @@ class TestBulkInsertComments:
         with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM comments WHERE subreddit = 'test_bulk_c'")
             cur.execute("DELETE FROM posts WHERE id = 'comment_parent_post'")
+            conn.commit()
+
+    def test_insert_comments_batch_within_batch_duplicate_ids(self, postgres_db):
+        """A duplicate comment ID within a single batch must not abort the whole COPY.
+
+        This is the exact failure observed on the Voat searchvoat dump, where
+        overlapping exports repeated a comment row: comments_staging's PRIMARY
+        KEY failed the COPY and dropped the entire 1000-row batch. The duplicate
+        is now skipped and the rest of the batch still lands.
+        """
+        parent_post = {
+            "id": "wbc_parent_post",
+            "subreddit": "test_wbcdup",
+            "author": "post_author",
+            "title": "Parent",
+            "created_utc": 1640000000,
+            "score": 100,
+            "permalink": "/r/test_wbcdup/comments/wbc_parent_post/",
+            "platform": "reddit",
+        }
+        postgres_db.insert_posts_batch([parent_post])
+
+        def _comment(cid: str, score: int, body: str) -> dict:
+            return {
+                "id": cid,
+                "subreddit": "test_wbcdup",
+                "author": "commenter",
+                "body": body,
+                "created_utc": 1640000100,
+                "score": score,
+                "post_id": "wbc_parent_post",
+                "link_id": "t3_wbc_parent_post",
+                "parent_id": "t3_wbc_parent_post",
+                "permalink": "/r/test_wbcdup/comments/wbc_parent_post/_/" + cid + "/",
+                "platform": "reddit",
+            }
+
+        comments = [
+            _comment("wbc_dup", 10, "first"),
+            _comment("wbc_dup", 99, "duplicate in same batch"),
+            _comment("wbc_unique", 5, "unique"),
+        ]
+
+        _successful, failed = postgres_db.insert_comments_batch(comments)
+
+        assert failed == 0
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(DISTINCT id) FROM comments WHERE subreddit = 'test_wbcdup'")
+            assert cur.fetchone()["count"] == 2
+            cur.execute("SELECT COUNT(*) FROM comments WHERE id = 'wbc_dup'")
+            assert cur.fetchone()["count"] == 1
+
+        # Cleanup
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE subreddit = 'test_wbcdup'")
+            cur.execute("DELETE FROM posts WHERE id = 'wbc_parent_post'")
             conn.commit()
 
     def test_insert_comments_batch_empty_list(self, postgres_db):
