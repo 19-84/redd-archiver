@@ -5,14 +5,14 @@ zstandard==0.25.0
 
 # PostgreSQL support (required)
 # psycopg3 with binary wheels and connection pooling
-psycopg[binary,pool]==3.3.3
+psycopg[binary,pool]==3.3.4
 
 # Jinja2 template system
 jinja2==3.1.6
 
 # Performance optimizations
 # orjson: 10x faster JSON parsing for thread reconstruction
-orjson==3.11.8
+orjson==3.11.9
 
 # Build optimizations (CSS minification only)
 # rcssmin: Fast CSS minification (~10x faster than csscompressor)
