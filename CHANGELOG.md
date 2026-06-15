@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Dynamic-mode static-path redirects routed user-controlled URL segments
+  (notably the `/<path:subpath>/index.html` catch-all) straight into the
+  `Location` header. They now go through a sanitizer that only permits
+  same-origin absolute paths and 404s anything resolving off-site
+  (`//host`, `/\host`, `scheme:`), closing an open-redirect vector
+  (CodeQL `py/url-redirection`).
+
 ### Fixed
 - Comment/post import dropped an entire COPY batch (up to ~1,000 rows) when the
   source contained a duplicate ID within that batch — the staging table's
