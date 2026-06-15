@@ -406,7 +406,7 @@ def title_letter(prefix: str, subreddit: str, letter: str):
 @pages.route("/<prefix>/<subreddit>/titles/<letter>/<int:n>/")
 def redirect_title_overflow(prefix: str, subreddit: str, letter: str, n: int):
     """Static overflow pages (titles/a/2/) map to ?page=N."""
-    return redirect(f"/{prefix}/{subreddit}/titles/{letter}/?page={n}", code=301)
+    return _local_redirect(f"/{prefix}/{subreddit}/titles/{letter}/?page={n}")
 
 
 # ---------------------------------------------------------------------------
@@ -601,7 +601,9 @@ def _local_redirect(target: str, code: int = 301):
     or a `scheme:`/`netloc`. A bad static-style path 404s instead of bouncing
     the visitor to an attacker-controlled host.
     """
-    if not target.startswith("/") or target.startswith(("//", "/\\")):
+    if not target.startswith("/"):
+        abort(404)
+    if target.startswith("//") or target.startswith("/\\"):
         abort(404)
     split = urlsplit(target)
     if split.scheme or split.netloc:
