@@ -22,9 +22,9 @@ jobs:
           FORGEJO_URL: ${{ secrets.FORGEJO_MIRROR_URL }}
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_MIRROR_TOKEN }}
         run: |
-          # Pin HTTP/1.1: large pushes (e.g. a full-history rewrite) fail over
-          # HTTP/2 with "curl 92 PROTOCOL_ERROR / remote end hung up".
-          git -c http.version=HTTP/1.1 push --force --prune \
+          # Non-force, fast-forward only: never rewrite or prune the mirror.
+          # HTTP/1.1 pin avoids the HTTP/2 "curl 92 PROTOCOL_ERROR" on big pushes.
+          git -c http.version=HTTP/1.1 push \
             "https://token:${FORGEJO_TOKEN}@${FORGEJO_URL#https://}" \
             'refs/heads/*:refs/heads/*' \
             'refs/tags/*:refs/tags/*'
@@ -44,9 +44,9 @@ jobs:
           GITLAB_URL: ${{ secrets.GITLAB_MIRROR_URL }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
         run: |
-          # Pin HTTP/1.1: large pushes (e.g. a full-history rewrite) fail over
-          # HTTP/2 with "curl 92 PROTOCOL_ERROR / remote end hung up".
-          git -c http.version=HTTP/1.1 push --force --prune \
+          # Non-force, fast-forward only: never rewrite or prune the mirror.
+          # HTTP/1.1 pin avoids the HTTP/2 "curl 92 PROTOCOL_ERROR" on big pushes.
+          git -c http.version=HTTP/1.1 push \
             "https://token:${GITLAB_TOKEN}@${GITLAB_URL#https://}" \
             'refs/heads/*:refs/heads/*' \
             'refs/tags/*:refs/tags/*'
