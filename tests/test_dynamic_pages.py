@@ -439,6 +439,45 @@ class TestStaticPathRedirects:
 
 
 @pytest.mark.unit
+class TestLocalRedirectSanitizer:
+    """_local_redirect must only ever 301 to a same-origin absolute path."""
+
+    @pytest.mark.parametrize(
+        ("target", "location"),
+        [
+            ("/r/privacy/", "/r/privacy/"),
+            ("/user/alice/?page=2", "/user/alice/?page=2"),
+            ("/v/news/?sort=date&page=3", "/v/news/?sort=date&page=3"),
+        ],
+    )
+    def test_same_origin_paths_redirect(self, target, location):
+        from dynamic_pages import _local_redirect
+
+        resp = _local_redirect(target)
+        assert resp.status_code == 301
+        assert resp.headers["Location"] == location
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "//evil.com/",  # protocol-relative
+            "/\\evil.com/",  # backslash folded to // by browsers
+            "https://evil.com/",  # absolute scheme
+            "http://evil.com",
+            "evil.com/",  # no leading slash
+            "javascript:alert(1)",  # scheme, no slash
+        ],
+    )
+    def test_off_site_targets_404(self, payload):
+        from werkzeug.exceptions import NotFound
+
+        from dynamic_pages import _local_redirect
+
+        with pytest.raises(NotFound):
+            _local_redirect(payload)
+
+
+@pytest.mark.unit
 class TestPrecompressOutput:
     def test_writes_gz_siblings(self, tmp_path):
         from reddarc import precompress_output

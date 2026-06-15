@@ -19,6 +19,7 @@ import os
 import time
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, redirect, render_template, request, send_from_directory
 
@@ -590,6 +591,24 @@ def thumbnail_asset(relpath: str):
 # ---------------------------------------------------------------------------
 
 
+def _local_redirect(target: str, code: int = 301):
+    """301 to a same-origin, absolute-path target or 404.
+
+    These routes interpolate URL path segments (and the <path:subpath>
+    catch-all, which matches slashes) into the Location header. Guard against
+    open-redirect payloads: require a single leading slash and reject anything
+    that resolves off-site — `//host`, `/\\host` (browsers fold `/\\` to `//`),
+    or a `scheme:`/`netloc`. A bad static-style path 404s instead of bouncing
+    the visitor to an attacker-controlled host.
+    """
+    if not target.startswith("/") or target.startswith(("//", "/\\")):
+        abort(404)
+    split = urlsplit(target)
+    if split.scheme or split.netloc:
+        abort(404)
+    return redirect(target, code=code)
+
+
 @pages.route("/index.html")
 def redirect_root_index():
     return redirect("/", code=301)
@@ -597,38 +616,38 @@ def redirect_root_index():
 
 @pages.route("/<prefix>/<subreddit>/index.html")
 def redirect_sub_index(prefix: str, subreddit: str):
-    return redirect(f"/{prefix}/{subreddit}/", code=301)
+    return _local_redirect(f"/{prefix}/{subreddit}/")
 
 
 @pages.route("/<prefix>/<subreddit>/index-<int:n>.html")
 def redirect_sub_page(prefix: str, subreddit: str, n: int):
-    return redirect(f"/{prefix}/{subreddit}/?page={n}", code=301)
+    return _local_redirect(f"/{prefix}/{subreddit}/?page={n}")
 
 
 @pages.route("/<prefix>/<subreddit>/index-<slug>/index.html")
 @pages.route("/<prefix>/<subreddit>/index-<slug>/")
 def redirect_sub_sorted(prefix: str, subreddit: str, slug: str):
     sort = slug if slug in _SORTS else "score"
-    return redirect(f"/{prefix}/{subreddit}/?sort={sort}", code=301)
+    return _local_redirect(f"/{prefix}/{subreddit}/?sort={sort}")
 
 
 @pages.route("/<prefix>/<subreddit>/index-<slug>/index-<int:n>.html")
 def redirect_sub_sorted_page(prefix: str, subreddit: str, slug: str, n: int):
     sort = slug if slug in _SORTS else "score"
-    return redirect(f"/{prefix}/{subreddit}/?sort={sort}&page={n}", code=301)
+    return _local_redirect(f"/{prefix}/{subreddit}/?sort={sort}&page={n}")
 
 
 @pages.route("/user/<username>/index.html")
 def redirect_user_index(username: str):
-    return redirect(f"/user/{username}/", code=301)
+    return _local_redirect(f"/user/{username}/")
 
 
 @pages.route("/user/<username>/page-<int:n>.html")
 def redirect_user_page(username: str, n: int):
-    return redirect(f"/user/{username}/?page={n}", code=301)
+    return _local_redirect(f"/user/{username}/?page={n}")
 
 
 @pages.route("/<path:subpath>/index.html")
 def redirect_any_index(subpath: str):
     """Catch-all: any remaining {dir}/index.html maps to its directory URL."""
-    return redirect(f"/{subpath}/", code=301)
+    return _local_redirect(f"/{subpath}/")
