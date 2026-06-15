@@ -1,7 +1,7 @@
 # ABOUTME: Single-stage Dockerfile for reddarchiver-mcp server using system Python
 # ABOUTME: Avoids multi-stage Python version mismatch by installing everything in runtime image
 
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 # Install uv for fast dependency installation
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
