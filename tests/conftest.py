@@ -22,6 +22,8 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "db: marks tests as requiring PostgreSQL database")
     config.addinivalue_line("markers", "slow: marks tests as slow (>5 seconds runtime)")
     config.addinivalue_line("markers", "integration: marks tests as full integration tests")
+    config.addinivalue_line("markers", "performance: marks tests asserting performance characteristics")
+    config.addinivalue_line("markers", "benchmark: marks benchmark tests (timing/throughput measurement)")
 
 
 # =============================================================================
