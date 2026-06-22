@@ -28,7 +28,7 @@ jobs:
             context: mcp_server
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -49,7 +49,7 @@ jobs:
     needs: build-images
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Create required directories
         run: mkdir -p output/.postgres-data data logs tor-public
