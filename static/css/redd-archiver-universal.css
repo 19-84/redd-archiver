@@ -258,6 +258,17 @@
   --query-text: #9ca3af;
   --search-progress-bg: rgba(30, 41, 59, 0.95);
   --badge-flair-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --body-a-text: #93c5fd;
+  --body-a-hover-text: #bfdbfe;
+  --navbar-a-text: #f1f5f9;
+  --navbar-a-hover-text: #60a5fa;
+  --suggestion-item-hover-bg: #1e40af;
+  --suggestion-item-hover-text: #ffffff;
+  --badge-flair-bg: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+  --badge-flair-bg-2: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --badge-flair-border: 1px solid rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow-2: 0 6px 16px rgba(59, 130, 246, 0.5);
   --user-flair-text: rgba(255, 255, 255, 0.8);
   --user-flair-bg: rgba(59, 130, 246, 0.15);
   --mod-badge-text: #10b981;
@@ -477,6 +488,17 @@
   --query-text: #6b7280;
   --search-progress-bg: rgba(255, 255, 255, 0.95);
   --badge-flair-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --body-a-text: #1e40af;
+  --body-a-hover-text: #1e3a8a;
+  --navbar-a-text: #ffffff;
+  --navbar-a-hover-text: #f8f9ff;
+  --suggestion-item-hover-bg: #1e40af;
+  --suggestion-item-hover-text: #ffffff;
+  --badge-flair-bg: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+  --badge-flair-bg-2: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --badge-flair-border: 1px solid rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow-2: 0 6px 16px rgba(59, 130, 246, 0.5);
   --user-flair-text: rgba(44, 62, 80, 0.8);
   --user-flair-bg: rgba(102, 126, 234, 0.15);
   --mod-badge-text: #059669;
@@ -700,6 +722,17 @@
   --query-text: #6b7280;
   --search-progress-bg: rgba(255, 255, 255, 0.95);
   --badge-flair-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --body-a-text: #1e40af;
+  --body-a-hover-text: #1e3a8a;
+  --navbar-a-text: #ffffff;
+  --navbar-a-hover-text: #f8f9ff;
+  --suggestion-item-hover-bg: #1e40af;
+  --suggestion-item-hover-text: #ffffff;
+  --badge-flair-bg: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+  --badge-flair-bg-2: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --badge-flair-border: 1px solid rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  --badge-flair-shadow-2: 0 6px 16px rgba(59, 130, 246, 0.5);
   --user-flair-text: rgba(44, 62, 80, 0.8);
   --user-flair-bg: rgba(102, 126, 234, 0.15);
   --mod-badge-text: #059669;
@@ -751,22 +784,22 @@
   /* Light-structural rules (no dark counterpart; mirrors the :checked set) */
   body a,
 .site-content a {
-    color: #1e40af;
+    color: var(--body-a-text);
     text-decoration: underline;
 }
   body a:hover,
 .site-content a:hover {
-    color: #1e3a8a;
+    color: var(--body-a-hover-text);
     text-decoration: underline;
 }
   body .navbar a,
 .site-content .navbar a {
-    color: #ffffff !important;
+    color: var(--navbar-a-text) !important;
     text-decoration: none !important;
 }
   body .navbar a:hover,
 .site-content .navbar a:hover {
-    color: #f8f9ff !important;
+    color: var(--navbar-a-hover-text) !important;
     text-decoration: none !important;
 }
 }
@@ -1408,7 +1441,7 @@ h5 {
 
 .comment-header .byline .author:focus,
 .comment-header .byline a.author:focus {
-    outline: 3px solid #007bff;
+    outline: 3px solid var(--bs-primary);
     outline-offset: 2px;
     background: var(--byline-author-bg-3);
 }
@@ -1447,7 +1480,7 @@ h5 {
 
 .comment-author-link .author:focus,
 .comment-author-link a.author:focus {
-    outline: 3px solid #007bff;
+    outline: 3px solid var(--bs-primary);
     outline-offset: 2px;
     background: var(--byline-author-bg-3);
 }
@@ -1461,7 +1494,7 @@ h5 {
 }
 
 .author:focus, a.author:focus {
-    outline: 3px solid #007bff;
+    outline: 3px solid var(--bs-primary);
     outline-offset: 2px;
     background: var(--author-border);
 }
@@ -1497,7 +1530,7 @@ h5 {
 }
 
 .link-domain:focus, a.link-domain:focus {
-    outline: 3px solid #007bff;
+    outline: 3px solid var(--bs-primary);
     outline-offset: 2px;
     background: var(--link-domain-border);
 }
@@ -1505,52 +1538,52 @@ h5 {
 /* Dark theme general links - Default (brighter colors with underlines for accessibility) */
 body a,
 .site-content a {
-    color: #93c5fd;
+    color: var(--body-a-text);
     text-decoration: underline;
 }
 
 body a:hover,
 .site-content a:hover {
-    color: #bfdbfe;
+    color: var(--body-a-hover-text);
     text-decoration: underline;
 }
 
 /* Light theme general links - much darker with underlines for accessibility */
 #dark-theme-toggle:checked ~ body a,
 #dark-theme-toggle:checked ~ .site-content a {
-    color: #1e40af;
+    color: var(--body-a-text);
     text-decoration: underline;
 }
 
 #dark-theme-toggle:checked ~ body a:hover,
 #dark-theme-toggle:checked ~ .site-content a:hover {
-    color: #1e3a8a;
+    color: var(--body-a-hover-text);
     text-decoration: underline;
 }
 
 /* Light theme navbar links (override general link styling) */
 #dark-theme-toggle:checked ~ body .navbar a,
 #dark-theme-toggle:checked ~ .site-content .navbar a {
-    color: #ffffff !important;
+    color: var(--navbar-a-text) !important;
     text-decoration: none !important;
 }
 
 #dark-theme-toggle:checked ~ body .navbar a:hover,
 #dark-theme-toggle:checked ~ .site-content .navbar a:hover {
-    color: #f8f9ff !important;
+    color: var(--navbar-a-hover-text) !important;
     text-decoration: none !important;
 }
 
 /* Dark theme navbar links (override general link styling) */
 body .navbar a,
 .site-content .navbar a {
-    color: #f1f5f9 !important;
+    color: var(--navbar-a-text) !important;
     text-decoration: none !important;
 }
 
 body .navbar a:hover,
 .site-content .navbar a:hover {
-    color: #60a5fa !important;
+    color: var(--navbar-a-hover-text) !important;
     text-decoration: none !important;
 }
 
@@ -1645,7 +1678,7 @@ body .navbar a:hover,
 .pagination .page-link:hover,
 .pagination .page-link:focus {
     text-decoration: underline;
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
@@ -1715,7 +1748,7 @@ body .navbar a:hover,
 /* Focus indicators for better keyboard navigation */
 a:focus,
 button:focus {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
@@ -1927,7 +1960,7 @@ button:focus {
 .dropdown-item:hover,
 .dropdown-item:focus {
     color: #ffffff !important;
-    background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+    background: var(--dropdown-item-bg) !important;
     text-decoration: none;
     outline: none;
     transform: translateX(2px);
@@ -2003,7 +2036,7 @@ button:focus {
 }
 
 .dropdown-toggle:focus {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
@@ -2404,13 +2437,13 @@ button:focus {
 
 /* Accessibility improvements for comment system */
 .comment-toggle:focus + .comment-toggle-label {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
 /* Ensure proper keyboard navigation */
 .comment-toggle-label:focus {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
@@ -3131,8 +3164,8 @@ small, .small {
 
 .suggestion-item:hover,
 .suggestion-item.selected {
-    background: #1e40af !important;
-    color: #ffffff !important;
+    background: var(--suggestion-item-hover-bg) !important;
+    color: var(--suggestion-item-hover-text) !important;
 }
 
 
@@ -3316,10 +3349,10 @@ small, .small {
     font-size: 0.75rem;
     font-weight: 500;
     margin-left: 0.5rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+    background: var(--badge-flair-bg);
     color: white;
-    border: 1px solid rgba(59, 130, 246, 0.4);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    border: var(--badge-flair-border);
+    box-shadow: var(--badge-flair-shadow);
     border-radius: 16px;
     padding: 0.3rem 0.75rem;
     white-space: nowrap;
@@ -3329,8 +3362,8 @@ small, .small {
 
 .badge-flair:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.5);
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: var(--badge-flair-shadow-2);
+    background: var(--badge-flair-bg-2);
 }
 
 /* User/Author Flair Styling */
@@ -3581,7 +3614,7 @@ small, .small {
 .stickied-icon:focus,
 .status-icon:focus,
 .gilded-icon:focus {
-    outline: 2px solid #007bff;
+    outline: 2px solid var(--bs-primary);
     outline-offset: 2px;
 }
 
@@ -3780,7 +3813,7 @@ small, .small {
 }
 
 .user-link:focus, a.user-link:focus {
-    outline: 3px solid #007bff;
+    outline: 3px solid var(--bs-primary);
     outline-offset: 2px;
     background: var(--author-border);
 }
