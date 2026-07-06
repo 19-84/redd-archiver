@@ -38,14 +38,14 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.14.0",
+    "fastmcp>=3.4.3",
     "httpx>=0.27.0",
     "python-multipart>=0.0.22",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=9.1.0",
+    "pytest>=9.1.1",
     "pytest-asyncio>=0.24.0",
     "respx>=0.21.0",
 ]
