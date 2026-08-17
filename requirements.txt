@@ -23,5 +23,5 @@ Pillow>=10.0.0
 
 # Subreddit metadata enrichment (Feature 6): render + sanitize Reddit markdown
 # (sidebar descriptions, rules) to HTML once at import time
-markdown==3.10.2
+markdown==3.10.3
 bleach==6.4.0
