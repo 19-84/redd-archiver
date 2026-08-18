@@ -523,7 +523,7 @@ bc1q8wpdldnfqt3n9jh2n9qqmhg9awx20hxtz6qdl7
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=19-84/redd-archiver&type=Date)](https://star-history.com/#19-84/redd-archiver&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=19-84/redd-archiver&type=Date)](https://star-history.dera.page/#19-84/redd-archiver&Date)
 
 ---
 
