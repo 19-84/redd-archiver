@@ -53,20 +53,20 @@ dependencies = [
     "flask-cors==6.0.5",
     "sqlparse>=0.6.0",
     "python-multipart>=0.0.22",
-    "markdown>=3.10.2",
+    "markdown>=3.10.3",
     "bleach>=6.4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==9.1.0",
+    "pytest==9.1.1",
     "pytest-cov==7.1.0",
-    "ruff==0.15.17",
-    "pre-commit==4.6.0",
-    "pyright==1.1.410",
+    "ruff==0.16.3",
+    "pre-commit==4.6.2",
+    "pyright==1.1.411",
 ]
 screenshots = [
-    "playwright>=1.57.0",
+    "playwright>=1.62.0",
 ]
 
 [project.urls]
@@ -127,6 +127,13 @@ reportUnusedVariable = "none"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+# ruff 0.16 added "*.md" to the default `include` set, so `ruff format` began
+# rewriting the Python snippets embedded in our docs -- collapsing dict
+# literals, exploding the deliberately packed column lists in roadmap specs,
+# and reflowing CLAUDE.md. Those examples are hand-formatted for readability,
+# not compiled, so pin `include` back to the pre-0.16 set and keep the
+# formatter scoped to real Python.
+include = ["*.py", "*.pyi", "*.ipynb", "**/pyproject.toml", "**/ruff.toml", "**/.ruff.toml"]
 
 [tool.ruff.lint]
 select = [
@@ -190,6 +197,6 @@ ignore = [
 
 [dependency-groups]
 dev = [
-    "fastmcp>=2.14.3",
+    "fastmcp>=3.4.7",
     "httpx>=0.28.1",
 ]
