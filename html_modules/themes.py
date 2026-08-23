@@ -164,7 +164,7 @@ def _midnight_dark(r: int, g: int, b: int) -> tuple[int, int, int]:
 
 def _hex_rgb(hx: str) -> tuple[int, int, int]:
     hx = hx.lstrip("#")
-    return tuple(int(hx[i : i + 2], 16) for i in (0, 2, 4))
+    return int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16)
 
 
 def _rgba_of(hx: str, alpha: float) -> str:
