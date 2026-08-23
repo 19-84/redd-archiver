@@ -127,6 +127,13 @@ reportUnusedVariable = "none"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+# ruff 0.16 added "*.md" to the default `include` set, so `ruff format` began
+# rewriting the Python snippets embedded in our docs -- collapsing dict
+# literals, exploding the deliberately packed column lists in roadmap specs,
+# and reflowing CLAUDE.md. Those examples are hand-formatted for readability,
+# not compiled, so pin `include` back to the pre-0.16 set and keep the
+# formatter scoped to real Python.
+include = ["*.py", "*.pyi", "*.ipynb", "**/pyproject.toml", "**/ruff.toml", "**/.ruff.toml"]
 
 [tool.ruff.lint]
 select = [
