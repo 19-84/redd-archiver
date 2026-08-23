@@ -6,7 +6,7 @@
 # this file — refresh the rev when accepting those bumps.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.10  # match pyproject.toml [project.optional-dependencies] dev ruff pin
+    rev: v0.16.3  # match pyproject.toml [project.optional-dependencies] dev ruff pin
     hooks:
       - id: ruff
         args: [--fix]
