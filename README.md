@@ -521,10 +521,4 @@ bc1q8wpdldnfqt3n9jh2n9qqmhg9awx20hxtz6qdl7
 
 ---
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=19-84/redd-archiver&type=Date)](https://star-history.com/#19-84/redd-archiver&Date)
-
----
-
 This software is provided "as is" under the Unlicense. See [LICENSE](LICENSE) for details. Users are responsible for compliance with applicable laws and terms of service when processing data.
