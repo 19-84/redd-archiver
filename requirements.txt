@@ -19,7 +19,7 @@ orjson==3.11.9
 rcssmin==1.2.2
 
 # Image processing for favicon generation
-Pillow>=10.0.0
+Pillow>=12.3.0
 
 # Subreddit metadata enrichment (Feature 6): render + sanitize Reddit markdown
 # (sidebar descriptions, rules) to HTML once at import time
