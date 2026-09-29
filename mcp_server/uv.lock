@@ -1274,6 +1274,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "python-multipart" },
 ]
 
@@ -1286,8 +1287,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastmcp", specifier = ">=2.14.0" },
+    { name = "fastmcp", specifier = ">=4.0.9" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.1.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "python-multipart", specifier = ">=0.0.22" },

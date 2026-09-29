@@ -39,6 +39,7 @@ import os
 import sys
 
 import httpx
+import httpx2
 from fastmcp import FastMCP
 
 # Default API URL if not specified
@@ -48,7 +49,7 @@ DEFAULT_API_URL = "http://localhost:5000"
 OPENAPI_PATH = "/api/v1/openapi.json"
 
 # Global client reference for resources
-_http_client: httpx.AsyncClient | None = None
+_http_client: httpx2.AsyncClient | None = None
 
 
 def get_api_url(cli_url: str | None = None) -> str:
@@ -312,7 +313,7 @@ def create_mcp_server(api_url: str) -> FastMCP:
     )
 
     # Create async HTTP client for API requests
-    _http_client = httpx.AsyncClient(
+    _http_client = httpx2.AsyncClient(
         base_url=f"{api_url}/api/v1",
         timeout=60.0,
         follow_redirects=True,
