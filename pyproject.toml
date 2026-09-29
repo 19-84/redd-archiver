@@ -197,6 +197,7 @@ ignore = [
 
 [dependency-groups]
 dev = [
-    "fastmcp>=3.4.7",
+    "fastmcp>=4.0.9",
+    "httpx2>=2.13.1",
     "httpx>=0.28.1",
 ]
