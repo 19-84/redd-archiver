@@ -5,7 +5,7 @@
 Flask==3.1.3
 
 # Production WSGI server (SECURITY: fixes HTTP request smuggling CVE)
-gunicorn==26.0.0
+gunicorn==26.2.0
 
 # Rate limiting
 Flask-Limiter==4.1.1
@@ -20,14 +20,14 @@ Flask-WTF==1.3.0
 MarkupSafe==3.0.3
 
 # PostgreSQL adapter with binary wheels
-psycopg[binary,pool]==3.3.4
+psycopg[binary,pool]==3.3.5
 
 # System monitoring (required by console_output.py)
 psutil==7.2.2
 
 # Fast JSON parsing (required by postgres_database.py)
 # SECURITY: >=3.11.6 fixes a high-severity advisory (was pinned at 3.11.5)
-orjson==3.11.9
+orjson==3.12.0
 
 # Template rendering (SECURITY: defense in depth)
 Jinja2==3.1.6
