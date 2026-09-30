@@ -11,6 +11,8 @@ using the modularized components from the html_modules package.
 import time
 from datetime import datetime
 
+from utils.time_utils import utc_from_timestamp
+
 # Import all necessary functions from html_modules
 
 
@@ -958,9 +960,7 @@ def process_subreddit_database_backed(subreddit, postgres_db, processed_subreddi
             latest_timestamp = (
                 latest_result["max_created_utc"] if latest_result and latest_result.get("max_created_utc") else 0
             )
-            latest_archive_date = (
-                datetime.utcfromtimestamp(latest_timestamp) if latest_timestamp > 0 else datetime.today()
-            )
+            latest_archive_date = utc_from_timestamp(latest_timestamp) if latest_timestamp > 0 else datetime.today()
 
             # Generate individual post pages from database using Jinja2
             print_info("Generating individual post pages from database...", indent=1)

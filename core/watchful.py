@@ -16,6 +16,7 @@ import orjson  # 5-10x faster line parsing; JSONDecodeError subclasses json's
 import zstandard
 
 from utils.console_output import print_error, print_info, print_success, print_warning
+from utils.time_utils import utc_from_timestamp
 
 from .postgres_database import PostgresDatabase, PostgresDatabaseError, get_postgres_connection_string
 
@@ -89,7 +90,7 @@ def return_redd_objects(path: str) -> list[dict[str, Any]]:
     for line, file_bytes_processed in read_lines_zst(file_path):
         try:
             obj = orjson.loads(line)
-            datetime.utcfromtimestamp(int(obj["created_utc"]))
+            utc_from_timestamp(int(obj["created_utc"]))
             # temp = obj[field] == value
             objects.append(obj)
 

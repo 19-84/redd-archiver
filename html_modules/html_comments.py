@@ -11,6 +11,7 @@ from html_modules.html_constants import removed_content_identifiers
 from html_modules.html_scoring import get_score_badge_class_dynamic
 from html_modules.html_templates import load_all_templates
 from html_modules.html_url import generate_date_hover
+from utils.time_utils import utc_from_timestamp
 
 
 def safe_int_conversion(value: Any, default_time: int | None = None) -> int:
@@ -265,7 +266,7 @@ def render_single_comment(
     edited_indicator = ""
     if comment.get("edited", False):
         if isinstance(comment["edited"], int | float) and comment["edited"]:
-            edit_time = datetime.utcfromtimestamp(safe_int_conversion(comment["edited"])).strftime("%d %b %Y %H:%M")
+            edit_time = utc_from_timestamp(safe_int_conversion(comment["edited"])).strftime("%d %b %Y %H:%M")
             edited_indicator = f'<span class="edited-marker" title="Edited {edit_time}">*</span>'
         else:
             edited_indicator = '<span class="edited-marker" title="Edited">*</span>'
@@ -356,7 +357,7 @@ def render_single_comment(
         "###ID###": comment["id"],
         "###PARENT_ID###": comment["parent_id"],
         "###DEPTH###": str(comment["depth"]),
-        "###DATE###": datetime.utcfromtimestamp(safe_int_conversion(comment["created_utc"])).strftime("%d %b %Y %H:%M"),
+        "###DATE###": utc_from_timestamp(safe_int_conversion(comment["created_utc"])).strftime("%d %b %Y %H:%M"),
         "###DATE_HOVER###": date_hover,
         "###SCORE###": str(comment["score"]) if len(str(comment["score"])) > 0 else missing_comment_score_label,
         "###BODY###": comment["body"],

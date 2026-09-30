@@ -4,8 +4,9 @@ URL and domain processing module for red-arch.
 Handles domain extraction, link generation, and date hover functionality.
 """
 
-from datetime import datetime
 from urllib.parse import urlparse
+
+from utils.time_utils import utc_from_timestamp
 
 
 def extract_root_domain(url: str) -> str:
@@ -59,7 +60,7 @@ def generate_domain_display_and_hover(url: str, is_self: bool | str, subreddit: 
 def generate_date_hover(timestamp: int | float | str) -> str:
     """Generate date hover text: Monday, 15 January 2024, 14:30 UTC"""
     try:
-        dt = datetime.utcfromtimestamp(int(timestamp))
+        dt = utc_from_timestamp(int(timestamp))
         # Format: Monday, 15 January 2024, 14:30 UTC
         hover_text = dt.strftime("%A, %d %B %Y, %H:%M UTC")
         return f'title="{hover_text}"'

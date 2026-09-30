@@ -4,7 +4,6 @@
 
 import os
 import time
-from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request
 from flask_limiter import Limiter
@@ -18,6 +17,7 @@ from utils.console_output import print_error, print_info, print_success
 from utils.error_handling import format_user_error
 from utils.input_validation import validator
 from utils.search_operators import format_search_breadcrumb, parse_search_operators
+from utils.time_utils import utc_from_timestamp, utc_now
 
 # ============================================================================
 # FLASK APPLICATION SETUP
@@ -193,7 +193,7 @@ def format_date(timestamp: int) -> str:
         Formatted date string (e.g., "2024-01-15")
     """
     try:
-        dt = datetime.utcfromtimestamp(timestamp)
+        dt = utc_from_timestamp(timestamp)
         return dt.strftime("%Y-%m-%d")
     except (ValueError, OSError):
         return "Unknown date"
@@ -210,8 +210,8 @@ def format_relative_date(timestamp: int) -> str:
         Relative date string
     """
     try:
-        dt = datetime.utcfromtimestamp(timestamp)
-        now = datetime.utcnow()
+        dt = utc_from_timestamp(timestamp)
+        now = utc_now()
         delta = now - dt
 
         if delta.days > 365:
@@ -498,20 +498,16 @@ def health():
                     "status": "healthy",
                     "database": "connected",
                     "serve_mode": SERVE_MODE,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": utc_now().isoformat(),
                 }
             ), 200
         else:
-            return jsonify(
-                {"status": "unhealthy", "database": "disconnected", "timestamp": datetime.utcnow().isoformat()}
-            ), 503
+            return jsonify({"status": "unhealthy", "database": "disconnected", "timestamp": utc_now().isoformat()}), 503
 
     except Exception as e:
         # Use safe error handler - don't expose exception details
         format_user_error(e, "healthcheck")
-        return jsonify(
-            {"status": "unhealthy", "error": "Service unavailable", "timestamp": datetime.utcnow().isoformat()}
-        ), 503
+        return jsonify({"status": "unhealthy", "error": "Service unavailable", "timestamp": utc_now().isoformat()}), 503
 
 
 @app.errorhandler(404)
