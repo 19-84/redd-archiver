@@ -35,13 +35,64 @@ class TestLetterBucket:
         assert letter_bucket("   ") == "0-9"
         assert letter_bucket(None) == "0-9"
 
-    def test_non_ascii_goes_to_catchall(self):
-        assert letter_bucket("Émile Zola") == "0-9"
-        assert letter_bucket("日本語タイトル") == "0-9"
+    def test_accented_latin_folds_to_base_letter(self):
+        assert letter_bucket("Émile Zola") == "e"
+        assert letter_bucket("über alles") == "u"
+        assert letter_bucket("Ñandú") == "n"
+        assert letter_bucket("Çava") == "c"
+        assert letter_bucket("İstanbul news") == "i"  # 'İ' → 'I' + combining dot
 
-    def test_multichar_lowercase_expansion(self):
-        # 'İ'.lower() expands to 'i' + combining dot — must not leak as a bucket
-        assert letter_bucket("İstanbul news") == "0-9"
+    def test_compatibility_forms_fold(self):
+        assert letter_bucket("\uff21pple fullwidth") == "a"  # FULLWIDTH LATIN CAPITAL A
+        assert letter_bucket("ﬁnal ligature") == "f"
+
+    def test_non_latin_goes_to_catchall(self):
+        assert letter_bucket("日本語タイトル") == "0-9"
+        assert letter_bucket("Привет мир") == "0-9"
+        assert letter_bucket("مرحبا") == "0-9"
+
+    def test_latin_letters_without_decomposition_go_to_catchall(self):
+        # No NFKD decomposition to a-z: stay in the catch-all
+        assert letter_bucket("ßtraße") == "0-9"
+        assert letter_bucket("Æsir") == "0-9"
+        assert letter_bucket("Øresund") == "0-9"
+
+
+_BUCKET_PARITY_TITLES = [
+    "Apple pie",
+    "zebra",
+    "  Mid spaces",
+    "9 things",
+    '"Quoted title"',
+    "[deleted]",
+    "",
+    "Émile Zola",
+    "über alles",
+    "Ñandú",
+    "İstanbul news",
+    "\uff21pple fullwidth",  # FULLWIDTH LATIN CAPITAL A
+    "ﬁnal ligature",
+    "日本語タイトル",
+    "Привет мир",
+    "مرحبا",
+    "ßtraße",
+    "Æsir",
+    "Øresund",
+]
+
+
+class TestTitleBucketSqlParity:
+    """Dynamic mode buckets in SQL; static mode in Python. They must agree."""
+
+    def test_sql_bucket_matches_letter_bucket(self, postgres_db):
+        with postgres_db.pool.get_connection() as conn, conn.cursor() as cur:
+            for title in _BUCKET_PARITY_TITLES:
+                cur.execute(
+                    # Interpolates a class constant, not input; the title is a bound parameter
+                    f"SELECT {postgres_db._TITLE_BUCKET_SQL} AS bucket FROM (VALUES (%s::text)) AS t(title)",  # noqa: S608
+                    (title,),
+                )
+                assert cur.fetchone()["bucket"] == letter_bucket(title), title
 
 
 @pytest.mark.unit

@@ -1387,11 +1387,10 @@ class PostgresDatabase:
             return
 
     # First-character bucket of a title, matching letter_bucket() in
-    # html_modules/html_static_indexes.py: single lowercase a-z, else '0-9'
-    # (a multi-char lowercase expansion like 'İ' -> 'i̇' fails the regex).
-    _TITLE_BUCKET_SQL = (
-        "CASE WHEN lower(substr(ltrim(title), 1, 1)) ~ '^[a-z]$' THEN lower(substr(ltrim(title), 1, 1)) ELSE '0-9' END"
-    )
+    # html_modules/html_static_indexes.py: NFKD-fold the first character to its
+    # base letter ('É' -> 'e'), then single lowercase a-z, else '0-9'.
+    _TITLE_BUCKET_FIRST = "lower(substr(normalize(substr(ltrim(title), 1, 1), NFKD), 1, 1))"
+    _TITLE_BUCKET_SQL = f"CASE WHEN {_TITLE_BUCKET_FIRST} ~ '^[a-z]$' THEN {_TITLE_BUCKET_FIRST} ELSE '0-9' END"
 
     def get_title_letter_counts(self, subreddit: str) -> dict[str, int]:
         """Per-letter title counts for a subreddit ('a'..'z' + '0-9'), for dynamic title browsing."""

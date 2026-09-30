@@ -3,6 +3,7 @@
 
 import math
 import re
+import unicodedata
 from typing import Any
 
 from html_modules.html_url import generate_domain_display_and_hover
@@ -21,13 +22,19 @@ _DEFAULT_SCORE_RANGES = {"very_high": 100, "high": 50, "medium": 10}
 
 
 def letter_bucket(title: str | None) -> str:
-    """Bucket a title by its first character: 'a'..'z', or '0-9' for everything else."""
+    """Bucket a title by its first character: 'a'..'z', or '0-9' for everything else.
+
+    Accented and compatibility forms of Latin letters fold to their base letter
+    ('É' → 'e', 'ü' → 'u', fullwidth A → 'a'), so French/German/Spanish titles
+    land under their letter. Mirrored in SQL by PostgresDatabase._TITLE_BUCKET_SQL.
+    """
     stripped = (title or "").strip()
     if not stripped:
         return "0-9"
-    # .lower() can expand one char to several (e.g. 'İ' → 'i' + combining dot),
-    # and such strings compare inside 'a'..'z' lexicographically — require len 1.
-    first = stripped[0].lower()
+    # NFKD splits 'É' into 'E' + combining accent; keep the base character.
+    # .lower() can still expand one char to several, and such strings compare
+    # inside 'a'..'z' lexicographically — require len 1.
+    first = unicodedata.normalize("NFKD", stripped[0])[0].lower()
     return first if len(first) == 1 and "a" <= first <= "z" else "0-9"
 
 
