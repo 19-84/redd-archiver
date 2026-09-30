@@ -5,6 +5,7 @@ ABOUTME: Covers content URL helpers, mode gating, page routes, and static-path r
 """
 
 import importlib
+import sys
 from typing import ClassVar
 
 import pytest
@@ -227,8 +228,22 @@ def seeded_db_module(request):
     db.cleanup()
 
 
+def _close_search_engine():
+    """Close the search engine's pool before a reload orphans it.
+
+    An orphaned pool is finalized by the GC on one of its own worker threads,
+    which raises "cannot join current thread" in ConnectionPool.__del__.
+    """
+    search_server = sys.modules.get("search_server")
+    engine = getattr(search_server, "_search_engine", None)
+    if engine is not None:
+        engine.cleanup()
+        search_server._search_engine = None
+
+
 def _load_app(monkeypatch, mode):
     monkeypatch.setenv("REDDARCHIVER_SERVE_MODE", mode)
+    _close_search_engine()
     import search_server
 
     importlib.reload(search_server)
@@ -238,12 +253,14 @@ def _load_app(monkeypatch, mode):
 
 @pytest.fixture
 def dynamic_client(monkeypatch, seeded_db_module):
-    return _load_app(monkeypatch, "dynamic").test_client()
+    yield _load_app(monkeypatch, "dynamic").test_client()
+    _close_search_engine()
 
 
 @pytest.fixture
 def hybrid_client(monkeypatch, seeded_db_module):
-    return _load_app(monkeypatch, "hybrid").test_client()
+    yield _load_app(monkeypatch, "hybrid").test_client()
+    _close_search_engine()
 
 
 class TestNameResolution:
