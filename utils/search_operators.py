@@ -89,14 +89,14 @@ def parse_search_operators(query_text: str) -> ParsedSearchQuery:
         clean_query = regex_utils.sub(r"\b(?:sub|subreddit):\w+", "", clean_query, re.IGNORECASE)
 
     # Extract author operator (author: or user:)
-    # Pattern: \b(?:author|user):(\w+)
-    # Matches: author:danielmicay, user:spez
+    # Pattern: \b(?:author|user):([\w-]+)  (Reddit usernames may contain hyphens)
+    # Matches: author:danielmicay, user:spez, author:some-user
     # Use safe_regex to prevent ReDoS attacks
-    author_match = regex_utils.search(r"\b(?:author|user):(\w+)", clean_query, re.IGNORECASE)
+    author_match = regex_utils.search(r"\b(?:author|user):([\w-]+)", clean_query, re.IGNORECASE)
     if author_match:
         filters["author"] = author_match.group(1)
         # Remove operator from query text
-        clean_query = regex_utils.sub(r"\b(?:author|user):\w+", "", clean_query, re.IGNORECASE)
+        clean_query = regex_utils.sub(r"\b(?:author|user):[\w-]+", "", clean_query, re.IGNORECASE)
 
     # Extract score operator (score:10+, score:>10, score:10)
     # Pattern: \bscore:>?(\d+)\+?

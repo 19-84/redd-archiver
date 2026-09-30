@@ -89,6 +89,18 @@ class TestNormalPatterns:
 
         assert result == "original text"
 
+    def test_sub_honors_flags(self, fresh_regex):
+        """Flags must reach re.sub as flags, not as the positional count."""
+        result = fresh_regex.sub(r"sub:\w+", "", "a SUB:tech b", re.IGNORECASE)
+
+        assert result == "a  b"
+
+    def test_sub_with_flags_replaces_every_match(self, fresh_regex):
+        """re.IGNORECASE (2) must not be mistaken for count=2."""
+        result = fresh_regex.sub(r"x", "y", "x x x x", re.IGNORECASE)
+
+        assert result == "y y y y"
+
     def test_findall_simple(self, fresh_regex):
         """Test findall with multiple matches."""
         result = fresh_regex.findall(r"\d+", "a1b2c3d4")
