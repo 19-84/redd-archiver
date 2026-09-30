@@ -25,9 +25,11 @@ services:
       # ICU locale provider for linguistically-correct non-ASCII collation.
       # The image is alpine (musl), which ships no glibc locales, so the old
       # "--locale=en_US.UTF-8" produced "no usable system locales" and silently
-      # degraded ORDER BY to byte-order. ICU gives proper ordering; libc stays C.
+      # degraded ORDER BY to byte-order. ICU gives proper ordering; libc collation stays C.
+      # ctype must be UTF-8: with ctype=C, pg_trgm sees no characters in Cyrillic/CJK
+      # text (show_trgm('Привет') = {}). musl provides C.UTF-8 natively.
       # NOTE: initdb runs once — only fresh data dirs pick this up.
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=en-US --locale=C"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=en-US --locale=C --lc-ctype=C.UTF-8"
     volumes:
       # Data persistence (stored in output directory for easy cleanup)
       # PG18+ stores data in a version-specific subdir under /var/lib/postgresql;

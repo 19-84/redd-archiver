@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same-origin absolute paths and 404s anything resolving off-site
   (`//host`, `/\host`, `scheme:`), closing an open-redirect vector
   (CodeQL `py/url-redirection`).
+- Dependency security bumps clearing all open Dependabot alerts: anyio 4.14.2
+  (critical TLS host-name spoofing), pyjwt 2.15.1 (critical PEM-detection
+  bypass, HMAC key confusion, and others) in both lockfiles (#114, #113).
 
 ### Fixed
 - Comment/post import dropped an entire COPY batch (up to ~1,000 rows) when the
@@ -26,6 +29,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--comments-file`/`--submissions-file` when a single community is named.
   Those modes read from the database / metadata dumps, not the source files,
   so the requirement was spurious.
+- Search operators typed with capitals (`AUTHOR:bob`, `Sub:tech`, `SCORE:10`)
+  were applied as filters but left in the full-text query, so those searches
+  returned nothing. `SafeRegex.sub` passed `re.IGNORECASE` into `re.sub`'s
+  `count` slot. `author:`/`user:` also cut hyphenated usernames at the `-`,
+  turning the remainder into an exclusion term (#115).
+
+### Changed
+- New PostgreSQL clusters initialize with `--lc-ctype=C.UTF-8`. With the
+  previous `ctype=C`, `pg_trgm` extracted no trigrams from Cyrillic/CJK text,
+  which blocks the planned CJK search fallback. ICU collation is unchanged.
+  **Existing data directories keep their ctype** (initdb runs once). Check with
+  `SELECT datctype FROM pg_database WHERE datname = current_database();`.
+  To adopt it, dump, re-initialize, and restore.
+- MCP server moves to fastmcp 4 / mcp 2, and builds its API client with
+  `httpx2` (fastmcp 4 deprecates `httpx` clients) (#113).
+- Replaced deprecated `datetime.utcnow()`/`utcfromtimestamp()` with
+  equivalent naive-UTC helpers (`utils/time_utils.py`). Output is unchanged.
+  The psycopg pool now passes `open=True` explicitly (#116).
 
 ## [1.1.0] — 2026-06-12 — "Living Archive"
 
