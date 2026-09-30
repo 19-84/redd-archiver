@@ -89,7 +89,7 @@ class SafeRegex:
         """
         try:
             with self._timeout_context():
-                return re.sub(pattern, repl, text, flags)
+                return re.sub(pattern, repl, text, flags=flags)
         except RegexTimeout:
             # Log timeout but don't crash - return original text
             self._timeout_count += 1

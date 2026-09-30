@@ -161,6 +161,27 @@ class TestAuthorOperator:
 
         assert result.author == "user123"
 
+    def test_author_with_hyphen(self):
+        """Reddit usernames may contain hyphens; keep the whole name."""
+        result = parse_search_operators("query author:some-user")
+
+        assert result.author == "some-user"
+        assert result.query_text == "query"
+
+    def test_user_alias_with_hyphen(self):
+        """The user: alias accepts hyphenated names too."""
+        result = parse_search_operators("user:a-b-c query")
+
+        assert result.author == "a-b-c"
+        assert result.query_text == "query"
+
+    def test_hyphenated_author_does_not_leak_exclusion(self):
+        """The tail of a hyphenated name must not become a -exclude term."""
+        result = parse_search_operators("query author:some-user -spam")
+
+        assert result.author == "some-user"
+        assert result.query_text == "query -spam"
+
 
 # =============================================================================
 # SCORE OPERATOR TESTS
@@ -295,6 +316,36 @@ class TestSortOperator:
         result = parse_search_operators("query SORT:SCORE")
 
         assert result.sort_by == "score"
+
+
+@pytest.mark.unit
+class TestUppercaseOperatorsRemovedFromQuery:
+    """Operators matched case-insensitively must also be stripped case-insensitively."""
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "query SUB:AskReddit",
+            "query Subreddit:AskReddit",
+            "query AUTHOR:TestUser",
+            "query User:TestUser",
+            "query SCORE:10+",
+            "query TYPE:post",
+            "query SORT:SCORE",
+        ],
+    )
+    def test_uppercase_operator_not_left_in_query(self, raw):
+        assert parse_search_operators(raw).query_text == "query"
+
+    def test_all_uppercase_operators_combined(self):
+        result = parse_search_operators("SUB:tech foo AUTHOR:bob SCORE:5 bar TYPE:comment SORT:NEW")
+
+        assert result.query_text == "foo bar"
+        assert result.subreddit == "tech"
+        assert result.author == "bob"
+        assert result.min_score == 5
+        assert result.result_type == "comment"
+        assert result.sort_by == "created_utc"
 
 
 # =============================================================================
