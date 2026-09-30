@@ -1,11 +1,11 @@
 # Feature 5: Unicode & Foreign Language Support
 
-**Status:** In progress — Phase 1 (`simple` regconfig) + truncation fix implemented; Phase 2 (pg_trgm CJK fallback) not started
-**Last updated:** 2026-06-10
+**Status:** In progress. Phase 1 (`simple` regconfig), truncation fix, and ICU collation are implemented. Phase 2 (pg_trgm CJK fallback) is not started and is **blocked on a ctype change**: on the deployed locale config, pg_trgm extracts no trigrams from non-ASCII text (see "pg_trgm needs a UTF-8 ctype" below).
+**Last updated:** 2026-09-29
 
 **Goal:** Ensure redd-archiver correctly stores, searches, displays, and indexes content from non-English subreddits, including CJK (Chinese/Japanese/Korean), Cyrillic, Arabic, and other scripts.
 
-**Problem:** The current codebase stores and displays Unicode text correctly (UTF-8 throughout), but full-text search is hardcoded to English, title index bucketing has no plan for non-Latin characters, and text truncation breaks on CJK scripts that don't use spaces.
+**Problem:** The codebase stores and displays Unicode text correctly (UTF-8 throughout). The original English-only FTS and CJK truncation issues are fixed. What remains: CJK text is not tokenized by FTS (Phase 2), pg_trgm cannot see non-ASCII characters on the deployed `ctype=C`, and the title index sends every non-ASCII-initial title (including accented Latin) to the `0-9` bucket.
 
 ---
 
@@ -64,11 +64,13 @@ Arctic Shift API search fields relevant to us: `title`, `selftext`, `query` (bot
 
 | Component | Location | Issue | Severity |
 |---|---|---|---|
-| FTS regconfig hardcoded to `'english'` | `core/postgres_search.py` (~10×) and `api/routes.py` (4×) | CJK text not tokenized (no word boundaries); English stopwords stripped from all languages | **Critical** |
-| FTS indexes hardcoded to `'english'` | `sql/indexes.sql:75-88` (4 GIN index definitions) | Indexes built for English stemming only | **Critical** |
-| Search operator regex `\w+` | `utils/search_operators.py:85,95` | `\w+` only matches ASCII in default mode — `sub:русский` or `author:Müller` won't parse | **Medium** (but subreddits/usernames are ASCII-only on Reddit, so this may not matter in practice) |
-| Smart text truncation | `html_modules/jinja_filters.py:116-137` | `text[:length].rsplit(" ", 1)[0]` is code-point-safe (never corrupts characters), but for space-less scripts (CJK) the word-boundary step is a no-op, so it hard-truncates with no graceful break | **Low** (cosmetic — no corruption) |
-| Title index bucketing (Feature 1) | Planned, not implemented | No spec for titles starting with non-Latin characters | **Low** (not built yet) |
+| ~~FTS regconfig hardcoded to `'english'`~~ | `core/postgres_search.py`, `api/routes.py` | ✅ **Fixed (Phase 1).** All queries use `'simple'`. | — |
+| ~~FTS indexes hardcoded to `'english'`~~ | `sql/indexes.sql`, `sql/migrations/008_simple_regconfig_fts_indexes.sql` | ✅ **Fixed (Phase 1).** GIN indexes rebuilt with `'simple'`. | — |
+| CJK not tokenized by FTS | `'simple'` parser | A space-less CJK run is one lexeme: `to_tsvector('simple', '日本語の検索')` → `'日本語の検索'`. A search for `日本語` does not match it. Phase 2 target. | **High** for CJK archives |
+| ~~Search operator regex `\w+`~~ | `utils/search_operators.py` | ✅ **Not a Unicode problem.** Python 3 `\w` is Unicode-aware; `sub:русский` and `author:Müller` parse (verified 2026-09-29). The real bug was hyphens: `author:some-user` was cut at `-`. Fixed in #115, which also fixed uppercase operators being left in the query text. | — |
+| ~~Smart text truncation~~ | `html_modules/jinja_filters.py` `truncate_smart` | ✅ **Fixed.** Hard-truncates space-less (CJK) runs instead of a no-op word break. | — |
+| Title index bucketing (Feature 1) | `html_modules/html_static_indexes.py` `letter_bucket` | **Built, but everything outside ASCII a–z goes to `0-9`**, including accented Latin (`Éclair`, `über`), Cyrillic, and CJK. A non-English subreddit's title index is one giant `0-9` page. | **Medium** |
+| Flair slugs for non-Latin flair | `html_static_indexes.py` `flair_slugs` | Non-alphanumeric-ASCII flair collapses to `flair`, `flair-2`, … (unique, but unreadable URLs). | **Low** |
 
 ### Investigated (needs re-verification on Alpine)
 
@@ -76,10 +78,22 @@ Arctic Shift API search fields relevant to us: `title`, `selftext`, `query` (bot
 
 | Component | Answer |
 |---|---|
-| `ILIKE` case folding | **Assumed OK on Debian — unverified on Alpine.** The analysis assumed glibc `en_US.UTF-8` (Debian [Dockerfile](https://github.com/docker-library/postgres/blob/master/18/bookworm/Dockerfile)). On the deployed `postgres:18-alpine` (musl), non-ASCII case-folding for `ILIKE` must be re-checked. |
+| `ILIKE` case folding | **OK on Alpine (verified 2026-09-29).** `'ПРИВЕТ' ILIKE 'привет'` → `true` and `lower('ÉCLAIR ПРИВЕТ')` → `éclair привет` on `postgres:18-alpine` with the deployed initdb args. |
 | `ORDER BY LOWER(title)` collation | **Now linguistic via ICU (fixed).** Was C/byte-order on Alpine (musl ships no usable locale); `docker-compose.yml` now sets the ICU locale provider so the cluster default collation is `en-US`, giving linguistically reasonable non-ASCII ordering (verified: `a,A,b,B,Z`). Per-query overrides via `COLLATE "und-x-icu"` remain available. |
-| `pg_trgm` with CJK | **Available but limited.** `pg_trgm` is included in the postgres:18-alpine image (contrib). With `en_US.UTF-8`, it CAN extract trigrams from CJK characters. However, CJK queries shorter than 3 characters generate 0 trigrams → full index scan fallback. Poor for 1–2 character CJK words (which are common). |
+| `pg_trgm` with CJK | **Broken on the deployed config — see below.** With `--locale=C` the database ctype is `C`, and pg_trgm then extracts **no** trigrams from Cyrillic or CJK and drops accented letters. Even once fixed, CJK queries shorter than 3 characters generate 0 trigrams → full index scan fallback. Poor for 1–2 character CJK words (which are common). |
 | `pg_trgm` availability | **Yes.** Only `pg_trgm` is available in postgres:18-alpine without custom Docker builds. `pg_bigm`, `pg_cjk_parser`, and PGroonga all require custom Dockerfiles. |
+
+### pg_trgm needs a UTF-8 ctype (tested 2026-09-29)
+
+The ICU fix sets `--locale=C` so that musl's missing glibc locales stop producing warnings. Collation comes from ICU, but **ctype stays `C`**, and pg_trgm classifies characters by ctype. Tested on `postgres:18-alpine` (PostgreSQL 18.6):
+
+| initdb args | `show_trgm('Привет')` | `show_trgm('日本語')` | `show_trgm('Éclair')` | `ORDER BY` | ILIKE Cyrillic |
+|---|---|---|---|---|---|
+| **Current:** `--locale-provider=icu --icu-locale=en-US --locale=C` | `{}` | `{}` | `É` dropped | `a,A,b,B,e,é,Z` ✅ | ✅ |
+| **Proposed:** current + `--lc-ctype=C.UTF-8` | 7 trigrams ✅ | 4 trigrams ✅ | `É` kept ✅ | `a,A,b,B,e,é,Z` ✅ | ✅ |
+| `--locale-provider=builtin --builtin-locale=C.UTF-8` | ✅ | ✅ | ✅ | `A,B,Z,a,b,e,é` ❌ (code-point order) | ✅ |
+
+**Recommendation:** add `--lc-ctype=C.UTF-8` to `POSTGRES_INITDB_ARGS` in `docker-compose.yml`. This makes pg_trgm work and keeps ICU linguistic ordering. It is a prerequisite for Phase 2. initdb runs once, so existing data directories keep `ctype=C` until re-initialized (dump/restore). A database's ctype cannot be altered in place.
 
 ---
 
@@ -111,7 +125,7 @@ PostgreSQL ships 29 text search configurations. Relevant subset:
 
 ### Recommended approach (phased)
 
-**Phase 1: Switch to `'simple'` regconfig (minimal change — recommended first step)**
+**Phase 1: Switch to `'simple'` regconfig (minimal change — recommended first step)** ✅ Done
 
 ```sql
 -- Replace 'english' with 'simple' everywhere
@@ -129,7 +143,7 @@ CREATE INDEX idx_posts_search ON posts
 Use `'simple'` regconfig for FTS, add `pg_trgm` GIN index as a fallback for substring/trigram matching. Query tsvector first, fall back to trigram for CJK queries.
 
 - `pg_trgm` is already available in the postgres:18 image (contrib module). No custom Docker build needed.
-- Docker locale is `en_US.UTF-8`, which allows `pg_trgm` to extract trigrams from CJK characters.
+- **Prerequisite:** a UTF-8 ctype (`--lc-ctype=C.UTF-8`). The deployed `ctype=C` makes pg_trgm ignore all non-ASCII characters. See "pg_trgm needs a UTF-8 ctype" above.
 - Handles CJK queries of 3+ characters. Queries shorter than 3 CJK chars fall back to full index scan.
 - Effort: Medium — add trgm index, modify search queries to detect CJK and use appropriate strategy.
 
@@ -146,7 +160,9 @@ These are only justified if a significant number of redd-archiver deployments ar
 
 ## Specific Issues & Proposed Fixes
 
-### 1. FTS regconfig (Critical)
+### 1. FTS regconfig (Critical) ✅ Done
+
+> Implemented: all queries and GIN indexes use `'simple'` (`sql/migrations/008_simple_regconfig_fts_indexes.sql`). Kept below for history.
 
 **Current:** `'english'` regconfig (`to_tsvector`/`to_tsquery`/`websearch_to_tsquery`) appears in ~20 occurrences across 3 files.
 
@@ -159,7 +175,9 @@ These are only justified if a significant number of redd-archiver deployments ar
 - `api/routes.py` — 4 query locations (the search API endpoints — easy to miss)
 - `sql/indexes.sql` — 4 GIN index definitions
 
-### 2. Search operator regex (Medium)
+### 2. Search operator regex (Medium) ✅ Resolved
+
+> **Correction (2026-09-29):** the premise below is wrong. Python 3 `\w` matches Unicode word characters, so non-ASCII names always parsed. The real defect was `author:` cutting Reddit usernames at a hyphen (`author:some-user` → `some`, with `-user` becoming an exclusion term). Fixed in #115 with `[\w-]+`. The same PR fixed uppercase operators (`AUTHOR:`, `Sub:`) being left in the FTS query text. Original analysis kept below for history.
 
 **Current:** `\w+` in `utils/search_operators.py:85,95` for `sub:` and `author:` operators.
 
@@ -167,7 +185,9 @@ These are only justified if a significant number of redd-archiver deployments ar
 
 **Recommendation:** Document as intentional, not a bug. Add a code comment explaining the ASCII constraint matches Reddit's rules. This applies equally to Voat subverses and Ruqqus guilds, which follow the same ASCII-only naming convention.
 
-### 3. Smart text truncation (Medium)
+### 3. Smart text truncation (Medium) ✅ Done
+
+> Implemented in `html_modules/jinja_filters.py` `truncate_smart`. Kept below for history.
 
 **Current:** `text[:length].rsplit(" ", 1)[0]` — splits on spaces only.
 
@@ -186,7 +206,11 @@ def truncate_smart(text, length=150, suffix="..."):
 
 **File:** `html_modules/jinja_filters.py:116-137`
 
-### 4. Title index bucketing (Feature 1, Low — not built yet)
+### 4. Title index bucketing (Medium — built without this)
+
+**Current (2026-09-29):** Feature 1 shipped `letter_bucket()` in `html_modules/html_static_indexes.py`, which sends every title whose first character is not ASCII `a`–`z` to `0-9`. That includes accented Latin (`Éclair`, `über`), so French/German/Spanish subreddits are affected, not just non-Latin ones.
+
+**Cheap first step:** fold diacritics before bucketing (`unicodedata.normalize("NFKD", c)[0]`), so `É` → `e` and `ü` → `u`.
 
 **Proposed approach:** Add a catch-all bucket for titles starting with non-Latin characters.
 
@@ -200,7 +224,9 @@ r/{subreddit}/titles/other/      # Non-Latin first characters (CJK, Cyrillic, Ar
 
 For subreddits that are primarily non-English (detectable via the `lang` metadata), consider script-specific bucketing (e.g., Cyrillic А–Я, Hiragana あ–ん). But this is a Feature 1 implementation detail, not a Feature 5 concern.
 
-### 5. Database locale (Needs investigation)
+### 5. Database locale ✅ Investigated (collation fixed; ctype still `C`)
+
+> **Answered (2026-09-29):** collation is ICU `en-US` (linguistic order ✅). `ILIKE`/`LOWER()` fold non-ASCII correctly ✅. The ctype **is** `C`, so the pg_trgm risk below is real: it extracts no trigrams from non-ASCII. Fix: `--lc-ctype=C.UTF-8`. See "pg_trgm needs a UTF-8 ctype". The original risk analysis is kept below.
 
 **Risk:** If the Docker PostgreSQL container uses `LC_CTYPE=C`, then:
 - `ILIKE` won't case-fold non-ASCII characters
@@ -218,20 +244,20 @@ All questions that previously blocked this spec have been answered or reframed a
 | # | Question | Resolution |
 |---|----------|------------|
 | 1 | Reddit `lang` field reliability | **Non-blocking.** No public research on accuracy. `lang` is an optional optimization hint for per-subreddit FTS config, not a prerequisite. `'simple'` regconfig works without it. If Feature 6 (Metadata Enrichment) imports `lang` data, it can be used as an enhancement later. |
-| 2 | Docker PostgreSQL `LC_CTYPE` | **`en_US.UTF-8`.** Set via `locale-gen` in the [official Dockerfile](https://github.com/docker-library/postgres/blob/master/18/bookworm/Dockerfile). ILIKE, LOWER(), pg_trgm all function correctly with this locale. |
+| 2 | Docker PostgreSQL `LC_CTYPE` | **`C` (corrected 2026-09-29).** The original answer described the Debian image. The deployed `postgres:18-alpine` with `--locale=C` has `datctype = C`. ILIKE/LOWER() still fold non-ASCII correctly, but pg_trgm does not. Fix: `--lc-ctype=C.UTF-8` (see "pg_trgm needs a UTF-8 ctype"). |
 | 3 | Non-English subreddit fraction | **Deployment-dependent.** Phase 1 (simple regconfig) is a small (~20-line) change that helps ALL non-English content with zero risk. CJK-specific support (Phase 2) is an opt-in enhancement, not a prerequisite. |
-| 4 | `pg_trgm` CJK behavior | **Partial.** With `en_US.UTF-8`, pg_trgm extracts trigrams from CJK characters. Queries <3 CJK chars generate 0 trigrams → full index scan. Acceptable for Phase 2; better CJK requires custom Docker extensions. |
+| 4 | `pg_trgm` CJK behavior | **0 trigrams on the deployed config (tested 2026-09-29).** With `ctype=C`, `show_trgm('日本語')` → `{}`. With `--lc-ctype=C.UTF-8` it yields trigrams. Queries <3 CJK chars still generate 0 trigrams → full index scan. |
 | 5 | Extension availability in postgres:18-alpine | **Only `pg_trgm`** (contrib) is available without custom builds. `pg_bigm`, `pg_cjk_parser`, PGroonga all need custom Dockerfiles. |
-| 6 | ICU collation support | **Likely available** via PGDG package dependencies (`libicu72`), but needs verification: `SELECT * FROM pg_collation WHERE collprovider = 'i';`. Non-blocking — libc collation with UTF-8 is sufficient for Phase 1. |
+| 6 | ICU collation support | **Available and in use.** `docker-compose.yml` initializes with `--locale-provider=icu --icu-locale=en-US`. Verified ordering `a,A,b,B,e,é,Z` on postgres:18-alpine. |
 | 7 | Voat/Ruqqus Unicode patterns | **Identical to Reddit.** All three platforms: ASCII-only community names, full Unicode content fields. Confirmed from codebase (`voat_importer.py`, `voat_sql_parser.py`, `ruqqus_importer.py`, `input_validation.py`). |
 
 ### Remaining empirical tests (nice-to-have, not blocking)
 
 These can be verified when a Docker environment is available:
 
-- `SHOW lc_ctype;` — confirm `en_US.UTF-8` in running container
-- `SELECT * FROM pg_collation WHERE collprovider = 'i';` — confirm ICU availability
-- `SELECT show_trgm('日本語');` — verify pg_trgm CJK trigram extraction
+- ~~`SHOW lc_ctype;`~~ — done: `C` (see #2)
+- ~~ICU availability~~ — done: in use (see #6)
+- ~~`SELECT show_trgm('日本語');`~~ — done: `{}` with `ctype=C`, trigrams with `C.UTF-8` (see #4)
 - Sample Arctic Shift metadata dump for `lang` field distribution (if Feature 6 lands first)
 
 ---

@@ -19,7 +19,7 @@ This roadmap outlines the major development features for redd-archiver beyond v1
 | 2 | [Dynamic Serving Mode](02-dynamic-serving-mode.md) | Flask serves all pages (5 phases) | Implemented incl. Phase 5 caching (top50 rankings deferred) |
 | 3 | [Incremental Update System](03-incremental-update-system.md) | Arctic Shift monthly imports (4 phases) | Implemented |
 | 4 | [Visual Themes](04-visual-themes.md) | CSS theme system (4 phases) | Implemented (Phases 1–4; persistence toggles deferred) |
-| 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | In progress (Phase 1 + truncation fix implemented) |
+| 5 | [Unicode & Foreign Language Support](05-unicode-foreign-language-support.md) | Multilingual FTS, CJK support, text handling | In progress (Phase 1 + truncation + ICU collation done; Phase 2 needs `--lc-ctype=C.UTF-8` first) |
 | 6 | [Subreddit Metadata Enrichment](06-subreddit-metadata-enrichment.md) | Import descriptions, rules, wikis from Arctic Shift | Implemented (Phases 1–3; image archival deferred) |
 | 7 | [Voat Data Enrichment](07-voat-data-enrichment.md) | Subverse metadata, user profiles, thumbnails, flair (5 phases) | Implemented (top50 rankings deferred) |
 | 8 | [Pyright Type Checking](08-pyright-type-checking.md) | Add pyright standard mode, CI integration | Done (Phases 1–2; gradual strictness ongoing) |
