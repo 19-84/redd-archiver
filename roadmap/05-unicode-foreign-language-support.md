@@ -1,6 +1,6 @@
 # Feature 5: Unicode & Foreign Language Support
 
-**Status:** In progress. Phase 1 (`simple` regconfig), truncation fix, and ICU collation are implemented. Phase 2 (pg_trgm CJK fallback) is not started and is **blocked on a ctype change**: on the deployed locale config, pg_trgm extracts no trigrams from non-ASCII text (see "pg_trgm needs a UTF-8 ctype" below).
+**Status:** In progress. Phase 1 (`simple` regconfig), truncation fix, and ICU collation are implemented. Phase 2 (pg_trgm CJK fallback) is not started. Its ctype prerequisite is done for new clusters (#119). Clusters initialized before that keep `ctype=C`, where pg_trgm extracts no trigrams from non-ASCII text (see "pg_trgm needs a UTF-8 ctype" below).
 **Last updated:** 2026-09-29
 
 **Goal:** Ensure redd-archiver correctly stores, searches, displays, and indexes content from non-English subreddits, including CJK (Chinese/Japanese/Korean), Cyrillic, Arabic, and other scripts.
@@ -93,7 +93,7 @@ The ICU fix sets `--locale=C` so that musl's missing glibc locales stop producin
 | **Proposed:** current + `--lc-ctype=C.UTF-8` | 7 trigrams ✅ | 4 trigrams ✅ | `É` kept ✅ | `a,A,b,B,e,é,Z` ✅ | ✅ |
 | `--locale-provider=builtin --builtin-locale=C.UTF-8` | ✅ | ✅ | ✅ | `A,B,Z,a,b,e,é` ❌ (code-point order) | ✅ |
 
-**Recommendation:** add `--lc-ctype=C.UTF-8` to `POSTGRES_INITDB_ARGS` in `docker-compose.yml`. This makes pg_trgm work and keeps ICU linguistic ordering. It is a prerequisite for Phase 2. initdb runs once, so existing data directories keep `ctype=C` until re-initialized (dump/restore). A database's ctype cannot be altered in place.
+**Recommendation:** ✅ Done (#119). `--lc-ctype=C.UTF-8` added to `POSTGRES_INITDB_ARGS` in `docker-compose.yml` and the CI test service. This makes pg_trgm work and keeps ICU linguistic ordering. It is a prerequisite for Phase 2. initdb runs once, so existing data directories keep `ctype=C` until re-initialized (dump/restore). A database's ctype cannot be altered in place.
 
 ---
 
@@ -143,7 +143,7 @@ CREATE INDEX idx_posts_search ON posts
 Use `'simple'` regconfig for FTS, add `pg_trgm` GIN index as a fallback for substring/trigram matching. Query tsvector first, fall back to trigram for CJK queries.
 
 - `pg_trgm` is already available in the postgres:18 image (contrib module). No custom Docker build needed.
-- **Prerequisite:** a UTF-8 ctype (`--lc-ctype=C.UTF-8`). The deployed `ctype=C` makes pg_trgm ignore all non-ASCII characters. See "pg_trgm needs a UTF-8 ctype" above.
+- **Prerequisite (✅ done for new clusters, #119):** a UTF-8 ctype (`--lc-ctype=C.UTF-8`). The deployed `ctype=C` makes pg_trgm ignore all non-ASCII characters. See "pg_trgm needs a UTF-8 ctype" above.
 - Handles CJK queries of 3+ characters. Queries shorter than 3 CJK chars fall back to full index scan.
 - Effort: Medium — add trgm index, modify search queries to detect CJK and use appropriate strategy.
 

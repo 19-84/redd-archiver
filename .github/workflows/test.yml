@@ -17,6 +17,8 @@ jobs:
           POSTGRES_USER: reddarchiver
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: reddarchiver
+          # Match docker-compose.yml so tests run against the deployed locale config
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=en-US --locale=C --lc-ctype=C.UTF-8"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
