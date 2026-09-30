@@ -5,7 +5,7 @@
 
 **Goal:** Ensure redd-archiver correctly stores, searches, displays, and indexes content from non-English subreddits, including CJK (Chinese/Japanese/Korean), Cyrillic, Arabic, and other scripts.
 
-**Problem:** The codebase stores and displays Unicode text correctly (UTF-8 throughout). The original English-only FTS and CJK truncation issues are fixed. What remains: CJK text is not tokenized by FTS (Phase 2), pg_trgm cannot see non-ASCII characters on the deployed `ctype=C`, and the title index sends every non-ASCII-initial title (including accented Latin) to the `0-9` bucket.
+**Problem:** The codebase stores and displays Unicode text correctly (UTF-8 throughout). The original English-only FTS and CJK truncation issues are fixed. What remains: CJK text is not tokenized by FTS (Phase 2), pg_trgm cannot see non-ASCII characters on the deployed `ctype=C`, and the title index still sends non-Latin-initial titles (CJK, Cyrillic, Arabic) to the `0-9` bucket.
 
 ---
 
@@ -69,7 +69,7 @@ Arctic Shift API search fields relevant to us: `title`, `selftext`, `query` (bot
 | CJK not tokenized by FTS | `'simple'` parser | A space-less CJK run is one lexeme: `to_tsvector('simple', '日本語の検索')` → `'日本語の検索'`. A search for `日本語` does not match it. Phase 2 target. | **High** for CJK archives |
 | ~~Search operator regex `\w+`~~ | `utils/search_operators.py` | ✅ **Not a Unicode problem.** Python 3 `\w` is Unicode-aware; `sub:русский` and `author:Müller` parse (verified 2026-09-29). The real bug was hyphens: `author:some-user` was cut at `-`. Fixed in #115, which also fixed uppercase operators being left in the query text. | — |
 | ~~Smart text truncation~~ | `html_modules/jinja_filters.py` `truncate_smart` | ✅ **Fixed.** Hard-truncates space-less (CJK) runs instead of a no-op word break. | — |
-| Title index bucketing (Feature 1) | `html_modules/html_static_indexes.py` `letter_bucket` | **Built, but everything outside ASCII a–z goes to `0-9`**, including accented Latin (`Éclair`, `über`), Cyrillic, and CJK. A non-English subreddit's title index is one giant `0-9` page. | **Medium** |
+| Title index bucketing (Feature 1) | `html_static_indexes.py` `letter_bucket` + `PostgresDatabase._TITLE_BUCKET_SQL` | ✅ **Accented Latin fixed (#118):** NFKD folding puts `Éclair` under `e` and `über` under `u`, in both static (Python) and dynamic (SQL) modes, with a parity test. Non-Latin scripts (CJK, Cyrillic, Arabic) and `ß`/`Æ`/`Ø` still go to `0-9`. | **Low** (non-Latin only) |
 | Flair slugs for non-Latin flair | `html_static_indexes.py` `flair_slugs` | Non-alphanumeric-ASCII flair collapses to `flair`, `flair-2`, … (unique, but unreadable URLs). | **Low** |
 
 ### Investigated (needs re-verification on Alpine)
@@ -206,11 +206,11 @@ def truncate_smart(text, length=150, suffix="..."):
 
 **File:** `html_modules/jinja_filters.py:116-137`
 
-### 4. Title index bucketing (Medium — built without this)
+### 4. Title index bucketing (Low — accented Latin fixed; non-Latin remains)
 
 **Current (2026-09-29):** Feature 1 shipped `letter_bucket()` in `html_modules/html_static_indexes.py`, which sends every title whose first character is not ASCII `a`–`z` to `0-9`. That includes accented Latin (`Éclair`, `über`), so French/German/Spanish subreddits are affected, not just non-Latin ones.
 
-**Cheap first step:** fold diacritics before bucketing (`unicodedata.normalize("NFKD", c)[0]`), so `É` → `e` and `ü` → `u`.
+**Cheap first step:** ✅ Done in #118. Diacritics fold before bucketing (NFKD in Python and in SQL), so `É` → `e` and `ü` → `u`. Remaining: the non-Latin bucket below.
 
 **Proposed approach:** Add a catch-all bucket for titles starting with non-Latin characters.
 
