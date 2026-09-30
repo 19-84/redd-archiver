@@ -20,7 +20,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def fetch_instance_api(url: str, use_tor: bool = False) -> dict:
@@ -252,7 +252,7 @@ def generate_instance_json(data: dict, api_data: dict, is_tor_only: bool, user_p
         "instance_id": instance_id,
         "name": instance_name,
         "maintainer": data.get("maintainer_github"),
-        "registered": datetime.utcnow().strftime("%Y-%m-%d"),
+        "registered": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "endpoints": endpoints,
         "static_metadata": static_metadata,
         "features": features,

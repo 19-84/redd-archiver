@@ -248,6 +248,7 @@ class PostgresConnectionPool:
                 timeout=self.connection_timeout,
                 max_idle=30.0,  # 30 seconds max idle time (reduced from 5min for faster memory release)
                 max_lifetime=3600.0,  # 1 hour max connection lifetime
+                open=True,  # explicit: psycopg_pool's default is changing to open=False
                 kwargs={
                     "options": "-c jit=on -c max_parallel_workers_per_gather=4",
                     "connect_timeout": int(self.connection_timeout),

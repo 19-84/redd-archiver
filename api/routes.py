@@ -20,6 +20,7 @@ from core.postgres_search import PostgresSearch, SearchQuery
 from utils.error_handling import format_user_error
 from utils.input_validation import validator
 from utils.search_operators import parse_search_operators
+from utils.time_utils import utc_now
 
 from . import api_v1
 
@@ -591,7 +592,7 @@ def data_to_csv(data: list[dict], filename_prefix: str = "export") -> Any:
             "",
             mimetype="text/csv",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename_prefix}_{datetime.utcnow().strftime("%Y-%m-%d")}.csv"'
+                "Content-Disposition": f'attachment; filename="{filename_prefix}_{utc_now().strftime("%Y-%m-%d")}.csv"'
             },
         )
 
@@ -622,7 +623,7 @@ def data_to_csv(data: list[dict], filename_prefix: str = "export") -> Any:
         csv_content,
         mimetype="text/csv",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename_prefix}_{datetime.utcnow().strftime("%Y-%m-%d")}.csv"'
+            "Content-Disposition": f'attachment; filename="{filename_prefix}_{utc_now().strftime("%Y-%m-%d")}.csv"'
         },
     )
 
@@ -650,7 +651,7 @@ def data_to_ndjson(data: list[dict], filename_prefix: str = "export") -> Any:
         ndjson_content,
         mimetype="application/x-ndjson",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename_prefix}_{datetime.utcnow().strftime("%Y-%m-%d")}.ndjson"'
+            "Content-Disposition": f'attachment; filename="{filename_prefix}_{utc_now().strftime("%Y-%m-%d")}.ndjson"'
         },
     )
 
@@ -698,7 +699,7 @@ def api_health():
                     "status": "healthy",
                     "database": "connected",
                     "api_version": "1.0",
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": utc_now().isoformat() + "Z",
                 }
             ), 200
         else:
@@ -707,14 +708,14 @@ def api_health():
                     "status": "unhealthy",
                     "database": "disconnected",
                     "api_version": "1.0",
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": utc_now().isoformat() + "Z",
                 }
             ), 503
 
     except Exception as e:
         format_user_error(e, "api_health")
         return jsonify(
-            {"status": "unhealthy", "error": "Service unavailable", "timestamp": datetime.utcnow().isoformat() + "Z"}
+            {"status": "unhealthy", "error": "Service unavailable", "timestamp": utc_now().isoformat() + "Z"}
         ), 503
 
 
@@ -793,7 +794,7 @@ def get_stats():
                 {
                     "archive_version": "1.1.0",
                     "api_version": "1.0",
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": utc_now().isoformat() + "Z",
                     "instance": get_instance_metadata(),
                     "content": {
                         "total_posts": total_posts_sum,

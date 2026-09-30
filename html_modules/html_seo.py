@@ -19,6 +19,7 @@ from typing import Any
 from core.postgres_database import PostgresDatabase
 from html_modules.platform_utils import get_url_prefix
 from utils.console_output import print_error, print_info, print_success
+from utils.time_utils import utc_from_timestamp
 
 # Module-level stop words set (created once, not recreated per function call)
 # Using frozenset for immutability and O(1) lookup performance
@@ -890,7 +891,7 @@ def generate_discussion_forum_posting_structured_data(
 
     # Convert timestamp to ISO format
     created_date = (
-        datetime.utcfromtimestamp(
+        utc_from_timestamp(
             int(post_data["created_utc"]) if isinstance(post_data["created_utc"], str) else post_data["created_utc"]
         ).isoformat()
         + "Z"
@@ -1533,7 +1534,7 @@ def get_post_urls_for_sitemap(
                 for row in cursor:
                     # Convert timestamp to ISO date
                     try:
-                        created_date = datetime.utcfromtimestamp(int(row["created_utc"])).strftime("%Y-%m-%d")
+                        created_date = utc_from_timestamp(int(row["created_utc"])).strftime("%Y-%m-%d")
                     except:
                         created_date = datetime.now().strftime("%Y-%m-%d")
 

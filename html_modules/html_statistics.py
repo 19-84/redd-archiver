@@ -14,6 +14,7 @@ from statistics import mean, median
 from typing import Any
 
 from html_modules.html_utils import format_file_size, get_directory_size
+from utils.time_utils import utc_from_timestamp
 
 
 def calculate_real_engagement_metrics(threads: list[dict[str, Any]]) -> dict[str, Any]:
@@ -329,7 +330,7 @@ def calculate_subreddit_statistics(
 
         # Time analysis
         try:
-            post_date = datetime.utcfromtimestamp(
+            post_date = utc_from_timestamp(
                 int(thread["created_utc"]) if isinstance(thread["created_utc"], str) else thread["created_utc"]
             )
             stats["earliest_date"] = min(stats["earliest_date"], post_date)

@@ -17,6 +17,8 @@ from datetime import datetime
 
 import psutil
 
+from .time_utils import utc_now
+
 
 def get_timestamp() -> str:
     """Generate timestamp for console output"""
@@ -28,7 +30,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record):
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": utc_now().isoformat() + "Z",
             "level": record.levelname,
             "message": record.getMessage(),
             "process_id": os.getpid(),

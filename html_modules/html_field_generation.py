@@ -5,6 +5,8 @@ import calendar
 from datetime import datetime
 from typing import Any
 
+from utils.time_utils import utc_from_timestamp
+
 
 def safe_int_conversion(value: Any, default_time: int | None = None) -> int:
     """
@@ -122,7 +124,7 @@ def generate_edit_indicator(item: dict[str, Any]) -> str:
         return ""
 
     if isinstance(item["edited"], int | float) and item["edited"]:
-        edit_time = datetime.utcfromtimestamp(
+        edit_time = utc_from_timestamp(
             int(item["edited"]) if isinstance(item["edited"], str) else item["edited"]
         ).strftime("%d %b %Y %H:%M")
         return f'<span class="edited-marker" title="Edited {edit_time}">*</span>'
@@ -172,7 +174,7 @@ def generate_status_indicators(item: dict[str, Any]) -> str:
     if item.get("archived", False):
         # Calculate archive date (Reddit auto-archives posts after 6 months)
         try:
-            post_date = datetime.utcfromtimestamp(safe_int_conversion(item["created_utc"]))
+            post_date = utc_from_timestamp(safe_int_conversion(item["created_utc"]))
 
             # Add 6 months safely by handling day overflow
             target_year = post_date.year
@@ -367,8 +369,8 @@ def generate_author_age_tooltip(item: dict[str, Any]) -> str:
         return ""
 
     try:
-        account_created = datetime.utcfromtimestamp(safe_int_conversion(item["author_created_utc"]))
-        content_created = datetime.utcfromtimestamp(safe_int_conversion(item["created_utc"]))
+        account_created = utc_from_timestamp(safe_int_conversion(item["author_created_utc"]))
+        content_created = utc_from_timestamp(safe_int_conversion(item["created_utc"]))
         age_diff = content_created - account_created
 
         years = age_diff.days // 365

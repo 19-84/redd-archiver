@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from utils.console_output import print_error
+from utils.time_utils import utc_from_timestamp
 
 
 def safe_int_conversion(value: Any, default_time: int | None = None) -> int:
@@ -57,8 +58,8 @@ def generate_enhanced_author_tooltip(item: dict[str, Any]) -> str:
         return ""
 
     try:
-        account_created = datetime.utcfromtimestamp(safe_int_conversion(item["author_created_utc"]))
-        content_created = datetime.utcfromtimestamp(safe_int_conversion(item["created_utc"]))
+        account_created = utc_from_timestamp(safe_int_conversion(item["author_created_utc"]))
+        content_created = utc_from_timestamp(safe_int_conversion(item["created_utc"]))
         age_diff = content_created - account_created
 
         years = age_diff.days // 365

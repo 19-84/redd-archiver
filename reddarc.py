@@ -21,6 +21,7 @@ from utils.console_output import (
     print_warning,
 )
 from utils.simple_json_utils import save_subreddit_list
+from utils.time_utils import utc_from_timestamp
 
 # Version information
 from version import get_version_string
@@ -42,7 +43,7 @@ def get_thread_meta(thread: dict) -> dict:
         "score": thread["score"],
         "replies": str(int(float(comments_count))) if comments_count is not None else "0",
         "body_short": thread["selftext"][:200],
-        "date": datetime.utcfromtimestamp(int(float(thread["created_utc"]))).strftime("%Y-%m-%d"),
+        "date": utc_from_timestamp(int(float(thread["created_utc"]))).strftime("%Y-%m-%d"),
         "author": thread["author"],
         "subreddit": thread["subreddit"],
         "url": thread.get("url", ""),
@@ -79,7 +80,7 @@ def get_comment_meta(comment: dict) -> dict:
         "body": comment.get("body", ""),
         "body_short": comment.get("body", "")[:200],
         "score": comment.get("score", ""),
-        "date": datetime.utcfromtimestamp(int(comment["created_utc"])).strftime("%Y-%m-%d"),
+        "date": utc_from_timestamp(int(comment["created_utc"])).strftime("%Y-%m-%d"),
         "author": comment.get("author", "[deleted]"),
         "subreddit": comment.get("subreddit", ""),
         "link_id": comment.get("link_id", ""),

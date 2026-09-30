@@ -4,11 +4,12 @@
 # ABOUTME: Custom Jinja2 filters for Pushshift data formatting and display with LRU caching
 # ABOUTME: Provides cached filters for dates, scores, numbers, text truncation, and tooltips
 
-from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
 from markupsafe import Markup
+
+from utils.time_utils import utc_from_timestamp
 
 # ============================================================================
 # CACHED FILTER IMPLEMENTATIONS (for performance)
@@ -18,14 +19,14 @@ from markupsafe import Markup
 @lru_cache(maxsize=10000)
 def _reddit_date_cached(timestamp_int: int, format_str: str) -> str:
     """Cached date conversion - internal use only"""
-    dt = datetime.utcfromtimestamp(timestamp_int)
+    dt = utc_from_timestamp(timestamp_int)
     return dt.strftime(format_str)
 
 
 @lru_cache(maxsize=10000)
 def _date_tooltip_cached(timestamp_int: int) -> Markup:
     """Cached date tooltip - internal use only"""
-    dt = datetime.utcfromtimestamp(timestamp_int)
+    dt = utc_from_timestamp(timestamp_int)
     full_date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
     return Markup('title="Posted: {}"').format(full_date)
 
@@ -264,7 +265,7 @@ def author_tooltip(post: dict[str, Any]) -> Markup:
         author_created = post.get("author_created_utc")
 
         if author_created:
-            dt = datetime.utcfromtimestamp(int(author_created))
+            dt = utc_from_timestamp(int(author_created))
             account_date = dt.strftime("%Y-%m-%d")
             return Markup('title="Redditor since {}"').format(account_date)
         else:
