@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (CodeQL `py/url-redirection`).
 
 ### Fixed
+- Title index filed every title not starting with ASCII a–z under `0-9`,
+  including accented Latin (`Émile`, `über`, `Ñandú`). The first character is
+  now NFKD-folded to its base letter in both static (Python) and dynamic (SQL)
+  modes, and a parity test keeps the two in sync. Non-Latin scripts still use
+  `0-9` (#118).
 - Comment/post import dropped an entire COPY batch (up to ~1,000 rows) when the
   source contained a duplicate ID within that batch — the staging table's
   PRIMARY KEY aborted the whole COPY, not just the dup. Observed on the Voat
