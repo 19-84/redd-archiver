@@ -75,6 +75,10 @@ reddarc.py --update-status   # audit what has been applied
 
 **Why now?** Communities get banned, platforms shut down, discussions vanish. Start preserving today.
 
+## 🚀 One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Redd-Archiver/)
+
 ---
 
 ## Documentation
